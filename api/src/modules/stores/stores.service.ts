@@ -1,14 +1,17 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Store } from "@prisma/client";
+import { AuditAction, Prisma, Store } from "@prisma/client";
+import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { PrismaService } from "../../prisma/prisma.service";
-import { PaginationQueryDto } from "../../common/dto/pagination-query.dto";
 import { CreateStoreDto } from "./dto/create-store.dto";
+import { StoreQueryDto } from "./dto/store-query.dto";
+import { UpdateStoreDto } from "./dto/update-store.dto";
 
-interface PaginatedResult<T> {
+export interface PaginatedResult<T> {
   data: T[];
   meta: { total: number; page: number; limit: number; totalPages: number };
 }
@@ -17,18 +20,25 @@ interface PaginatedResult<T> {
 export class StoresService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(query: PaginationQueryDto): Promise<PaginatedResult<Store>> {
-    const { page, limit } = query;
+  async findAll(query: StoreQueryDto): Promise<PaginatedResult<Store>> {
+    const { page, limit, search } = query;
     const skip = (page - 1) * limit;
+
+    const where: Prisma.StoreWhereInput = {
+      isActive: true,
+      ...(search
+        ? { name: { contains: search, mode: "insensitive" } }
+        : undefined),
+    };
 
     const [stores, total] = await Promise.all([
       this.prisma.store.findMany({
-        where: { isActive: true },
+        where,
         skip,
         take: limit,
         orderBy: { createdAt: "desc" },
       }),
-      this.prisma.store.count({ where: { isActive: true } }),
+      this.prisma.store.count({ where }),
     ]);
 
     return {
@@ -54,15 +64,86 @@ export class StoresService {
     return store;
   }
 
-  async create(dto: CreateStoreDto): Promise<Store> {
+  async create(dto: CreateStoreDto, user: CurrentUserPayload): Promise<Store> {
+    await this.assertUniqueName(dto.name);
+
+    const store = await this.prisma.store.create({ data: dto });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: AuditAction.STORE_CREATED,
+        entityType: "store",
+        entityId: store.id,
+        oldValue: Prisma.JsonNull,
+        newValue: store,
+      },
+    });
+
+    return store;
+  }
+
+  async update(
+    id: string,
+    dto: UpdateStoreDto,
+    user: CurrentUserPayload,
+  ): Promise<Store> {
+    if (Object.keys(dto).length === 0) {
+      throw new BadRequestException("At least one field must be provided");
+    }
+
+    const existing = await this.findOne(id);
+
+    if (dto.name && dto.name !== existing.name) {
+      await this.assertUniqueName(dto.name);
+    }
+
+    const store = await this.prisma.store.update({
+      where: { id },
+      data: dto,
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: AuditAction.STORE_UPDATED,
+        entityType: "store",
+        entityId: store.id,
+        oldValue: existing,
+        newValue: store,
+      },
+    });
+
+    return store;
+  }
+
+  async deactivate(id: string, user: CurrentUserPayload): Promise<void> {
+    const existing = await this.findOne(id);
+
+    await this.prisma.store.update({
+      where: { id },
+      data: { isActive: false },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: AuditAction.STORE_DEACTIVATED,
+        entityType: "store",
+        entityId: id,
+        oldValue: existing,
+        newValue: { ...existing, isActive: false },
+      },
+    });
+  }
+
+  private async assertUniqueName(name: string): Promise<void> {
     const existing = await this.prisma.store.findFirst({
-      where: { name: dto.name, isActive: true },
+      where: { name, isActive: true },
     });
 
     if (existing) {
-      throw new ConflictException(`A store named "${dto.name}" already exists`);
+      throw new ConflictException(`A store named "${name}" already exists`);
     }
-
-    return this.prisma.store.create({ data: dto });
   }
 }
