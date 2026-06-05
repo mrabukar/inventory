@@ -22,5 +22,4 @@ export const envValidationSchema = Joi.object({
     otherwise: Joi.string().optional(),
   }),
   ALLOW_PUBLIC_SIGNUP: Joi.string().valid("true", "false").optional(),
-  SWAGGER_ENABLED: Joi.string().valid("true", "false").optional(),
 });
