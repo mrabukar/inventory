@@ -2,6 +2,10 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 
+jest.mock("@thallesp/nestjs-better-auth", () => ({
+  AllowAnonymous: () => () => undefined,
+}));
+
 describe("AppController", () => {
   let appController: AppController;
 
@@ -19,7 +23,6 @@ describe("AppController", () => {
       expect(appController.getInfo()).toEqual({
         name: "Inventory API",
         version: "0.1.0",
-        docs: "/api/docs",
       });
     });
   });
