@@ -33,14 +33,14 @@ This document defines the exact conventions, patterns, and rules to follow when 
 | Auth guard | Global `BetterAuthGuard` — all routes protected by default |
 | Rate limiting | Global `ThrottlerGuard` — 100 req/min |
 | Validation | `class-validator` + `class-transformer` |
-| API docs | `@nestjs/swagger` — available at `/api/docs` |
+| API testing | Postman (cookie-based session auth) |
 | Logging | `nestjs-pino` — structured JSON |
 
 **Key global behaviours:**
 - Every route requires a valid session **by default** — opt out with `@AllowAnonymous()`
 - Rate limiting applies to every route **by default** — opt out with `@SkipThrottle()`
 - Validation pipe is global — DTOs with `class-validator` decorators are validated automatically
-- Cookie name for Swagger auth: `better-auth.session_token`
+- Session cookie name: `better-auth.session_token`
 
 ---
 
@@ -87,90 +87,43 @@ findAll(@CurrentUser() user: CurrentUserPayload) {
 
 **File:** `src/common/decorators/roles.decorator.ts`
 
+Uses the `"ROLES"` metadata key read by Better Auth's global AuthGuard. Do **not** register a separate `RolesGuard`.
+
 ```typescript
 import { SetMetadata } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 
-export const ROLES_KEY = 'roles';
-export const Roles = (...roles: ('admin' | 'branch_manager')[]) =>
-  SetMetadata(ROLES_KEY, roles);
+export const ROLES_KEY = 'ROLES';
+export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);
+```
+
+Apply at controller or method level:
+
+```typescript
+@Roles(UserRole.admin)
+@Controller('stores')
+export class StoresController { ... }
 ```
 
 ---
 
-### 2.3 `RolesGuard`
-
-**File:** `src/common/guards/roles.guard.ts`
-
-Reads the `@Roles()` metadata and compares against the current user's role. Must be applied **after** the auth guard (which is global), so the user is always available.
-
-```typescript
-import {
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { ROLES_KEY } from '../decorators/roles.decorator';
-
-@Injectable()
-export class RolesGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
-
-  canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-
-    if (!requiredRoles || requiredRoles.length === 0) {
-      return true;
-    }
-
-    const request = context.switchToHttp().getRequest();
-    const user = request.session?.user;
-
-    if (!user) {
-      throw new ForbiddenException('Forbidden');
-    }
-
-    if (!requiredRoles.includes(user.role)) {
-      throw new ForbiddenException('Forbidden');
-    }
-
-    return true;
-  }
-}
-```
-
-**Registration:** Add `RolesGuard` as a global guard in `AppModule` (after `ThrottlerGuard`):
-
-```typescript
-{ provide: APP_GUARD, useClass: RolesGuard }
-```
-
----
-
-### 2.4 `PaginationQueryDto`
+### 2.3 `PaginationQueryDto`
 
 **File:** `src/common/dto/pagination-query.dto.ts`
 
 Shared query DTO for all list endpoints.
 
 ```typescript
-import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 
 export class PaginationQueryDto {
-  @ApiPropertyOptional({ default: 1, minimum: 1 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   page: number = 1;
 
-  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -182,7 +135,7 @@ export class PaginationQueryDto {
 
 ---
 
-### 2.5 `PaginatedResponseDto<T>`
+### 2.4 `PaginatedResponseDto<T>`
 
 **File:** `src/common/dto/paginated-response.dto.ts`
 
@@ -222,9 +175,9 @@ Follow this order for **every single endpoint**:
 
 1. **DTO first** — define the input shape and validation before anything else
 2. **Service method** — write the business logic using Prisma
-3. **Controller route** — wire the DTO + service + Swagger decorators
+3. **Controller route** — wire the DTO + service + HTTP decorators (`@Get`, `@Post`, `@Roles`, etc.)
 4. **Register module** — import into `AppModule`
-5. **Test in Swagger** — verify before moving to next endpoint
+5. **Test in Postman** — verify before moving to next endpoint
 
 ---
 
@@ -232,10 +185,9 @@ Follow this order for **every single endpoint**:
 
 ### 5.1 Rules
 
-- Every input field must have `@ApiProperty` or `@ApiPropertyOptional`
 - Every field must have at least one `class-validator` decorator
 - Use `@IsOptional()` before other validators on optional fields
-- Use `PartialType(CreateXxxDto)` for update DTOs — never rewrite fields manually
+- Use `PartialType(CreateXxxDto)` from `@nestjs/mapped-types` for update DTOs — never rewrite fields manually
 - String inputs: always add `@IsString()` + `@MaxLength(n)`
 - Decimal inputs: use `@IsNumber()` + `@IsPositive()` + `@Type(() => Number)`
 - Date inputs: use `@IsDateString()`
@@ -245,32 +197,23 @@ Follow this order for **every single endpoint**:
 ### 5.2 Create DTO example
 
 ```typescript
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsString, MaxLength } from 'class-validator';
 
 export class CreateStoreDto {
-  @ApiProperty({ example: 'Main Branch' })
   @IsString()
   @MaxLength(100)
   name: string;
 
-  @ApiProperty({ example: '123 Main St, City' })
   @IsString()
   @MaxLength(255)
   address: string;
-
-  @ApiPropertyOptional({ example: '+1234567890' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(20)
-  phone?: string;
 }
 ```
 
 ### 5.3 Update DTO
 
 ```typescript
-import { PartialType } from '@nestjs/swagger';
+import { PartialType } from '@nestjs/mapped-types';
 import { CreateStoreDto } from './create-store.dto';
 
 export class UpdateStoreDto extends PartialType(CreateStoreDto) {}
@@ -279,12 +222,10 @@ export class UpdateStoreDto extends PartialType(CreateStoreDto) {}
 ### 5.4 List query DTO
 
 ```typescript
-import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
 export class StoreQueryDto extends PaginationQueryDto {
-  @ApiPropertyOptional({ description: 'Filter by name (partial match)' })
   @IsOptional()
   @IsString()
   search?: string;
@@ -298,40 +239,32 @@ export class StoreQueryDto extends PaginationQueryDto {
 ### 6.1 Required decorators on every controller
 
 ```typescript
-@ApiTags('Stores')                          // groups in Swagger
-@ApiCookieAuth('better-auth.session_token') // shows auth lock in Swagger
+@Roles(UserRole.admin)
 @Controller('stores')
 export class StoresController { ... }
 ```
 
-### 6.2 Required decorators on every protected route
-
-```typescript
-@ApiUnauthorizedResponse({ schema: { example: { message: 'Unauthorized' } } })
-@ApiForbiddenResponse({ schema: { example: { message: 'Forbidden' } } })
-```
-
-### 6.3 Role restriction
+### 6.2 Role restriction
 
 Apply `@Roles()` at the controller level if the **entire** controller is for one role, or per-method if mixed:
 
 ```typescript
 // Entire controller is admin-only:
-@Roles('admin')
+@Roles(UserRole.admin)
 @Controller('stores')
 export class StoresController { ... }
 
 // Mixed roles per method:
-@Roles('admin')
+@Roles(UserRole.admin)
 @Post()
 create(...) {}
 
-@Roles('admin', 'branch_manager')
+@Roles(UserRole.admin, UserRole.branch_manager)
 @Get(':id')
 findOne(...) {}
 ```
 
-### 6.4 Response status codes
+### 6.3 Response status codes
 
 | Operation | Decorator | Status |
 |---|---|---|
@@ -340,17 +273,13 @@ findOne(...) {}
 | PATCH (update) | _(default)_ | 200 |
 | DELETE / deactivate | `@HttpCode(HttpStatus.NO_CONTENT)` | 204 |
 
-### 6.5 Full controller method example
+### 6.4 Full controller method example
 
 ```typescript
 @Post()
-@Roles('admin')
-@ApiOperation({ summary: 'Create a new store' })
-@ApiCreatedResponse({ description: 'Store created' })
-@ApiBadRequestResponse({ description: 'Validation failed' })
-@ApiUnauthorizedResponse({ schema: { example: { message: 'Unauthorized' } } })
-@ApiForbiddenResponse({ schema: { example: { message: 'Forbidden' } } })
-async create(
+@HttpCode(HttpStatus.CREATED)
+@Roles(UserRole.admin)
+create(
   @Body() dto: CreateStoreDto,
   @CurrentUser() user: CurrentUserPayload,
 ) {
@@ -358,7 +287,7 @@ async create(
 }
 ```
 
-### 6.6 Never do these in controllers
+### 6.5 Never do these in controllers
 
 - No business logic — delegate everything to the service
 - No Prisma calls — that belongs in the service
@@ -440,10 +369,10 @@ The global `BetterAuthGuard` validates the session cookie on every request. If t
 
 ### 8.2 How roles work
 
-`RolesGuard` (global) reads `@Roles()` metadata:
+Better Auth's global `AuthGuard` reads `@Roles()` metadata after resolving the session:
 - No `@Roles()` → any authenticated user can access
-- `@Roles('admin')` → admin only
-- `@Roles('admin', 'branch_manager')` → any authenticated user (same as no decorator, but explicit)
+- `@Roles(UserRole.admin)` → admin only
+- `@Roles(UserRole.admin, UserRole.branch_manager)` → any authenticated user (same as no decorator, but explicit)
 
 ### 8.3 Public routes
 
@@ -589,7 +518,7 @@ export class StoresModule {}
 
 ## 14. Module Build Order
 
-Build and test one endpoint at a time via Swagger before moving on.
+Build and test one endpoint at a time in Postman before moving on.
 
 | # | Module | Endpoints |
 |---|---|---|
