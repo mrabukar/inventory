@@ -1,0 +1,41 @@
+# Dependencies
+api/node_modules/
+web/node_modules/
+
+# Build output
+api/dist/
+web/.next/
+web/out/
+
+# Environment
+api/.env
+web/.env.local
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test / coverage
+api/coverage/
+web/coverage/
+
+# Prisma
+api/prisma/*.db
+api/prisma/*.db-journal
+
+
+# claude generate desing
+claude/
+
+# Microsoft Office temp files
+~$*.docx
+~$*.xlsx
+~$*.pptx
