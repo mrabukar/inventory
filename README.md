@@ -13,7 +13,7 @@ api/src/
 ├── main.ts
 ├── app.module.ts
 ├── config/
-│   └── swagger.config.ts
+│   └── env.validation.ts
 ├── prisma/                 # shared DB layer
 │   ├── prisma.module.ts
 │   └── prisma.service.ts
@@ -56,26 +56,25 @@ Future domain modules (`products`, `stores`, etc.) go under `api/src/modules/<na
    pnpm start:dev
    ```
 
-The server listens on `http://localhost:<PORT>` (default `PORT=3000` in `.env.example`).
+The server listens on `http://localhost:<PORT>` (default `PORT=4000` in `.env.example`).
 
-### Swagger (API testing)
+### API testing (Postman)
 
-Swagger UI is available at `http://localhost:<PORT>/api/docs` when `NODE_ENV` is not `production`.
+Use Postman (or curl) to test endpoints. Auth routes under `/api/auth/*` are served by Better-Auth.
 
-Auth endpoints under `/api/auth/*` are served by Better-Auth and documented in Swagger under **Auth**. To test protected endpoints:
-
-1. Sign in via curl/Postman and capture the session cookie:
+1. Sign in and capture the session cookie:
 
    ```bash
    curl -i -c cookies.txt -b cookies.txt \
      -X POST http://localhost:4000/api/auth/sign-in/email \
      -H "Content-Type: application/json" \
+     -H "Origin: http://localhost:4000" \
      -d '{"email":"admin@example.com","password":"Password1"}'
    ```
 
-2. In Swagger UI, click **Authorize** and set the `better-auth.session_token` cookie value.
+2. Postman stores the `better-auth.session_token` cookie automatically for the same host.
 
-3. Try `GET /api/me` or `GET /api/auth/get-session` from the **Auth** section.
+3. Call protected routes such as `GET /api/me` or `GET /stores`.
 
 ### Health checks
 
@@ -86,7 +85,7 @@ Auth endpoints under `/api/auth/*` are served by Better-Auth and documented in S
 
 ### Authentication (Better-Auth)
 
-Full setup guide: [api/docs/better-auth-and-swagger.md](api/docs/better-auth-and-swagger.md)
+Full setup guide: [api/docs/better-auth.md](api/docs/better-auth.md)
 
 Better-Auth handles auth routes under `/api/auth/*`. Sessions use an HTTP-only cookie (`better-auth.session_token`), 1-hour expiry, and `SameSite=Strict` (Secure in production).
 
