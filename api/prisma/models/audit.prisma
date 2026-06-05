@@ -1,0 +1,30 @@
+enum AuditAction {
+  USER_CREATED
+  PRODUCT_CREATED
+  STOCK_SUPPLIED
+  SALE_CREATED
+  SALE_CORRECTED
+  INVENTORY_UPDATED
+  USER_DEACTIVATED
+  PRODUCT_UPDATED
+  EXPENSE_CREATED
+  EXPENSE_UPDATED
+  EXPENSE_DELETED
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id])
+  action     AuditAction
+  entityType String
+  entityId   String
+  oldValue   Json?
+  newValue   Json?
+  createdAt  DateTime    @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@map("audit_log")
+}

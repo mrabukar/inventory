@@ -1,0 +1,80 @@
+model Inventory {
+  id                String   @id @default(cuid())
+  productId         String
+  product           Product  @relation(fields: [productId], references: [id])
+  storeId           String
+  store             Store    @relation(fields: [storeId], references: [id])
+  quantity          Int      @default(0)
+  lowStockThreshold Int      @default(5)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([productId, storeId])
+  @@index([storeId])
+  @@map("inventory")
+}
+
+enum SaleStatus {
+  active
+  corrected
+}
+
+model Sale {
+  id                String     @id @default(cuid())
+  productId         String
+  product           Product    @relation(fields: [productId], references: [id])
+  storeId           String
+  store             Store      @relation(fields: [storeId], references: [id])
+  soldById          String
+  soldBy            User       @relation("SalesSoldBy", fields: [soldById], references: [id])
+  quantitySold      Int
+  unitPrice         Decimal    @db.Decimal(10, 2)
+  unitPurchasePrice Decimal    @db.Decimal(10, 2)
+  totalAmount       Decimal    @db.Decimal(10, 2)
+  saleDate          DateTime   @db.Date
+  note              String?
+  status            SaleStatus @default(active)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  corrections SaleCorrection[]
+
+  @@index([storeId])
+  @@index([productId])
+  @@index([soldById])
+  @@index([saleDate])
+  @@map("sale")
+}
+
+model SaleCorrection {
+  id                String   @id @default(cuid())
+  saleId            String
+  sale              Sale     @relation(fields: [saleId], references: [id])
+  originalQuantity  Int
+  correctedQuantity Int
+  reason            String
+  correctedById     String
+  correctedBy       User     @relation("SaleCorrections", fields: [correctedById], references: [id])
+  createdAt         DateTime @default(now())
+
+  @@index([saleId])
+  @@map("sale_correction")
+}
+
+model StockSupply {
+  id                String   @id @default(cuid())
+  productId         String
+  product           Product  @relation(fields: [productId], references: [id])
+  storeId           String
+  store             Store    @relation(fields: [storeId], references: [id])
+  quantity          Int
+  unitPurchasePrice Decimal  @db.Decimal(10, 2)
+  suppliedById      String
+  suppliedBy        User     @relation("StockSupplies", fields: [suppliedById], references: [id])
+  note              String?
+  createdAt         DateTime @default(now())
+
+  @@index([storeId])
+  @@index([productId])
+  @@map("stock_supply")
+}

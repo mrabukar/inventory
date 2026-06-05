@@ -1,0 +1,2 @@
+-- Bootstrap migration: no domain tables yet.
+-- Run `pnpm prisma:migrate` against your Neon DATABASE_URL to apply.

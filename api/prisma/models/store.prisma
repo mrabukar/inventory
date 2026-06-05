@@ -1,0 +1,16 @@
+model Store {
+  id        String   @id @default(cuid())
+  name      String
+  address   String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]
+  inventory     Inventory[]
+  sales         Sale[]
+  stockSupplies StockSupply[]
+  expenses      Expense[]
+
+  @@map("store")
+}

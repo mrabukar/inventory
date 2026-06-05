@@ -1,0 +1,32 @@
+model ExpenseCategory {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  expenses Expense[]
+
+  @@map("expense_category")
+}
+
+model Expense {
+  id          String          @id @default(cuid())
+  title       String
+  amount      Decimal         @db.Decimal(10, 2)
+  categoryId  Int
+  category    ExpenseCategory @relation(fields: [categoryId], references: [id])
+  storeId     String?
+  store       Store?          @relation(fields: [storeId], references: [id])
+  expenseDate DateTime        @db.Date
+  receiptUrl  String?
+  note        String?
+  createdById String
+  createdBy   User            @relation("ExpensesCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([storeId])
+  @@index([expenseDate])
+  @@map("expense")
+}
