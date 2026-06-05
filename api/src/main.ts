@@ -3,7 +3,6 @@ import { NestFactory } from "@nestjs/core";
 import helmet from "helmet";
 import { Logger } from "nestjs-pino";
 import { AppModule } from "./app.module";
-import { setupSwagger } from "./config/swagger.config";
 import { parseTrustedOrigins } from "./modules/auth/auth.constants";
 
 async function bootstrap() {
@@ -11,6 +10,8 @@ async function bootstrap() {
     bodyParser: false,
     bufferLogs: true,
   });
+
+  app.setGlobalPrefix("api");
 
   app.useLogger(app.get(Logger));
 
@@ -35,7 +36,6 @@ async function bootstrap() {
     }),
   );
 
-  setupSwagger(app);
   await app.listen(process.env.PORT ?? 4000);
 }
 void bootstrap();
