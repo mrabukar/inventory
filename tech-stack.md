@@ -64,7 +64,6 @@ The system is split into two separate applications — a **NestJS REST API** (ba
 │   ├── NestJS Guards  (RBAC + store-scoped access)   │
 │   ├── class-validator  (request body validation)    │
 │   ├── @nestjs/throttler  (rate limiting)            │
-│   ├── @nestjs/swagger  (API documentation)          │
 │   └── Prisma Client  (database access)              │
 └───────────────────┬─────────────────────────────────┘
                     │
@@ -88,7 +87,6 @@ NestJS is a TypeScript-first Node.js framework built around modules, controllers
 **Why NestJS over Express:**
 - Built-in dependency injection — services are testable and decoupled
 - Decorator-based routing, guards, and interceptors — clean RBAC implementation
-- Native Swagger integration — API docs generated automatically
 - Module boundaries enforce separation between features (e.g., `ProductsModule`, `SalesModule`, `ExpensesModule`)
 
 **Core NestJS libraries:**
@@ -99,7 +97,7 @@ NestJS is a TypeScript-first Node.js framework built around modules, controllers
 | `@nestjs/common` | Decorators, pipes, guards, interceptors |
 | `@nestjs/platform-express` | Express adapter (default HTTP layer) |
 | `@nestjs/config` | Environment variable management via `.env` |
-| `@nestjs/swagger` | Auto-generates OpenAPI/Swagger documentation |
+| `@nestjs/mapped-types` | DTO utilities (`PartialType`, etc.) without OpenAPI |
 | `@nestjs/throttler` | Rate limiting (protects auth endpoints from brute force) |
 | `class-validator` | Decorator-based request body validation |
 | `class-transformer` | Transforms plain objects to class instances for validation |
@@ -382,7 +380,7 @@ TypeScript is used across the entire stack — NestJS backend, Next.js frontend,
 | **Prettier** | Code formatting — consistent style across backend and frontend |
 | **Husky + lint-staged** | Pre-commit hooks — runs ESLint and Prettier before every commit |
 | **Prisma Studio** | Visual database browser — useful during development |
-| **Swagger UI** | Auto-generated API docs at `/api/docs` — driven by `@nestjs/swagger` decorators |
+| **Postman** | Manual API testing — cookie-based session auth |
 | **Docker Compose** | Local development environment — runs PostgreSQL locally without a cloud DB |
 | **pnpm** | Package manager — fast, disk-efficient |
 
