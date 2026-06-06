@@ -62,19 +62,31 @@ model SaleCorrection {
 }
 
 model StockSupply {
-  id                String   @id @default(cuid())
+  id                String          @id @default(cuid())
   productId         String
-  product           Product  @relation(fields: [productId], references: [id])
+  product           Product         @relation(fields: [productId], references: [id])
   storeId           String
-  store             Store    @relation(fields: [storeId], references: [id])
+  store             Store           @relation(fields: [storeId], references: [id])
   quantity          Int
-  unitPurchasePrice Decimal  @db.Decimal(10, 2)
+  unitPurchasePrice Decimal         @db.Decimal(10, 2)
+  type              StockSupplyType @default(supply)
+  correctsSupplyId  String?
+  correctsSupply    StockSupply?    @relation("StockSupplyCorrection", fields: [correctsSupplyId], references: [id])
+  corrections       StockSupply[]   @relation("StockSupplyCorrection")
   suppliedById      String
-  suppliedBy        User     @relation("StockSupplies", fields: [suppliedById], references: [id])
+  suppliedBy        User            @relation("StockSupplies", fields: [suppliedById], references: [id])
   note              String?
-  createdAt         DateTime @default(now())
+  createdAt         DateTime        @default(now())
 
   @@index([storeId])
   @@index([productId])
+  @@index([correctsSupplyId])
+  @@index([type])
   @@map("stock_supply")
+}
+
+enum StockSupplyType {
+  supply
+  correction_add
+  correction_subtract
 }
