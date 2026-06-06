@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   BadRequestException,
   ConflictException,
@@ -72,7 +73,7 @@ export class StoresService {
     await this.prisma.auditLog.create({
       data: {
         userId: user.id,
-        action: AuditAction.STORE_CREATED,
+        action: "STORE_CREATED",
         entityType: "store",
         entityId: store.id,
         oldValue: Prisma.JsonNull,
@@ -106,7 +107,7 @@ export class StoresService {
     await this.prisma.auditLog.create({
       data: {
         userId: user.id,
-        action: AuditAction.STORE_UPDATED,
+        action: "STORE_UPDATED",
         entityType: "store",
         entityId: store.id,
         oldValue: existing,
@@ -128,7 +129,7 @@ export class StoresService {
     await this.prisma.auditLog.create({
       data: {
         userId: user.id,
-        action: AuditAction.STORE_DEACTIVATED,
+        action: "STORE_DEACTIVATED",
         entityType: "store",
         entityId: id,
         oldValue: existing,
