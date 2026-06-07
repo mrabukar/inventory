@@ -22,4 +22,5 @@ export const envValidationSchema = Joi.object({
     otherwise: Joi.string().optional(),
   }),
   ALLOW_PUBLIC_SIGNUP: Joi.string().valid("true", "false").optional(),
+  APP_TIMEZONE: Joi.string().default("Africa/Mogadishu"),
 });
