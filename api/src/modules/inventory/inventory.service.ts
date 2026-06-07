@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma, UserRole } from "@prisma/client";
+import { AuditAction, Prisma, UserRole } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ProductsService } from "../products/products.service";
@@ -121,6 +121,62 @@ export class InventoryService {
     }
 
     return inventory;
+  }
+
+  async updateLowStockThreshold(
+    storeId: string,
+    productId: string,
+    lowStockThreshold: number,
+    user: CurrentUserPayload,
+  ): Promise<InventoryWithDetails> {
+    const [store, product] = await Promise.all([
+      this.storesService.findOne(storeId),
+      this.productsService.findOne(productId),
+    ]);
+
+    const existing = await this.prisma.inventory.findFirst({
+      where: { storeId, productId },
+      include: {
+        product: { include: { category: true } },
+        store: true,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException(
+        `No inventory found for product "${product.name}" at store "${store.name}"`,
+      );
+    }
+
+    const updated = await this.prisma.inventory.update({
+      where: { id: existing.id },
+      data: { lowStockThreshold },
+      include: {
+        product: { include: { category: true } },
+        store: true,
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: AuditAction.INVENTORY_UPDATED,
+        entityType: "inventory",
+        entityId: updated.id,
+        oldValue: {
+          lowStockThreshold: existing.lowStockThreshold,
+          productId,
+          storeId,
+        },
+        newValue: {
+          lowStockThreshold: updated.lowStockThreshold,
+          productId,
+          storeId,
+        },
+      },
+    });
+
+    return updated;
   }
 
   private assertStoreAccess(storeId: string, user: CurrentUserPayload): void {
