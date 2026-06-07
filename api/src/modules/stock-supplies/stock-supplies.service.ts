@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
+import { lockInventoryForMutation } from "../../common/utils/inventory-lock.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ProductsService } from "../products/products.service";
 import { PaginatedResult, StoresService } from "../stores/stores.service";
@@ -158,9 +159,7 @@ export class StockSuppliesService {
     const resolvedPrice = unitPurchasePrice ?? Number(product.purchasePrice);
 
     const supplyId = await this.prisma.$transaction(async (tx) => {
-      const inventory = await tx.inventory.findUnique({
-        where: { productId_storeId: { productId, storeId } },
-      });
+      const inventory = await lockInventoryForMutation(tx, productId, storeId);
 
       const previousQty = inventory?.quantity ?? 0;
       const newQty = previousQty + signedQuantity;
