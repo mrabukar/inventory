@@ -47,6 +47,11 @@ export class StoresController {
     return this.storesService.deactivate(id, user);
   }
 
+  @Patch(":id/reactivate")
+  reactivate(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.storesService.reactivate(id, user);
+  }
+
   @Patch(":id")
   update(
     @Param("id") id: string,
