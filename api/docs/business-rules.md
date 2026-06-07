@@ -62,7 +62,28 @@ _Last updated: 2026-06-06_
 | Admin dashboard / financial summary / product distribution | ✓ | ✗ |
 | Manager dashboard | ✗ | ✓ |
 
-Store scoping for managers is enforced **inside each service** (e.g. `assertStoreAccess`, `resolveStoreFilter`). There is no shared `StoreScopeGuard` yet.
+### Store scoping (service layer)
+
+Branch managers may only access their assigned store (`user.storeId`). Admins are not restricted by store.
+
+Shared helpers in **`src/common/utils/store-scope.util.ts`** — call these from services after auth has attached `user`:
+
+| Helper | Use |
+|--------|-----|
+| `assertStoreAccess(storeId, user)` | Path/query store must match manager's store (403 if not) |
+| `resolveStoreFilter(user, queryStoreId?)` | List queries: admin may filter; manager always gets their store |
+| `requireManagerStore(user)` | Mutations with no store in request (submit sale, manager dashboard) |
+
+**Where applied:**
+
+| Module | Check |
+|--------|--------|
+| Inventory | `assertStoreAccess` on `:storeId` in path |
+| Sales list | `assertStoreAccess` if manager passes `?storeId=`; then `resolveStoreFilter` |
+| Sales create / correct | `requireManagerStore`; correct also verifies sale belongs to store |
+| Manager dashboard | `requireManagerStore` |
+
+Admin-only modules (stores, products, stock supply, expenses) rely on `@Roles` only.
 
 ---
 
@@ -413,15 +434,11 @@ Added in migration `20260606210000_inventory_quantity_non_negative`. Application
 
 ---
 
-### 12.9 Central `StoreScopeGuard`
+### 12.9 Central store-scoping helpers
 
-**Design (implicit):** Consistent store-scoped access for branch managers.
+**Design:** Consistent store-scoped access for branch managers.
 
-**Current state:** Each service implements its own checks (`assertStoreAccess`, `resolveStoreFilter`, `requireManagerStore`). Functionally correct for implemented modules, but **easy to miss** when adding new endpoints.
-
-**Impact:** New modules must remember to scope manually; no compile-time/shared guard enforcement.
-
----
+**Current state:** Shared utils in `src/common/utils/store-scope.util.ts`; each store-scoped **service** calls them (no global guard). See [§1 Store scoping](#store-scoping-service-layer).
 
 ### 12.10 Dedicated tabular report endpoints
 
