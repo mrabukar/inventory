@@ -9,6 +9,7 @@ import { CurrentUserPayload } from "../../common/decorators/current-user.decorat
 import { PrismaService } from "../../prisma/prisma.service";
 import { PaginatedResult } from "../stores/stores.service";
 import { CreateProductDto } from "./dto/create-product.dto";
+import { DeactivateProductDto } from "./dto/deactivate-product.dto";
 import { ProductQueryDto } from "./dto/product-query.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
 import { normalizeProductName } from "./product-name.util";
@@ -156,8 +157,23 @@ export class ProductsService {
     return product;
   }
 
-  async deactivate(id: string, user: CurrentUserPayload): Promise<void> {
+  async deactivate(
+    id: string,
+    dto: DeactivateProductDto,
+    user: CurrentUserPayload,
+  ): Promise<void> {
     const existing = await this.findOne(id);
+    const stockRows = await this.prisma.inventory.findMany({
+      where: { productId: id, quantity: { gt: 0 } },
+      include: { store: { select: { name: true } } },
+    });
+
+    if (stockRows.length > 0 && !dto.force) {
+      const totalUnits = stockRows.reduce((sum, row) => sum + row.quantity, 0);
+      throw new BadRequestException(
+        `Cannot deactivate product: ${totalUnits} unit(s) remain across ${stockRows.length} store(s). Zero stock first or send { "force": true }.`,
+      );
+    }
 
     await this.prisma.product.update({
       where: { id },
@@ -171,7 +187,20 @@ export class ProductsService {
         entityType: "product",
         entityId: id,
         oldValue: existing,
-        newValue: { ...existing, isActive: false },
+        newValue: {
+          ...existing,
+          isActive: false,
+          ...(dto.force && stockRows.length > 0
+            ? {
+                forcedDespiteStock: true,
+                remainingStock: stockRows.map((row) => ({
+                  storeId: row.storeId,
+                  storeName: row.store.name,
+                  quantity: row.quantity,
+                })),
+              }
+            : undefined),
+        },
       },
     });
   }
