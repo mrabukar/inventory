@@ -59,6 +59,12 @@ type CategoryStockRow = {
   categoryName: string;
   units: number;
 };
+type ProductDistributionRow = {
+  categoryId: number;
+  categoryName: string;
+  unitsSold: number;
+  percent: number;
+};
 
 const recentSaleInclude = {
   product: { include: { category: true } },
@@ -94,6 +100,8 @@ export class ReportsService {
       expenseBreakdown,
       topProducts,
       topStores,
+      productDistribution,
+      stockByCategory,
       recentSales,
       lowStock,
     ] = await Promise.all([
@@ -104,6 +112,8 @@ export class ReportsService {
       this.fetchExpenseBreakdown(expenseWhere),
       this.fetchTopProducts(saleWhere),
       storeId ? Promise.resolve([]) : this.fetchTopStores(saleWhere),
+      this.fetchProductDistribution(saleWhere),
+      this.fetchStockByCategory(storeId),
       this.fetchRecentSales(saleWhere),
       this.fetchLowStock(storeId),
     ]);
@@ -145,6 +155,8 @@ export class ReportsService {
           netProfit: row.netProfit,
         })),
         expenseBreakdown,
+        productDistribution,
+        stockByCategory,
         topProducts,
         topStores,
       },
@@ -677,8 +689,52 @@ export class ReportsService {
     }));
   }
 
+  private async fetchProductDistribution(
+    where: Prisma.SaleWhereInput,
+  ): Promise<ProductDistributionRow[]> {
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        categoryId: number;
+        categoryName: string;
+        unitsSold: number;
+      }>
+    >`
+      SELECT
+        p."categoryId",
+        c.name AS "categoryName",
+        COALESCE(SUM(s."quantitySold"), 0)::int AS "unitsSold"
+      FROM "sale" s
+      INNER JOIN "product" p ON p.id = s."productId"
+      INNER JOIN "category" c ON c.id = p."categoryId"
+      ${this.buildSaleSqlFilter(where)}
+      GROUP BY p."categoryId", c.name
+      ORDER BY "unitsSold" DESC
+    `;
+
+    return this.withUnitsSoldPercents(rows);
+  }
+
+  private withUnitsSoldPercents(
+    rows: Array<{
+      categoryId: number;
+      categoryName: string;
+      unitsSold: number;
+    }>,
+  ): ProductDistributionRow[] {
+    const total = rows.reduce((sum, row) => sum + row.unitsSold, 0);
+
+    if (total === 0) {
+      return rows.map((row) => ({ ...row, percent: 0 }));
+    }
+
+    return rows.map((row) => ({
+      ...row,
+      percent: Math.round((row.unitsSold / total) * 10000) / 100,
+    }));
+  }
+
   private async fetchStockByCategory(
-    storeId: string,
+    storeId?: string,
   ): Promise<CategoryStockRow[]> {
     const rows = await this.prisma.$queryRaw<CategoryStockRow[]>`
       SELECT
@@ -688,8 +744,10 @@ export class ReportsService {
       FROM "inventory" i
       INNER JOIN "product" p ON p.id = i."productId"
       INNER JOIN "category" c ON c.id = p."categoryId"
-      WHERE i."storeId" = ${storeId}
-        AND p."isActive" = true
+      INNER JOIN "store" st ON st.id = i."storeId"
+      WHERE p."isActive" = true
+        AND st."isActive" = true
+        ${storeId ? Prisma.sql`AND i."storeId" = ${storeId}` : Prisma.empty}
       GROUP BY p."categoryId", c.name
       ORDER BY units DESC
     `;

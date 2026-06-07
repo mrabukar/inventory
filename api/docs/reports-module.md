@@ -314,6 +314,8 @@ Live metrics (`inStockBalance`, `lowStockCount`) have **no** comparison — they
 | `revenueCogsExpenses` | Grouped bar | Monthly revenue, COGS, expenses, net profit |
 | `netProfitTrend` | Line | Monthly net profit |
 | `expenseBreakdown` | Donut | Expenses by category for the period |
+| `productDistribution` | Donut | Units sold by product category (Mobiles vs Accessories) for the period |
+| `stockByCategory` | Donut | Current units in stock by category (live; respects `storeId` filter) |
 | `topProducts` | Horizontal bar | Top 10 products by units sold |
 | `topStores` | Horizontal bar | Top 10 stores by revenue (empty when `storeId` filter is set) |
 
@@ -329,6 +331,50 @@ Each monthly chart row:
   "netProfit": -101.07
 }
 ```
+
+### `productDistribution` — sales by category (device distribution)
+
+Units sold in the filtered period, grouped by product category:
+
+```json
+"productDistribution": [
+  {
+    "categoryId": 1,
+    "categoryName": "Mobiles",
+    "unitsSold": 5,
+    "percent": 71.43
+  },
+  {
+    "categoryId": 2,
+    "categoryName": "Accessories",
+    "unitsSold": 2,
+    "percent": 28.57
+  }
+]
+```
+
+- **`unitsSold`** — `SUM(quantitySold)` for sales in the period  
+- **`percent`** — share of total units sold (0–100, 2 dp)  
+- Respects `fromDate`, `toDate`, and `storeId` filters  
+- If `categoryId` filter is set, only that category appears  
+
+Frontend: donut chart; center label = total units sold.
+
+### `stockByCategory` — live stock by category
+
+Current inventory units grouped by category (not date-filtered):
+
+```json
+"stockByCategory": [
+  { "categoryId": 1, "categoryName": "Mobiles", "units": 42 },
+  { "categoryId": 2, "categoryName": "Accessories", "units": 12 }
+]
+```
+
+- **All stores** when no `storeId`; **one store** when filtered  
+- Only active products and active stores  
+
+Frontend: optional second donut or reuse same component with different title.
 
 ### `recentSales`
 
