@@ -54,6 +54,7 @@ _Last updated: 2026-06-06_
 | Expense categories | ✓ | ✗ |
 | Stock supply | ✓ | ✗ |
 | Inventory (read) | ✓ (any store) | ✓ (own store only) |
+| Inventory (update threshold) | ✓ | ✗ |
 | Sales (list) | ✓ (optional store filter) | ✓ (own store only) |
 | Sales (create / correct) | ✗ | ✓ |
 | Expenses | ✓ | ✗ |
@@ -117,7 +118,7 @@ Sign-up validation (auth hooks):
 | List / get | Admin only. List and `findOne` return **active** stores only. |
 | Update | Admin only. Audited as `STORE_UPDATED`. |
 | Deactivate | Admin only. Soft delete (`isActive: false`). Audited as `STORE_DEACTIVATED`. |
-| Reactivate | **Not implemented** — no `PATCH /stores/:id/reactivate` endpoint. |
+| Reactivate | Admin only. `PATCH /stores/:id/reactivate`. Store must be inactive. Name must remain unique among **active** stores. Audited as `STORE_REACTIVATED`. |
 
 ---
 
@@ -170,7 +171,7 @@ Inventory rows represent **live quantity** per product–store pair. Quantity is
 
 - Default **5** on each inventory row (`lowStockThreshold` column).
 - Used in inventory list filter, admin/manager dashboards, and reports.
-- **No API exists to change** the threshold per row (see [§12](#12-gaps-designed-but-not-fully-implemented)).
+- **Admin only:** `PATCH /inventory/stores/:storeId/products/:productId/threshold` with `{ "lowStockThreshold": number }` (integer `>= 0`). Requires an existing inventory row; active product and store. Audited as `INVENTORY_UPDATED` (threshold fields only in old/new values). Quantity is **not** changed by this endpoint.
 
 ### Stock cannot go negative
 
@@ -396,25 +397,13 @@ Added in migration `20260606210000_inventory_quantity_non_negative`. Application
 
 ---
 
-### 12.6 Configurable low-stock threshold per inventory row
+### ~~12.6 Configurable low-stock threshold per inventory row~~ ✓ Implemented
 
-**Design:** Each product–store pair has a configurable `low_stock_threshold` (default 5).
+`PATCH /api/inventory/stores/:storeId/products/:productId/threshold` — admin only, body `{ "lowStockThreshold": 0 }` (integer `>= 0`). Audited as `INVENTORY_UPDATED`.
 
-**Current state:** Column exists with default **5**. Dashboards and reports respect it. **No API** to read or update the threshold for a specific inventory row.
+### ~~12.7 Store reactivate endpoint~~ ✓ Implemented
 
-**Impact:** All rows use the default unless changed manually in the database. Admin UI cannot customize per SKU/store.
-
----
-
-### 12.7 Store reactivate endpoint
-
-**Design:** Soft-delete pattern for stores (same spirit as products and users).
-
-**Current state:** **`PATCH /stores/:id/deactivate`** exists. **No reactivate** endpoint (products and users both have reactivate/activate).
-
-**Impact:** A deactivated store can only be re-enabled via direct database update or a future API addition.
-
----
+`PATCH /api/stores/:id/reactivate` — admin only. Rejects if store is already active or if another active store has the same name. Audited as `STORE_REACTIVATED`.
 
 ### 12.8 PDF / Excel report export
 
