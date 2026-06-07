@@ -96,7 +96,7 @@ export class StoresService {
     const existing = await this.findOne(id);
 
     if (dto.name && dto.name !== existing.name) {
-      await this.assertUniqueName(dto.name);
+      await this.assertUniqueName(dto.name, id);
     }
 
     const store = await this.prisma.store.update({
@@ -138,9 +138,46 @@ export class StoresService {
     });
   }
 
-  private async assertUniqueName(name: string): Promise<void> {
+  async reactivate(id: string, user: CurrentUserPayload): Promise<Store> {
     const existing = await this.prisma.store.findFirst({
-      where: { name, isActive: true },
+      where: { id, isActive: false },
+    });
+
+    if (!existing) {
+      throw new NotFoundException(`Inactive store with id "${id}" not found`);
+    }
+
+    await this.assertUniqueName(existing.name, id);
+
+    const store = await this.prisma.store.update({
+      where: { id },
+      data: { isActive: true },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "STORE_REACTIVATED",
+        entityType: "store",
+        entityId: id,
+        oldValue: existing,
+        newValue: store,
+      },
+    });
+
+    return store;
+  }
+
+  private async assertUniqueName(
+    name: string,
+    excludeId?: string,
+  ): Promise<void> {
+    const existing = await this.prisma.store.findFirst({
+      where: {
+        name,
+        isActive: true,
+        ...(excludeId ? { id: { not: excludeId } } : undefined),
+      },
     });
 
     if (existing) {
