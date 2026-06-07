@@ -6,6 +6,7 @@ import {
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
 import { ReportQueryDto } from "./dto/report-query.dto";
+import { ProductDistributionQueryDto } from "./dto/product-distribution-query.dto";
 import { ReportsService } from "./reports.service";
 
 @Controller("reports")
@@ -28,5 +29,11 @@ export class ReportsController {
   @Roles(UserRole.admin)
   getFinancialSummary(@Query() query: ReportQueryDto) {
     return this.reportsService.getFinancialSummary(query);
+  }
+
+  @Get("product-distribution")
+  @Roles(UserRole.admin)
+  getProductDistribution(@Query() query: ProductDistributionQueryDto) {
+    return this.reportsService.getProductDistribution(query);
   }
 }
