@@ -13,6 +13,10 @@ import { CategoriesModule } from "./modules/categories/categories.module";
 import { HealthModule } from "./modules/health/health.module";
 import { InventoryModule } from "./modules/inventory/inventory.module";
 import { ProductsModule } from "./modules/products/products.module";
+import { ExpenseCategoriesModule } from "./modules/expense-categories/expense-categories.module";
+import { ExpensesModule } from "./modules/expenses/expenses.module";
+import { ReportsModule } from "./modules/reports/reports.module";
+import { SalesModule } from "./modules/sales/sales.module";
 import { StockSuppliesModule } from "./modules/stock-supplies/stock-supplies.module";
 import { StoresModule } from "./modules/stores/stores.module";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -62,6 +66,10 @@ import { PrismaModule } from "./prisma/prisma.module";
     InventoryModule,
     StockSuppliesModule,
     AuditLogsModule,
+    SalesModule,
+    ExpenseCategoriesModule,
+    ExpensesModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
