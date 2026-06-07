@@ -1,11 +1,11 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma, UserRole } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
+import { requireManagerStore } from "../../common/utils/store-scope.util";
 import {
   calendarDateDaysAgo,
   calendarDateToDbDate,
@@ -203,7 +203,7 @@ export class ReportsService {
   }
 
   async getManagerDashboard(user: CurrentUserPayload) {
-    const storeId = this.requireManagerStore(user);
+    const storeId = requireManagerStore(user);
     const today = todayCalendarDate();
     const monthStart = startOfMonthCalendarDate(today);
     const trendStart = calendarDateDaysAgo(29, today);
@@ -836,19 +836,5 @@ export class ReportsService {
     `;
 
     return parseRawMoney(rows[0]?.total);
-  }
-
-  private requireManagerStore(user: CurrentUserPayload): string {
-    if (user.role !== UserRole.branch_manager) {
-      throw new ForbiddenException(
-        "Only branch managers can access this dashboard",
-      );
-    }
-
-    if (!user.storeId) {
-      throw new ForbiddenException("No store assigned to your account");
-    }
-
-    return user.storeId;
   }
 }
