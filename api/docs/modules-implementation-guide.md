@@ -432,8 +432,10 @@ await this.prisma.auditLog.create({
 
 | Action | When |
 |---|---|
-| `USER_CREATED` | Admin creates a user |
+| `USER_CREATED` | Admin creates a user via sign-up (or bootstrap first admin) |
+| `USER_UPDATED` | Admin edits a user |
 | `USER_DEACTIVATED` | Admin deactivates a user |
+| `USER_REACTIVATED` | Admin reactivates a user |
 | `PRODUCT_CREATED` | Admin creates a product |
 | `PRODUCT_UPDATED` | Admin edits a product |
 | `STOCK_SUPPLIED` | Admin supplies stock to a store |
@@ -531,6 +533,7 @@ Build and test one endpoint at a time in Postman before moving on.
 | 7 | **Expenses** | POST, GET all, PATCH, DELETE |
 | 8 | **Audit Log** | GET all (admin read-only) |
 | 9 | **Reports** | GET admin/manager dashboards, GET financial summary, GET product distribution |
+| 10 | **Users** | GET list/one, PATCH update/deactivate/activate; **create via** `POST /api/auth/sign-up/email` |
 
 ---
 
