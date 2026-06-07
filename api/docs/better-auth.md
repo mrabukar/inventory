@@ -341,7 +341,7 @@ AuthModule initialized BetterAuth on '/api/auth'
 |------|--------|
 | User creation | **Done** — `POST /api/auth/sign-up/email` (admin-only or bootstrap via `ALLOW_SIGNUP`) |
 | User list / update / deactivate | **Done** — `/api/users` |
-| `StoreScopeGuard` on domain routes | Planned with domain modules |
+| Store scoping via `store-scope.util.ts` in services | **Done** |
 | Password reset flow | Needs email provider |
 
 ---
