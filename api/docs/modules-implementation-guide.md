@@ -107,7 +107,35 @@ export class StoresController { ... }
 
 ---
 
-### 2.3 `PaginationQueryDto`
+### 2.3 Store scoping helpers
+
+**File:** `src/common/utils/store-scope.util.ts`
+
+Branch managers are limited to `user.storeId`. Call these from **services** (after the controller receives `@CurrentUser()`):
+
+```typescript
+import {
+  assertStoreAccess,
+  resolveStoreFilter,
+  requireManagerStore,
+} from '../../common/utils/store-scope.util';
+
+// Inventory: store id in URL path
+assertStoreAccess(storeId, user);
+
+// Sales list: reject forged ?storeId=, then filter
+if (queryStoreId) assertStoreAccess(queryStoreId, user);
+const storeId = resolveStoreFilter(user, query.storeId);
+
+// Submit sale / manager dashboard
+const storeId = requireManagerStore(user);
+```
+
+Do **not** duplicate role/store checks inline — import from this util.
+
+---
+
+### 2.4 `PaginationQueryDto`
 
 **File:** `src/common/dto/pagination-query.dto.ts`
 
@@ -135,7 +163,7 @@ export class PaginationQueryDto {
 
 ---
 
-### 2.4 `PaginatedResponseDto<T>`
+### 2.5 `PaginatedResponseDto<T>`
 
 **File:** `src/common/dto/paginated-response.dto.ts`
 
