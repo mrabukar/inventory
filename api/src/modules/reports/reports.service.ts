@@ -6,6 +6,8 @@ import {
   calendarDateToDbDate,
   eachCalendarDate,
   getAppTimezone,
+  resolvePreviousMonthRange,
+  shiftCalendarDateBackMonths,
   startOfMonthCalendarDate,
   todayCalendarDate,
 } from "../../common/utils/app-timezone.util";
@@ -16,6 +18,10 @@ import {
   subtractMoney,
   toMoneyNumber,
 } from "../../common/utils/money.util";
+import {
+  buildAdminPeriodComparison,
+  buildManagerPeriodComparison,
+} from "../../common/utils/period-comparison.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ReportQueryDto } from "./dto/report-query.dto";
 import {
@@ -72,9 +78,17 @@ export class ReportsService {
 
     const saleWhere = this.buildSaleWhere(range, storeId, categoryId);
     const expenseWhere = this.buildExpenseWhere(range, storeId);
+    const previousRange = resolvePreviousMonthRange(range);
+    const previousSaleWhere = this.buildSaleWhere(
+      previousRange,
+      storeId,
+      categoryId,
+    );
+    const previousExpenseWhere = this.buildExpenseWhere(previousRange, storeId);
 
     const [
       summary,
+      previousMetrics,
       monthlySales,
       monthlyExpenses,
       expenseBreakdown,
@@ -84,6 +98,7 @@ export class ReportsService {
       lowStock,
     ] = await Promise.all([
       this.computePeriodSummary(saleWhere, expenseWhere, storeId),
+      this.computePeriodMetrics(previousSaleWhere, previousExpenseWhere),
       this.fetchMonthlySales(saleWhere, range),
       this.fetchMonthlyExpenses(expenseWhere, range),
       this.fetchExpenseBreakdown(expenseWhere),
@@ -118,6 +133,10 @@ export class ReportsService {
         timezone: getAppTimezone(),
       },
       summary,
+      comparison: buildAdminPeriodComparison(summary, previousMetrics, {
+        from: previousRange.fromCalendar,
+        to: previousRange.toCalendar,
+      }),
       charts: {
         revenueCogsExpenses,
         netProfitTrend: revenueCogsExpenses.map((row) => ({
@@ -139,10 +158,15 @@ export class ReportsService {
     const today = todayCalendarDate();
     const monthStart = startOfMonthCalendarDate(today);
     const trendStart = calendarDateDaysAgo(29, today);
+    const previousToday = shiftCalendarDateBackMonths(today, 1);
+    const previousMonthStart = shiftCalendarDateBackMonths(monthStart, 1);
+    const previousMonthEnd = shiftCalendarDateBackMonths(today, 1);
 
     const [
       todaySales,
       monthSales,
+      previousTodaySales,
+      previousMonthSales,
       inStockBalance,
       lowStockCount,
       salesTrend,
@@ -159,6 +183,16 @@ export class ReportsService {
         storeId,
         fromCalendar: monthStart,
         toCalendar: today,
+      }),
+      this.aggregateSales({
+        storeId,
+        fromCalendar: previousToday,
+        toCalendar: previousToday,
+      }),
+      this.aggregateSales({
+        storeId,
+        fromCalendar: previousMonthStart,
+        toCalendar: previousMonthEnd,
       }),
       this.sumInventoryUnits(storeId),
       this.countLowStock(storeId),
@@ -177,6 +211,16 @@ export class ReportsService {
         inStockBalance,
         lowStockCount,
       },
+      comparison: buildManagerPeriodComparison(
+        {
+          todayRevenue: todaySales.revenue,
+          monthRevenue: monthSales.revenue,
+        },
+        {
+          todayRevenue: previousTodaySales.revenue,
+          monthRevenue: previousMonthSales.revenue,
+        },
+      ),
       charts: {
         salesTrend,
         stockByCategory,
@@ -282,12 +326,11 @@ export class ReportsService {
     };
   }
 
-  private async computePeriodSummary(
+  private async computePeriodMetrics(
     saleWhere: Prisma.SaleWhereInput,
     expenseWhere: Prisma.ExpenseWhereInput,
-    storeId?: string,
   ) {
-    const [salesAgg, cogs, expensesAgg, stockMetrics] = await Promise.all([
+    const [salesAgg, cogs, expensesAgg] = await Promise.all([
       this.prisma.sale.aggregate({
         where: saleWhere,
         _sum: { totalAmount: true, quantitySold: true },
@@ -297,7 +340,6 @@ export class ReportsService {
         where: expenseWhere,
         _sum: { amount: true },
       }),
-      this.computeLiveStockMetrics(storeId),
     ]);
 
     const totalRevenue = toMoneyNumber(salesAgg._sum.totalAmount);
@@ -313,6 +355,21 @@ export class ReportsService {
       grossProfit,
       totalExpenses,
       netProfit,
+    };
+  }
+
+  private async computePeriodSummary(
+    saleWhere: Prisma.SaleWhereInput,
+    expenseWhere: Prisma.ExpenseWhereInput,
+    storeId?: string,
+  ) {
+    const [metrics, stockMetrics] = await Promise.all([
+      this.computePeriodMetrics(saleWhere, expenseWhere),
+      this.computeLiveStockMetrics(storeId),
+    ]);
+
+    return {
+      ...metrics,
       currentStockValue: stockMetrics.stockValue,
       inStockBalance: stockMetrics.units,
       lowStockCount: stockMetrics.lowStockCount,
