@@ -15,13 +15,14 @@ _Last updated: 2026-06-07_
 5. [Financial Metrics](#5-financial-metrics)
 6. [Date & Timezone Rules](#6-date--timezone-rules)
 7. [Money Precision](#7-money-precision)
-8. [Admin Dashboard Response](#8-admin-dashboard-response)
-9. [Manager Dashboard Response](#9-manager-dashboard-response)
-10. [Financial Summary Response](#10-financial-summary-response)
-11. [Filtering Rules](#11-filtering-rules)
-12. [What Reports Does Not Do](#12-what-reports-does-not-do)
-13. [Related Files](#13-related-files)
-14. [Frontend Mapping](#14-frontend-mapping)
+8. [Period-over-Period Comparison](#8-period-over-period-comparison)
+9. [Admin Dashboard Response](#9-admin-dashboard-response)
+10. [Manager Dashboard Response](#10-manager-dashboard-response)
+11. [Financial Summary Response](#11-financial-summary-response)
+12. [Filtering Rules](#12-filtering-rules)
+13. [What Reports Does Not Do](#13-what-reports-does-not-do)
+14. [Related Files](#14-related-files)
+15. [Frontend Mapping](#15-frontend-mapping)
 
 ---
 
@@ -219,7 +220,64 @@ This ensures API values match a calculator (e.g. `1399.93`, not `1399.9300000000
 
 ---
 
-## 8. Admin Dashboard Response
+## 8. Period-over-Period Comparison
+
+Both dashboards include a **`comparison`** block for stat-card trend badges (e.g. **+12.4% vs last month**).
+
+### How the previous period is chosen
+
+The current range is shifted back **one calendar month** on both ends:
+
+| Current period | Compared against |
+|----------------|------------------|
+| `2026-06-01` → `2026-06-07` | `2026-05-01` → `2026-05-07` |
+| Jun 1–today (manager month MTD) | May 1–same day last month |
+
+Formula:
+
+```
+delta % = ((current − previous) / previous) × 100
+```
+
+- Rounded to **2 decimal places** (same as money)
+- **`direction`**: `up` \| `down` \| `flat`
+- **`percent`**: `null` when previous value was `0` and current is &gt; 0 (frontend can show `N/A` or `+0.0%`)
+
+### Admin dashboard `comparison`
+
+Compared metrics (period-based only — not live stock):
+
+| Field | Maps to stat card |
+|-------|-------------------|
+| `totalRevenue` | Total Revenue |
+| `grossProfit` | Gross Profit |
+| `netProfit` | Net Profit |
+| `totalExpenses` | Total Expenses (up = bad; frontend may invert color) |
+| `totalUnitsSold` | Units Sold |
+
+Example:
+
+```json
+"comparison": {
+  "label": "vs last month",
+  "previousPeriod": { "from": "2026-05-01", "to": "2026-05-07" },
+  "totalRevenue": { "percent": 12.4, "direction": "up", "label": "vs last month" },
+  "netProfit": { "percent": -5.2, "direction": "down", "label": "vs last month" }
+}
+```
+
+### Manager dashboard `comparison`
+
+| Field | Current period | Previous period |
+|-------|----------------|-----------------|
+| `todayRevenue` | Today | Same calendar day last month |
+| `monthRevenue` | 1st of month → today | Same day range last month |
+
+Live metrics (`inStockBalance`, `lowStockCount`) have **no** comparison — they are point-in-time snapshots.
+
+---
+
+## 9. Admin Dashboard Response
 
 **`GET /api/reports/admin-dashboard`**
 
@@ -282,7 +340,7 @@ Up to 50 inventory rows where `quantity ≤ lowStockThreshold`, across active pr
 
 ---
 
-## 9. Manager Dashboard Response
+## 10. Manager Dashboard Response
 
 **`GET /api/reports/manager-dashboard`**
 
@@ -309,7 +367,7 @@ Also includes `recentSales` (last 20 for their store) and `lowStock` for their s
 
 ---
 
-## 10. Financial Summary Response
+## 11. Financial Summary Response
 
 **`GET /api/reports/financial-summary`**
 
@@ -348,7 +406,7 @@ Only `revenueCogsExpenses` and `netProfitTrend` (no top products/stores, no expe
 
 ---
 
-## 11. Filtering Rules
+## 12. Filtering Rules
 
 ### Sales filters (admin)
 
@@ -383,7 +441,7 @@ These always reflect **current** state:
 
 ---
 
-## 12. What Reports Does Not Do
+## 13. What Reports Does Not Do
 
 | Out of scope (v1) | Alternative |
 |-------------------|-------------|
@@ -396,7 +454,7 @@ These always reflect **current** state:
 
 ---
 
-## 13. Related Files
+## 14. Related Files
 
 | File | Role |
 |------|------|
@@ -404,13 +462,14 @@ These always reflect **current** state:
 | `api/src/modules/reports/reports.service.ts` | All aggregation queries |
 | `api/src/common/utils/app-timezone.util.ts` | Calendar dates, timezone, report range |
 | `api/src/common/utils/money.util.ts` | Decimal-safe money serialization |
+| `api/src/common/utils/period-comparison.util.ts` | Period-over-period delta % |
 | `api/docs/stock-supply-design.md` | How supply snapshots feed stock investment |
 | `system-design.md` §7–8 | Original dashboard & report UI specs |
 | `frontend-design-brief.md` §11 | Frontend card/chart mapping |
 
 ---
 
-## 14. Frontend Mapping
+## 15. Frontend Mapping
 
 ### Admin dashboard (`/dashboard`)
 
