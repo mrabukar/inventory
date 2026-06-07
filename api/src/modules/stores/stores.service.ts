@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { AuditAction, Prisma, Store } from "@prisma/client";
+import { AuditAction, Prisma, Store, UserRole } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CreateStoreDto } from "./dto/create-store.dto";
@@ -120,6 +120,33 @@ export class StoresService {
 
   async deactivate(id: string, user: CurrentUserPayload): Promise<void> {
     const existing = await this.findOne(id);
+
+    const assignedManagers = await this.prisma.user.findMany({
+      where: {
+        storeId: id,
+        isActive: true,
+        role: UserRole.branch_manager,
+      },
+      select: { id: true, name: true, email: true },
+    });
+
+    if (assignedManagers.length > 0) {
+      throw new BadRequestException(
+        `Cannot deactivate store: ${assignedManagers.length} active store manager(s) still assigned. Reassign or deactivate them first.`,
+      );
+    }
+
+    const stockSummary = await this.prisma.inventory.aggregate({
+      where: { storeId: id, quantity: { gt: 0 } },
+      _sum: { quantity: true },
+      _count: { _all: true },
+    });
+
+    if (stockSummary._count._all > 0) {
+      throw new BadRequestException(
+        `Cannot deactivate store: ${stockSummary._sum.quantity ?? 0} unit(s) remain across ${stockSummary._count._all} product(s). Clear stock first.`,
+      );
+    }
 
     await this.prisma.store.update({
       where: { id },
