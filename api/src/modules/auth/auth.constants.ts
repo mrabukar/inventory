@@ -15,12 +15,6 @@ export function parseTrustedOrigins(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
-export function isPublicSignupAllowed(): boolean {
-  if (process.env.ALLOW_PUBLIC_SIGNUP === "true") return true;
-  if (process.env.ALLOW_PUBLIC_SIGNUP === "false") return false;
-  return (process.env.NODE_ENV ?? "development") !== "production";
-}
-
 export function isUserRole(value: unknown): value is UserRole {
   return (
     typeof value === "string" &&
