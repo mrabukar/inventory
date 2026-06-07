@@ -1,16 +1,20 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma, UserRole } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import {
   parseDateColumnRangeEnd,
   parseDateColumnRangeStart,
 } from "../../common/utils/app-timezone.util";
 import { lockInventoryForMutation } from "../../common/utils/inventory-lock.util";
+import {
+  requireManagerStore,
+  assertStoreAccess,
+  resolveStoreFilter,
+} from "../../common/utils/store-scope.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ProductsService } from "../products/products.service";
 import { PaginatedResult } from "../stores/stores.service";
@@ -42,7 +46,12 @@ export class SalesService {
     user: CurrentUserPayload,
   ): Promise<PaginatedResult<SaleWithDetails>> {
     const skip = (query.page - 1) * query.limit;
-    const storeId = this.resolveStoreFilter(user, query.storeId);
+    const queryStoreId =
+      typeof query.storeId === "string" ? query.storeId.trim() : undefined;
+    if (queryStoreId) {
+      assertStoreAccess(queryStoreId, user);
+    }
+    const storeId = resolveStoreFilter(user, query.storeId);
     const searchTerm =
       typeof query.search === "string" ? query.search.trim() : "";
     const fromDate =
@@ -105,7 +114,7 @@ export class SalesService {
     dto: CreateSaleDto,
     user: CurrentUserPayload,
   ): Promise<SaleWithDetails> {
-    const storeId = this.requireManagerStore(user);
+    const storeId = requireManagerStore(user);
     const product = await this.productsService.findOne(dto.productId);
     const saleDate = parseAndValidateSaleDate(dto.saleDate);
 
@@ -207,7 +216,7 @@ export class SalesService {
     dto: CorrectSaleDto,
     user: CurrentUserPayload,
   ): Promise<SaleWithDetails> {
-    const storeId = this.requireManagerStore(user);
+    const storeId = requireManagerStore(user);
 
     const existing = await this.prisma.sale.findFirst({
       where: { id, storeId },
@@ -334,33 +343,5 @@ export class SalesService {
       where: { id: saleId },
       include: saleInclude,
     });
-  }
-
-  private resolveStoreFilter(
-    user: CurrentUserPayload,
-    queryStoreId?: string,
-  ): string | undefined {
-    if (user.role === UserRole.branch_manager) {
-      if (!user.storeId) {
-        throw new ForbiddenException("No store assigned to your account");
-      }
-      return user.storeId;
-    }
-
-    return queryStoreId;
-  }
-
-  private requireManagerStore(user: CurrentUserPayload): string {
-    if (user.role !== UserRole.branch_manager) {
-      throw new ForbiddenException(
-        "Only branch managers can perform this action",
-      );
-    }
-
-    if (!user.storeId) {
-      throw new ForbiddenException("No store assigned to your account");
-    }
-
-    return user.storeId;
   }
 }
