@@ -10,6 +10,7 @@ import {
   parseDateColumnRangeEnd,
   parseDateColumnRangeStart,
 } from "../../common/utils/app-timezone.util";
+import { lockInventoryForMutation } from "../../common/utils/inventory-lock.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ProductsService } from "../products/products.service";
 import { PaginatedResult } from "../stores/stores.service";
@@ -113,11 +114,11 @@ export class SalesService {
     const totalAmount = unitPrice * dto.quantitySold;
 
     const saleId = await this.prisma.$transaction(async (tx) => {
-      const inventory = await tx.inventory.findUnique({
-        where: {
-          productId_storeId: { productId: dto.productId, storeId },
-        },
-      });
+      const inventory = await lockInventoryForMutation(
+        tx,
+        dto.productId,
+        storeId,
+      );
 
       if (!inventory) {
         throw new BadRequestException(
@@ -233,14 +234,11 @@ export class SalesService {
     const totalAmount = unitPrice * dto.correctedQuantity;
 
     const saleId = await this.prisma.$transaction(async (tx) => {
-      const inventory = await tx.inventory.findUnique({
-        where: {
-          productId_storeId: {
-            productId: existing.productId,
-            storeId: existing.storeId,
-          },
-        },
-      });
+      const inventory = await lockInventoryForMutation(
+        tx,
+        existing.productId,
+        existing.storeId,
+      );
 
       if (!inventory) {
         throw new BadRequestException(
