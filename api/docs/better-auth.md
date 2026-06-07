@@ -128,7 +128,7 @@ File: [`src/modules/auth/auth.config.ts`](../src/modules/auth/auth.config.ts)
 | `BETTER_AUTH_URL` | Optional (defaults to `http://localhost:PORT`) | Required, valid URL | Base URL for callbacks and cookies |
 | `BETTER_AUTH_TRUSTED_ORIGINS` | Optional | Required | Comma-separated CORS + CSRF origins |
 | `NODE_ENV` | `development` | `production` | Controls cookie security and sign-up policy |
-| `ALLOW_PUBLIC_SIGNUP` | Optional | Optional | Override prod sign-up block if `true` |
+| `ALLOW_SIGNUP` | Optional | Optional | Bootstrap sign-up without admin session (`true`); admin-only when `false` |
 | `PORT` | Default `4000` | Default `4000` | HTTP listen port |
 
 Validated at startup via Joi in [`src/config/env.validation.ts`](../src/config/env.validation.ts).
@@ -176,21 +176,26 @@ Use `@Roles()` from `src/common/decorators/roles.decorator.ts` — it sets the `
 
 File: [`src/modules/auth/auth.hooks.ts`](../src/modules/auth/auth.hooks.ts)
 
-### Dev vs production sign-up policy
+### Sign-up policy (`ALLOW_SIGNUP`)
 
-| Environment | Public sign-up | Role selection |
-|-------------|----------------|----------------|
-| Development | Allowed | Required: `admin` or `branch_manager` |
-| Production | **Blocked (403)** | N/A — users created by admin API (planned) |
+| `ALLOW_SIGNUP` | Who can call `POST /api/auth/sign-up/email` |
+|----------------|---------------------------------------------|
+| `true` | **Bootstrap mode** — no session required (use briefly in prod to create the first admin) |
+| `false` | **Admin-only** — caller must be signed in as `admin` |
+| Unset | Development: bootstrap allowed; production: admin-only |
 
-### Example sign-up bodies (dev)
+`emailAndPassword.autoSignIn` is **`false`** — creating a user does not replace the admin’s session cookie.
 
-**Admin:**
+After sign-up succeeds, a `USER_CREATED` audit log is written (actor = admin when admin-only; actor = new user during bootstrap).
+
+### Example sign-up bodies
+
+**Admin user:**
 
 ```json
 {
   "email": "admin@example.com",
-  "password": "Password1",
+  "password": "Password1!",
   "name": "Admin User",
   "role": "admin"
 }
@@ -201,12 +206,25 @@ File: [`src/modules/auth/auth.hooks.ts`](../src/modules/auth/auth.hooks.ts)
 ```json
 {
   "email": "manager@example.com",
-  "password": "Password1",
+  "password": "Password1!",
   "name": "Store Manager",
   "role": "branch_manager",
-  "storeId": "store-abc"
+  "storeId": "store-cuid"
 }
 ```
+
+**Production bootstrap (first admin only):**
+
+1. Set `ALLOW_SIGNUP=true` in `.env`
+2. `POST /api/auth/sign-up/email` with the admin body above (no session cookie)
+3. Set `ALLOW_SIGNUP=false` and restart
+4. Sign in as the new admin; create other users with the admin session cookie on sign-up
+
+### Admin creating users (normal operation)
+
+1. Sign in as admin (`POST /api/auth/sign-in/email`)
+2. `POST /api/auth/sign-up/email` with the same `Origin` header **and** the admin session cookie
+3. List/manage users via `GET/PATCH /api/users/*`
 
 ---
 
@@ -216,7 +234,7 @@ File: [`src/modules/auth/auth.hooks.ts`](../src/modules/auth/auth.hooks.ts)
 
 | Path | Method | Auth | Handler | Notes |
 |------|--------|------|---------|-------|
-| `/api/auth/sign-up/email` | POST | Public (dev) | Better-Auth | 403 in production |
+| `/api/auth/sign-up/email` | POST | Bootstrap or admin session | Better-Auth | See [sign-up policy](#sign-up-policy-allow_signup) |
 | `/api/auth/sign-in/email` | POST | Public | Better-Auth | Sets session cookie |
 | `/api/auth/sign-out` | POST | Session | Better-Auth | Requires cookie + Origin |
 | `/api/auth/get-session` | GET | Session | Better-Auth | Returns `{ session, user }` |
@@ -302,9 +320,10 @@ Add an `Origin` header matching `BETTER_AUTH_TRUSTED_ORIGINS`:
 -H "Origin: http://localhost:4000"
 ```
 
-### Sign-up returns 403 in production
+### Sign-up returns 403
 
-Expected. Public sign-up is disabled in production. Users will be created via a future admin `POST /api/users` endpoint.
+- **`ALLOW_SIGNUP=false`** (or unset in production): sign-up requires an **admin session cookie** on the request.
+- Confirm the `Origin` header matches `BETTER_AUTH_TRUSTED_ORIGINS`.
 
 ### Auth routes return 404
 
@@ -320,7 +339,8 @@ AuthModule initialized BetterAuth on '/api/auth'
 
 | Item | Status |
 |------|--------|
-| Admin `POST /api/users` for production user creation | Planned |
+| User creation | **Done** — `POST /api/auth/sign-up/email` (admin-only or bootstrap via `ALLOW_SIGNUP`) |
+| User list / update / deactivate | **Done** — `/api/users` |
 | `StoreScopeGuard` on domain routes | Planned with domain modules |
 | Password reset flow | Needs email provider |
 
