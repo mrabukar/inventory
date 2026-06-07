@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { Prisma, UserRole } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import {
@@ -24,6 +29,7 @@ import {
 } from "../../common/utils/period-comparison.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ReportQueryDto } from "./dto/report-query.dto";
+import { ProductDistributionQueryDto } from "./dto/product-distribution-query.dto";
 import {
   buildMonthSeries,
   monthLabel,
@@ -58,12 +64,6 @@ type CategoryStockRow = {
   categoryId: number;
   categoryName: string;
   units: number;
-};
-type ProductDistributionRow = {
-  categoryId: number;
-  categoryName: string;
-  unitsSold: number;
-  percent: number;
 };
 
 const recentSaleInclude = {
@@ -100,7 +100,6 @@ export class ReportsService {
       expenseBreakdown,
       topProducts,
       topStores,
-      productDistribution,
       stockByCategory,
       recentSales,
       lowStock,
@@ -112,7 +111,6 @@ export class ReportsService {
       this.fetchExpenseBreakdown(expenseWhere),
       this.fetchTopProducts(saleWhere),
       storeId ? Promise.resolve([]) : this.fetchTopStores(saleWhere),
-      this.fetchProductDistribution(saleWhere),
       this.fetchStockByCategory(storeId),
       this.fetchRecentSales(saleWhere),
       this.fetchLowStock(storeId),
@@ -155,13 +153,52 @@ export class ReportsService {
           netProfit: row.netProfit,
         })),
         expenseBreakdown,
-        productDistribution,
         stockByCategory,
         topProducts,
         topStores,
       },
       recentSales,
       lowStock,
+    };
+  }
+
+  async getProductDistribution(query: ProductDistributionQueryDto) {
+    const range = resolveReportDateRange(query.fromDate, query.toDate);
+    const storeId =
+      typeof query.storeId === "string" ? query.storeId.trim() : undefined;
+    const categoryId = this.requireCategoryId(query.categoryId);
+
+    const category = await this.prisma.category.findUnique({
+      where: { id: categoryId },
+      select: { id: true, name: true },
+    });
+
+    if (!category) {
+      throw new NotFoundException(`Category with id "${categoryId}" not found`);
+    }
+
+    const saleWhere = this.buildSaleWhere(range, storeId, categoryId);
+    const products = this.withUnitsSoldPercents(
+      await this.fetchProductsDistribution(saleWhere),
+    );
+    const totalUnitsSold = products.reduce(
+      (sum, row) => sum + row.unitsSold,
+      0,
+    );
+
+    return {
+      period: {
+        from: range.fromCalendar,
+        to: range.toCalendar,
+        timezone: getAppTimezone(),
+      },
+      filters: {
+        categoryId: category.id,
+        categoryName: category.name,
+        storeId: storeId ?? null,
+      },
+      totalUnitsSold,
+      products,
     };
   }
 
@@ -336,6 +373,14 @@ export class ReportsService {
       ...(storeId ? { storeId } : undefined),
       expenseDate: { gte: range.fromDate, lte: range.toDate },
     };
+  }
+
+  private requireCategoryId(value: unknown): number {
+    if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+      throw new BadRequestException("categoryId must be a positive integer");
+    }
+
+    return value;
   }
 
   private async computePeriodMetrics(
@@ -689,38 +734,38 @@ export class ReportsService {
     }));
   }
 
-  private async fetchProductDistribution(
+  private async fetchProductsDistribution(
     where: Prisma.SaleWhereInput,
-  ): Promise<ProductDistributionRow[]> {
-    const rows = await this.prisma.$queryRaw<
-      Array<{
-        categoryId: number;
-        categoryName: string;
-        unitsSold: number;
-      }>
-    >`
-      SELECT
-        p."categoryId",
-        c.name AS "categoryName",
-        COALESCE(SUM(s."quantitySold"), 0)::int AS "unitsSold"
-      FROM "sale" s
-      INNER JOIN "product" p ON p.id = s."productId"
-      INNER JOIN "category" c ON c.id = p."categoryId"
-      ${this.buildSaleSqlFilter(where)}
-      GROUP BY p."categoryId", c.name
-      ORDER BY "unitsSold" DESC
-    `;
+  ): Promise<
+    Array<{ productId: string; productName: string; unitsSold: number }>
+  > {
+    const grouped = await this.prisma.sale.groupBy({
+      by: ["productId"],
+      where,
+      _sum: { quantitySold: true },
+      orderBy: { _sum: { quantitySold: "desc" } },
+    });
 
-    return this.withUnitsSoldPercents(rows);
+    if (grouped.length === 0) {
+      return [];
+    }
+
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: grouped.map((row) => row.productId) } },
+      select: { id: true, name: true },
+    });
+    const productMap = new Map(products.map((p) => [p.id, p.name]));
+
+    return grouped.map((row) => ({
+      productId: row.productId,
+      productName: productMap.get(row.productId) ?? "Unknown",
+      unitsSold: row._sum.quantitySold ?? 0,
+    }));
   }
 
-  private withUnitsSoldPercents(
-    rows: Array<{
-      categoryId: number;
-      categoryName: string;
-      unitsSold: number;
-    }>,
-  ): ProductDistributionRow[] {
+  private withUnitsSoldPercents<T extends { unitsSold: number }>(
+    rows: T[],
+  ): Array<T & { percent: number }> {
     const total = rows.reduce((sum, row) => sum + row.unitsSold, 0);
 
     if (total === 0) {
