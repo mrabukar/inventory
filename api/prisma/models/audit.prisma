@@ -17,6 +17,7 @@ enum AuditAction {
   STORE_CREATED
   STORE_UPDATED
   STORE_DEACTIVATED
+  STORE_REACTIVATED
 }
 
 model AuditLog {
