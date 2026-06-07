@@ -16,6 +16,7 @@ import {
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
 import { CreateProductDto } from "./dto/create-product.dto";
+import { DeactivateProductDto } from "./dto/deactivate-product.dto";
 import { ProductQueryDto } from "./dto/product-query.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
 import { ProductsService } from "./products.service";
@@ -46,8 +47,12 @@ export class ProductsController {
 
   @Patch(":id/deactivate")
   @HttpCode(HttpStatus.NO_CONTENT)
-  deactivate(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
-    return this.productsService.deactivate(id, user);
+  deactivate(
+    @Param("id") id: string,
+    @Body() dto: DeactivateProductDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.productsService.deactivate(id, dto, user);
   }
 
   @Patch(":id/reactivate")
