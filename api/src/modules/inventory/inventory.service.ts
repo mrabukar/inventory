@@ -1,10 +1,7 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common";
-import { AuditAction, Prisma, UserRole } from "@prisma/client";
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { AuditAction, Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
+import { assertStoreAccess } from "../../common/utils/store-scope.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ProductsService } from "../products/products.service";
 import { PaginatedResult, StoresService } from "../stores/stores.service";
@@ -30,7 +27,7 @@ export class InventoryService {
     query: InventoryQueryDto,
     user: CurrentUserPayload,
   ): Promise<PaginatedResult<InventoryWithDetails>> {
-    this.assertStoreAccess(storeId, user);
+    assertStoreAccess(storeId, user);
     await this.storesService.findOne(storeId);
 
     const { page, limit, search, categoryId, lowStockOnly } = query;
@@ -99,7 +96,7 @@ export class InventoryService {
     productId: string,
     user: CurrentUserPayload,
   ): Promise<InventoryWithDetails> {
-    this.assertStoreAccess(storeId, user);
+    assertStoreAccess(storeId, user);
     const [store, product] = await Promise.all([
       this.storesService.findOne(storeId),
       this.productsService.findOne(productId),
@@ -177,19 +174,5 @@ export class InventoryService {
     });
 
     return updated;
-  }
-
-  private assertStoreAccess(storeId: string, user: CurrentUserPayload): void {
-    if (user.role !== UserRole.branch_manager) {
-      return;
-    }
-
-    if (!user.storeId) {
-      throw new ForbiddenException("No store assigned to your account");
-    }
-
-    if (user.storeId !== storeId) {
-      throw new ForbiddenException("You can only access your assigned store");
-    }
   }
 }
