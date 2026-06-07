@@ -530,7 +530,7 @@ Build and test one endpoint at a time in Postman before moving on.
 | 6 | **Sales** | POST (manager submits), GET history, PATCH correct |
 | 7 | **Expenses** | POST, GET all, PATCH, DELETE |
 | 8 | **Audit Log** | GET all (admin read-only) |
-| 9 | **Reports** | GET dashboard stats, GET financial summary |
+| 9 | **Reports** | GET admin/manager dashboards, GET financial summary, GET product distribution |
 
 ---
 
