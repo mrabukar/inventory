@@ -138,7 +138,7 @@ Sign-up validation (auth hooks):
 | Create | Admin only. Store name must be unique among **active** stores. |
 | List / get | Admin only. List and `findOne` return **active** stores only. |
 | Update | Admin only. Audited as `STORE_UPDATED`. |
-| Deactivate | Admin only. Soft delete (`isActive: false`). Audited as `STORE_DEACTIVATED`. |
+| Deactivate | Admin only. Soft delete (`isActive: false`). Audited as `STORE_DEACTIVATED`. **Blocked** if any **active branch manager** is still assigned, or if any inventory at the store has `quantity > 0`. Reassign/deactivate managers and clear stock first. |
 | Reactivate | Admin only. `PATCH /stores/:id/reactivate`. Store must be inactive. Name must remain unique among **active** stores. Audited as `STORE_REACTIVATED`. |
 
 ---
@@ -157,7 +157,7 @@ Sign-up validation (auth hooks):
 | Create | Requires valid `categoryId`. `purchasePrice` and `sellingPrice` must be positive decimals (max 2 places). Name max 150 chars. |
 | Name uniqueness | Among **active** products only, compared via normalized name (case/spacing insensitive). |
 | Update | Audited as `PRODUCT_UPDATED`. Renaming re-checks active-name uniqueness. |
-| Deactivate | Soft delete. Audited as `PRODUCT_DEACTIVATED`. **Does not check** remaining inventory (see [§13](#13-gaps-behavior-holes-not-in-design-or-design-silent)). |
+| Deactivate | Soft delete. Audited as `PRODUCT_DEACTIVATED`. **Blocked** if any store has `quantity > 0` unless body includes `{ "force": true }` (forced deactivations record remaining stock in audit). Rows with `quantity === 0` do not block. |
 | Reactivate | Allowed if no other **active** product has the same normalized name. Audited as `PRODUCT_REACTIVATED`. |
 | Active-only reads | `findOne` and supply/sale flows require `isActive: true`. |
 
@@ -454,27 +454,13 @@ Added in migration `20260606210000_inventory_quantity_non_negative`. Application
 
 These are **observed behaviors** that the design doc does not clearly require (or is silent on) but may surprise operators. Decide whether to **fix in code** or **accept and document** (this section documents as-is).
 
-### 13.1 Product deactivate allowed while stock remains
+### ~~13.1 Product deactivate allowed while stock remains~~ ✓ Resolved
 
-**Expected by some operators:** Do not deactivate a product that still has quantity on hand at any store.
+Block by default when any store has `quantity > 0`. Override with `PATCH /products/:id/deactivate` body `{ "force": true }`. Audit records `forcedDespiteStock` and per-store quantities when forced.
 
-**Current state:** `PATCH /products/:id/deactivate` **does not check** inventory. Deactivation always succeeds for an active product.
+### ~~13.2 Store deactivate without guard rails~~ ✓ Resolved
 
-**Impact:** Stock remains in `inventory` rows but the product disappears from active lists and cannot be sold or supplied until reactivated. Historical sales/supplies unchanged.
-
----
-
-### 13.2 Store deactivate without guard rails
-
-**Design:** Soft delete for stores.
-
-**Current state:** Deactivate does **not** check for:
-- branch managers still assigned to the store,
-- non-zero inventory at the store.
-
-**Impact:** Managers may remain assigned to an inactive store; inventory rows persist. See [§13.3](#133-sales-and-corrections-at-deactivated-stores).
-
----
+Deactivate blocked when active branch managers are assigned or when the store has inventory with `quantity > 0`.
 
 ### 13.3 Sales and corrections at deactivated stores
 
