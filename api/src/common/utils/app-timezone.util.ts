@@ -249,6 +249,48 @@ export function resolveReportDateRange(
   };
 }
 
+/** Same calendar dates shifted back one month (e.g. Jun 1–7 → May 1–7). */
+export function shiftCalendarDateBackMonths(
+  calendarDate: string,
+  months: number,
+): string {
+  const reference = extractCalendarDate(calendarDate);
+  const { year, month, day } = parseCalendarDateParts(reference);
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  utc.setUTCMonth(utc.getUTCMonth() - months);
+  return formatUtcCalendarDate(utc);
+}
+
+export function toReportDateRange(
+  fromCalendar: string,
+  toCalendar: string,
+): ReportDateRange {
+  const from = extractCalendarDate(fromCalendar);
+  const to = extractCalendarDate(toCalendar);
+
+  if (compareCalendarDates(from, to) > 0) {
+    throw new BadRequestException("fromDate must be on or before toDate");
+  }
+
+  return {
+    fromCalendar: from,
+    toCalendar: to,
+    fromDate: calendarDateToDbDate(from),
+    toDate: calendarDateToDbDate(to),
+    fromTimestamp: zonedDayStart(from),
+    toTimestamp: zonedDayEnd(to),
+  };
+}
+
+export function resolvePreviousMonthRange(
+  range: ReportDateRange,
+): ReportDateRange {
+  return toReportDateRange(
+    shiftCalendarDateBackMonths(range.fromCalendar, 1),
+    shiftCalendarDateBackMonths(range.toCalendar, 1),
+  );
+}
+
 function formatUtcCalendarDate(date: Date): string {
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
