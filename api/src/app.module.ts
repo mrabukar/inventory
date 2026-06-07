@@ -19,6 +19,7 @@ import { ReportsModule } from "./modules/reports/reports.module";
 import { SalesModule } from "./modules/sales/sales.module";
 import { StockSuppliesModule } from "./modules/stock-supplies/stock-supplies.module";
 import { StoresModule } from "./modules/stores/stores.module";
+import { UsersModule } from "./modules/users/users.module";
 import { PrismaModule } from "./prisma/prisma.module";
 
 @Module({
@@ -70,6 +71,7 @@ import { PrismaModule } from "./prisma/prisma.module";
     ExpenseCategoriesModule,
     ExpensesModule,
     ReportsModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
