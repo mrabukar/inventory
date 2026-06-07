@@ -19,10 +19,11 @@ _Last updated: 2026-06-07_
 9. [Admin Dashboard Response](#9-admin-dashboard-response)
 10. [Manager Dashboard Response](#10-manager-dashboard-response)
 11. [Financial Summary Response](#11-financial-summary-response)
-12. [Filtering Rules](#12-filtering-rules)
-13. [What Reports Does Not Do](#13-what-reports-does-not-do)
-14. [Related Files](#14-related-files)
-15. [Frontend Mapping](#15-frontend-mapping)
+12. [Product Distribution Response](#12-product-distribution-response)
+13. [Filtering Rules](#13-filtering-rules)
+14. [What Reports Does Not Do](#14-what-reports-does-not-do)
+15. [Related Files](#15-related-files)
+16. [Frontend Mapping](#16-frontend-mapping)
 
 ---
 
@@ -89,6 +90,7 @@ Registered in `app.module.ts` as `ReportsModule`. Global API prefix: `/api`.
 | `GET` | `/api/reports/admin-dashboard` | Admin | Company-wide dashboard data |
 | `GET` | `/api/reports/manager-dashboard` | Branch manager | Store-scoped mini-dashboard |
 | `GET` | `/api/reports/financial-summary` | Admin | Full P&L breakdown for a period |
+| `GET` | `/api/reports/product-distribution` | Admin | Units sold by product within one category (donut chart) |
 
 All endpoints require an authenticated session (Better Auth cookie). Unauthenticated or wrong-role requests are rejected by the global auth/roles guards.
 
@@ -128,6 +130,21 @@ Example: if today is `2026-06-07`, the default range is `2026-01-01` → `2026-0
 | `fromDate must be on or before toDate` | Start after end |
 
 **Manager dashboard** accepts no query parameters — the store is taken from the logged-in user’s `storeId`.
+
+### Product distribution query (`ProductDistributionQueryDto`)
+
+Used only by **`GET /api/reports/product-distribution`** — independent of admin dashboard filters:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `categoryId` | number | **Yes** | Product category to break down (Mobiles **or** Accessories — one at a time) |
+| `fromDate` | `YYYY-MM-DD` | No | Start of period (inclusive) |
+| `toDate` | `YYYY-MM-DD` | No | End of period (inclusive) |
+| `storeId` | string (cuid) | No | Limit to one store; omit for all stores |
+
+You must pick **one category** per request. The response lists **products** in that category with units sold and share of the category total.
+
+Defaults for dates match the admin dashboard (last 6 months through today when omitted).
 
 ---
 
@@ -314,8 +331,7 @@ Live metrics (`inStockBalance`, `lowStockCount`) have **no** comparison — they
 | `revenueCogsExpenses` | Grouped bar | Monthly revenue, COGS, expenses, net profit |
 | `netProfitTrend` | Line | Monthly net profit |
 | `expenseBreakdown` | Donut | Expenses by category for the period |
-| `productDistribution` | Donut | Units sold by product category (Mobiles vs Accessories) for the period |
-| `stockByCategory` | Donut | Current units in stock by category (live; respects `storeId` filter) |
+| `stockByCategory` | Donut | Current units in stock by category (live; respects dashboard `storeId` filter) |
 | `topProducts` | Horizontal bar | Top 10 products by units sold |
 | `topStores` | Horizontal bar | Top 10 stores by revenue (empty when `storeId` filter is set) |
 
@@ -332,35 +348,7 @@ Each monthly chart row:
 }
 ```
 
-### `productDistribution` — sales by category (device distribution)
-
-Units sold in the filtered period, grouped by product category:
-
-```json
-"productDistribution": [
-  {
-    "categoryId": 1,
-    "categoryName": "Mobiles",
-    "unitsSold": 5,
-    "percent": 71.43
-  },
-  {
-    "categoryId": 2,
-    "categoryName": "Accessories",
-    "unitsSold": 2,
-    "percent": 28.57
-  }
-]
-```
-
-- **`unitsSold`** — `SUM(quantitySold)` for sales in the period  
-- **`percent`** — share of total units sold (0–100, 2 dp)  
-- Respects `fromDate`, `toDate`, and `storeId` filters  
-- If `categoryId` filter is set, only that category appears  
-
-Frontend: donut chart; center label = total units sold.
-
-### `stockByCategory` — live stock by category
+### `stockByCategory` — live stock by category (admin dashboard)
 
 Current inventory units grouped by category (not date-filtered):
 
@@ -452,7 +440,67 @@ Only `revenueCogsExpenses` and `netProfitTrend` (no top products/stores, no expe
 
 ---
 
-## 12. Filtering Rules
+## 12. Product Distribution Response
+
+**`GET /api/reports/product-distribution`** — admin only.
+
+Dedicated endpoint for the **units sold by product** donut chart within **one category**. Requires `categoryId` — you never mix Mobiles and Accessories in a single response.
+
+### Response shape
+
+```json
+{
+  "period": {
+    "from": "2026-06-01",
+    "to": "2026-06-07",
+    "timezone": "Africa/Mogadishu"
+  },
+  "filters": {
+    "categoryId": 1,
+    "categoryName": "Mobiles",
+    "storeId": null
+  },
+  "totalUnitsSold": 7,
+  "products": [
+    {
+      "productId": "clx...",
+      "productName": "iPhone 15",
+      "unitsSold": 4,
+      "percent": 57.14
+    },
+    {
+      "productId": "clx...",
+      "productName": "Samsung Galaxy S24",
+      "unitsSold": 3,
+      "percent": 42.86
+    }
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `filters.categoryId` / `categoryName` | The category you filtered by |
+| `totalUnitsSold` | Sum of units sold for products in that category (after date/store filters) |
+| `products[].unitsSold` | Units sold for that product |
+| `products[].percent` | That product’s share of `totalUnitsSold` within the selected category (0–100, 2 dp) |
+
+- Filters by **`saleDate`** in the requested range  
+- **`categoryId` is required** — returns 400 if missing/invalid; 404 if category does not exist  
+- Optional **`storeId`** limits to one branch  
+
+Frontend: donut chart for the selected category; center label = `totalUnitsSold`. User picks category via a dropdown/toggle (e.g. Mobiles vs Accessories).
+
+### Example (Postman)
+
+```
+GET {{BASE_URL}}/api/reports/product-distribution?categoryId=1&fromDate=2026-06-01&toDate=2026-06-07
+Cookie: better-auth.session_token=...
+```
+
+---
+
+## 13. Filtering Rules
 
 ### Sales filters (admin)
 
@@ -487,7 +535,7 @@ These always reflect **current** state:
 
 ---
 
-## 13. What Reports Does Not Do
+## 14. What Reports Does Not Do
 
 | Out of scope (v1) | Alternative |
 |-------------------|-------------|
@@ -500,12 +548,13 @@ These always reflect **current** state:
 
 ---
 
-## 14. Related Files
+## 15. Related Files
 
 | File | Role |
 |------|------|
 | `api/src/modules/reports/reports.controller.ts` | Route definitions |
 | `api/src/modules/reports/reports.service.ts` | All aggregation queries |
+| `api/src/modules/reports/dto/product-distribution-query.dto.ts` | Product distribution filters |
 | `api/src/common/utils/app-timezone.util.ts` | Calendar dates, timezone, report range |
 | `api/src/common/utils/money.util.ts` | Decimal-safe money serialization |
 | `api/src/common/utils/period-comparison.util.ts` | Period-over-period delta % |
@@ -515,7 +564,7 @@ These always reflect **current** state:
 
 ---
 
-## 15. Frontend Mapping
+## 16. Frontend Mapping
 
 ### Admin dashboard (`/dashboard`)
 
@@ -524,12 +573,15 @@ These always reflect **current** state:
 | Stat cards (8) | `summary.*` |
 | Revenue vs COGS vs Expenses chart | `charts.revenueCogsExpenses` |
 | Expense breakdown donut | `charts.expenseBreakdown` |
+| Product distribution donut | **`GET /product-distribution`** — `products`, `totalUnitsSold`; **required** `categoryId` |
+| Stock by category donut | `charts.stockByCategory` |
 | Net profit trend line | `charts.netProfitTrend` |
 | Top products bars | `charts.topProducts` |
 | Top stores bars | `charts.topStores` |
 | Recent sales table | `recentSales` |
 | Low stock table | `lowStock` |
 | Date / store filters | Query params `fromDate`, `toDate`, `storeId` |
+| Product distribution filters | Separate call: **required** `categoryId`, optional `fromDate`, `toDate`, `storeId` |
 
 ### Financial summary (`/financial`)
 
@@ -564,7 +616,7 @@ These always reflect **current** state:
 Reports = read-only analytics
 Dates   = saleDate / expenseDate (calendar, Mogadishu)
 Money   = Decimal in DB → 2 dp in JSON
-Admin   = /admin-dashboard + /financial-summary
+Admin   = /admin-dashboard + /financial-summary + /product-distribution
 Manager = /manager-dashboard (own store only)
 Live    = stock value, balance, low-stock (not date-filtered)
 ```
