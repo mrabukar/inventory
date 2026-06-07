@@ -172,9 +172,20 @@ Inventory rows represent **live quantity** per product–store pair. Quantity is
 - Used in inventory list filter, admin/manager dashboards, and reports.
 - **No API exists to change** the threshold per row (see [§12](#12-gaps-designed-but-not-fully-implemented)).
 
-### Stock cannot go negative (application layer)
+### Stock cannot go negative
 
 Before any deduction (sale, sale correction increase, correction subtract), the service checks that the result would not be `< 0`. Violations return `400 Bad Request`.
+
+PostgreSQL also enforces **`CHECK (quantity >= 0)`** on `inventory` (migration `20260606210000_inventory_quantity_non_negative`).
+
+### Concurrency (row-level locking)
+
+All quantity mutations (sales, sale corrections, stock supply) run inside a database transaction and call `lockInventoryForMutation()` before read–modify–write:
+
+1. **`pg_advisory_xact_lock`** on the product–store pair — serializes concurrent mutations, including first-time inventory row creation.
+2. **`SELECT … FOR UPDATE`** on the existing inventory row — row-level lock while quantity is read and updated.
+
+See `src/common/utils/inventory-lock.util.ts`.
 
 ---
 
@@ -336,39 +347,24 @@ Period comparisons (e.g. vs previous month) use the same timezone-aware calendar
 - Cookie-based sessions (Better Auth), not JWT access/refresh tokens from the original design doc.
 - Auth mutations require trusted `Origin` (configure `BETTER_AUTH_TRUSTED_ORIGINS` — include both frontend and API origins for Postman/browser).
 
-### Transactions
+### Transactions & inventory locking
 
-- Sales, sale corrections, and stock supply all run in **database transactions** (inventory + domain row + audit in one commit).
+- Sales, sale corrections, and stock supply run in **database transactions** (inventory + domain row + audit in one commit).
+- Inventory quantity updates use **advisory locks + `FOR UPDATE`** before modifying quantity (see [§5](#5-inventory)).
 
 ---
 
 ## 12. Gaps: designed but not fully implemented
 
-These items appear in `system-design.md` or early architecture notes but are **not fully delivered** in the current API. They are documented here so operators and developers do not assume stronger guarantees than the code provides.
+These items appear in `system-design.md` or early architecture notes but are **not fully delivered** in the current API.
 
-### 12.1 Database `CHECK (quantity >= 0)` on inventory
+### ~~12.1 Database `CHECK (quantity >= 0)` on inventory~~ ✓ Implemented
 
-**Design:** Stock level cannot go negative; enforcement at both application logic **and** database constraint.
+Added in migration `20260606210000_inventory_quantity_non_negative`. Application checks remain as the primary user-facing validation; the DB constraint is a backstop.
 
-**Current state:** Application code rejects deductions that would leave `quantity < 0`. Migrations do **not** add a PostgreSQL `CHECK` constraint on `inventory.quantity`.
+### ~~12.2 Row-level locking on inventory during sales~~ ✓ Implemented
 
-**Impact:** A bug, manual SQL, or a future code path that bypasses the service layer could still write negative stock. The DB will not reject it.
-
-**Recommendation:** Add a migration with `CHECK ("quantity" >= 0)` when ready.
-
----
-
-### 12.2 Row-level locking on inventory during sales
-
-**Design:** Sale deduction runs inside a transaction **with row-level locking** on the inventory row to prevent race conditions when two managers sell the same product concurrently.
-
-**Current state:** Transactions exist, but inventory rows are read/updated with standard Prisma queries — **no `SELECT … FOR UPDATE`** or equivalent explicit lock.
-
-**Impact:** Under heavy concurrent load on the same product–store row, two requests could both pass the stock check before either commits, theoretically overselling stock.
-
-**Recommendation:** Use raw SQL with `FOR UPDATE` or Prisma interactive transaction patterns that lock the row before checking quantity.
-
----
+`lockInventoryForMutation()` in `src/common/utils/inventory-lock.util.ts` is used by sales, sale corrections, and stock supply. Combines `pg_advisory_xact_lock` (product–store slot) with `SELECT … FOR UPDATE` on the inventory row.
 
 ### 12.3 Account lockout after failed login attempts
 
