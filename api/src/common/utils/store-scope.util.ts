@@ -51,3 +51,31 @@ export function resolveStoreFilter(
 export function requireManagerStore(user: CurrentUserPayload): string {
   return assertBranchManagerHasStore(user);
 }
+
+export type ManagerStoreLookup = (
+  storeId: string,
+) => Promise<{ isActive: boolean } | null>;
+
+/**
+ * Manager mutations (e.g. submit sale): store must exist and be active.
+ * Use {@link requireManagerStore} for read-only paths (dashboard, sales history).
+ */
+export async function requireActiveManagerStore(
+  user: CurrentUserPayload,
+  findStore: ManagerStoreLookup,
+): Promise<string> {
+  const storeId = assertBranchManagerHasStore(user);
+  const store = await findStore(storeId);
+
+  if (!store) {
+    throw new ForbiddenException("Your assigned store could not be found");
+  }
+
+  if (!store.isActive) {
+    throw new ForbiddenException(
+      "Your assigned store is inactive. This action is not allowed.",
+    );
+  }
+
+  return storeId;
+}
