@@ -1,4 +1,5 @@
 import type { AdminPeriodComparison, ReportPeriod } from "./common";
+import type { ReportQuery } from "./query";
 
 export interface AdminDashboardSummary {
   totalRevenue: number;
@@ -96,9 +97,6 @@ export interface AdminDashboardResponse {
   recentSales: DashboardRecentSale[];
 }
 
-export interface AdminDashboardQuery {
-  fromDate?: string;
-  toDate?: string;
-  storeId?: string;
+export interface AdminDashboardQuery extends ReportQuery {
   categoryId?: number;
 }

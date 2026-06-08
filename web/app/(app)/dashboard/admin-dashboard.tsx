@@ -6,12 +6,13 @@ import {
 import { PageHeader }   from "@/components/ui/page-header";
 import { StatCard }     from "@/components/ui/stat-card";
 import { Card }         from "@/components/ui/card";
-import { FilterBtn }    from "@/components/ui/search";
+import { ReportFilterBar } from "@/components/filters/report-filter-bar";
 import { EmptyState }   from "@/components/ui/empty-state";
 import { GroupedBar }   from "@/components/charts/grouped-bar";
 import { Donut }        from "@/components/charts/donut";
 import { LineArea }     from "@/components/charts/line-area";
 import { HBars }        from "@/components/charts/h-bars";
+import { useReportFilters } from "@/hooks/filters/use-report-filters";
 import { useAdminDashboard } from "@/hooks/reports/admin-dashboard";
 import { formatExpenseTrend, formatPeriodTrend, formatSaleDate, toNumber } from "@/lib/reports/format";
 import { fmt, fmtK } from "@/lib/utils";
@@ -26,12 +27,21 @@ const DONUT_COLORS = [
 ];
 
 export function AdminDashboard() {
-  const { data, isLoading, isError, error } = useAdminDashboard();
+  const filters = useReportFilters();
+  const { data, isLoading, isError, error } = useAdminDashboard(filters.query);
+
+  const header = (
+    <PageHeader
+      title="Dashboard"
+      desc="Company-wide performance across all stores"
+      action={<ReportFilterBar filters={filters} />}
+    />
+  );
 
   if (isLoading) {
     return (
       <>
-        <PageHeader title="Dashboard" desc="Company-wide performance across all stores" />
+        {header}
         <div className="muted" style={{ padding: "24px 0" }}>Loading dashboard…</div>
       </>
     );
@@ -40,7 +50,7 @@ export function AdminDashboard() {
   if (isError || !data) {
     return (
       <>
-        <PageHeader title="Dashboard" desc="Company-wide performance across all stores" />
+        {header}
         <div className="alert-error" style={{ marginTop: 16 }}>
           <XCircle size={16} />
           {error instanceof Error ? error.message : "Failed to load dashboard."}
@@ -49,7 +59,7 @@ export function AdminDashboard() {
     );
   }
 
-  const { period, summary: s, comparison, charts, recentSales } = data;
+  const { summary: s, comparison, charts, recentSales } = data;
 
   const revenueChart = charts.revenueCogsExpenses.map((row) => ({
     m: row.month,
@@ -73,20 +83,9 @@ export function AdminDashboard() {
   const expenseTotal = charts.expenseBreakdown.reduce((sum, row) => sum + row.amount, 0);
   const stockTotal = charts.stockByCategory.reduce((sum, row) => sum + row.units, 0);
 
-  const periodLabel = `${period.from} → ${period.to}`;
-
   return (
     <>
-      <PageHeader
-        title="Dashboard"
-        desc="Company-wide performance across all stores"
-        action={
-          <div style={{ display: "flex", gap: 10 }}>
-            <FilterBtn label={periodLabel} />
-            <FilterBtn label="All stores" />
-          </div>
-        }
-      />
+      {header}
 
       <div className="stat-grid grid-4 mb-16">
         <StatCard

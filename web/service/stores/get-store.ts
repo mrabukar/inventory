@@ -1,9 +1,5 @@
 import { apiFetch } from "@/service/client";
-
-export interface Store {
-  id: string;
-  name: string;
-}
+import type { Store } from "@/types/stores/store";
 
 export function getStore(storeId: string): Promise<Store> {
   return apiFetch<Store>(`/api/stores/${storeId}`);

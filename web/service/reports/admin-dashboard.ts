@@ -1,4 +1,5 @@
 import { apiFetch } from "@/service/client";
+import { getCurrentMonthRange } from "@/lib/filters/dates";
 import type {
   AdminDashboardQuery,
   AdminDashboardResponse,
@@ -7,8 +8,8 @@ import type {
 function toQueryString(params: AdminDashboardQuery): string {
   const search = new URLSearchParams();
 
-  if (params.fromDate) search.set("fromDate", params.fromDate);
-  if (params.toDate) search.set("toDate", params.toDate);
+  search.set("fromDate", params.fromDate);
+  search.set("toDate", params.toDate);
   if (params.storeId) search.set("storeId", params.storeId);
   if (params.categoryId != null)
     search.set("categoryId", String(params.categoryId));
@@ -18,7 +19,7 @@ function toQueryString(params: AdminDashboardQuery): string {
 }
 
 export function getAdminDashboard(
-  params: AdminDashboardQuery = {},
+  params: AdminDashboardQuery = getCurrentMonthRange(),
 ): Promise<AdminDashboardResponse> {
   return apiFetch<AdminDashboardResponse>(
     `/api/reports/admin-dashboard${toQueryString(params)}`,

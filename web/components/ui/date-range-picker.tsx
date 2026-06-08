@@ -1,0 +1,122 @@
+"use client";
+
+import * as React from "react";
+import { CalendarIcon } from "lucide-react";
+import { type DateRange } from "react-day-picker";
+
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  dateToYmd,
+  formatPeriodLabel,
+  getCurrentMonthRange,
+  getLastMonthRange,
+  getLastSixMonthsRange,
+  isSameRange,
+  ymdToDate,
+} from "@/lib/filters/dates";
+import { cn } from "@/lib/utils";
+
+const PRESETS = [
+  { id: "this-month" as const, label: "This month", range: getCurrentMonthRange },
+  { id: "last-month" as const, label: "Last month", range: getLastMonthRange },
+  { id: "last-6-months" as const, label: "Last 6 months", range: getLastSixMonthsRange },
+];
+
+export interface DateRangePickerProps {
+  fromDate: string;
+  toDate: string;
+  onChange: (range: { fromDate: string; toDate: string }) => void;
+  className?: string;
+}
+
+export function DateRangePicker({
+  fromDate,
+  toDate,
+  onChange,
+  className,
+}: DateRangePickerProps) {
+  const [open, setOpen] = React.useState(false);
+  const [pending, setPending] = React.useState<DateRange | undefined>();
+
+  const selected: DateRange = {
+    from: ymdToDate(fromDate),
+    to: ymdToDate(toDate),
+  };
+
+  const calendarValue = pending ?? selected;
+
+  function applyRange(range: { fromDate: string; toDate: string }) {
+    onChange(range);
+    setPending(undefined);
+    setOpen(false);
+  }
+
+  function handleCalendarSelect(range: DateRange | undefined) {
+    setPending(range);
+    if (range?.from && range?.to) {
+      applyRange({
+        fromDate: dateToYmd(range.from),
+        toDate: dateToYmd(range.to),
+      });
+    }
+  }
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setPending(undefined);
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className={cn(
+            "h-9 min-w-[240px] justify-start text-left font-normal",
+            className,
+          )}
+        >
+          <CalendarIcon className="mr-2 size-4 shrink-0 opacity-50" />
+          <span className="truncate">
+            {formatPeriodLabel(fromDate, toDate)}
+          </span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="end">
+        <div className="flex flex-wrap gap-1.5 border-b p-2">
+          {PRESETS.map((preset) => {
+            const range = preset.range();
+            const active = isSameRange({ fromDate, toDate }, range);
+            return (
+              <Button
+                key={preset.id}
+                type="button"
+                variant={active ? "secondary" : "ghost"}
+                size="sm"
+                className="h-8"
+                onClick={() => applyRange(range)}
+              >
+                {preset.label}
+              </Button>
+            );
+          })}
+        </div>
+        <Calendar
+          autoFocus
+          mode="range"
+          defaultMonth={calendarValue.from}
+          selected={calendarValue}
+          onSelect={handleCalendarSelect}
+          numberOfMonths={2}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
