@@ -33,6 +33,12 @@ export class SalesController {
     return this.salesService.findAll(query, user);
   }
 
+  @Get(":id")
+  @Roles(UserRole.admin, UserRole.branch_manager)
+  findOne(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.salesService.findOne(id, user);
+  }
+
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @Roles(UserRole.branch_manager)
