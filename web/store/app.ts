@@ -7,8 +7,8 @@ interface AppState {
   user: AppUser | null;
   collapsed: boolean;
   toasts: Toast[];
-  login: (user: AppUser) => void;
-  logout: () => void;
+  setUser: (user: AppUser) => void;
+  clearUser: () => void;
   setCollapsed: (v: boolean) => void;
   addToast: (t: Omit<Toast, "id">) => void;
   removeToast: (id: number) => void;
@@ -21,8 +21,8 @@ export const useAppStore = create<AppState>()(
       collapsed: false,
       toasts: [],
 
-      login: (user) => set({ user }),
-      logout: () => set({ user: null }),
+      setUser: (user) => set({ user }),
+      clearUser: () => set({ user: null }),
       setCollapsed: (v) => set({ collapsed: v }),
 
       addToast: (t) => {
@@ -35,7 +35,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "inventory-session",
-      partialize: (s) => ({ user: s.user, collapsed: s.collapsed }),
+      partialize: (s) => ({ collapsed: s.collapsed }),
     }
   )
 );
