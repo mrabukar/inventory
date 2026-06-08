@@ -1,18 +1,13 @@
-import { apiFetch } from "@/lib/api/client";
+import { getStore } from "@/service/stores/get-store";
 import type { AppUser } from "@/lib/types";
-import type { ApiUser } from "./types";
-
-interface Store {
-  id: string;
-  name: string;
-}
+import type { ApiUser } from "@/types/auth/me";
 
 export async function mapApiUserToAppUser(apiUser: ApiUser): Promise<AppUser> {
   let storeName: string | null = null;
 
   if (apiUser.role === "branch_manager" && apiUser.storeId) {
     try {
-      const store = await apiFetch<Store>(`/api/stores/${apiUser.storeId}`);
+      const store = await getStore(apiUser.storeId);
       storeName = store.name;
     } catch {
       storeName = null;
