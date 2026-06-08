@@ -50,15 +50,6 @@ type TopProductRow = {
   unitsSold: number;
 };
 type TopStoreRow = { storeId: string; storeName: string; revenue: number };
-type LowStockRow = {
-  inventoryId: string;
-  productId: string;
-  productName: string;
-  storeId: string;
-  storeName: string;
-  quantity: number;
-  lowStockThreshold: number;
-};
 type DailyRevenueRow = { date: string; revenue: number };
 type CategoryStockRow = {
   categoryId: number;
@@ -102,7 +93,6 @@ export class ReportsService {
       topStores,
       stockByCategory,
       recentSales,
-      lowStock,
     ] = await Promise.all([
       this.computePeriodSummary(saleWhere, expenseWhere, storeId),
       this.computePeriodMetrics(previousSaleWhere, previousExpenseWhere),
@@ -113,7 +103,6 @@ export class ReportsService {
       storeId ? Promise.resolve([]) : this.fetchTopStores(saleWhere),
       this.fetchStockByCategory(storeId),
       this.fetchRecentSales(saleWhere),
-      this.fetchLowStock(storeId),
     ]);
 
     const monthKeys = buildMonthSeries(range.fromCalendar, range.toCalendar);
@@ -158,7 +147,6 @@ export class ReportsService {
         topStores,
       },
       recentSales,
-      lowStock,
     };
   }
 
@@ -218,10 +206,10 @@ export class ReportsService {
       previousMonthSales,
       inStockBalance,
       lowStockCount,
+      outOfStockCount,
       salesTrend,
       stockByCategory,
       recentSales,
-      lowStock,
     ] = await Promise.all([
       this.aggregateSales({
         storeId,
@@ -245,10 +233,10 @@ export class ReportsService {
       }),
       this.sumInventoryUnits(storeId),
       this.countLowStock(storeId),
+      this.countOutOfStock(storeId),
       this.fetchDailyRevenue(storeId, trendStart, today),
       this.fetchStockByCategory(storeId),
       this.fetchRecentSales({ storeId }),
-      this.fetchLowStock(storeId),
     ]);
 
     return {
@@ -259,6 +247,7 @@ export class ReportsService {
         monthRevenue: monthSales.revenue,
         inStockBalance,
         lowStockCount,
+        outOfStockCount,
       },
       comparison: buildManagerPeriodComparison(
         {
@@ -275,7 +264,6 @@ export class ReportsService {
         stockByCategory,
       },
       recentSales,
-      lowStock,
     };
   }
 
@@ -430,6 +418,7 @@ export class ReportsService {
       currentStockValue: stockMetrics.stockValue,
       inStockBalance: stockMetrics.units,
       lowStockCount: stockMetrics.lowStockCount,
+      outOfStockCount: stockMetrics.outOfStockCount,
     };
   }
 
@@ -626,30 +615,6 @@ export class ReportsService {
     });
   }
 
-  private async fetchLowStock(storeId?: string): Promise<LowStockRow[]> {
-    const rows = await this.prisma.$queryRaw<LowStockRow[]>`
-      SELECT
-        i.id AS "inventoryId",
-        i."productId",
-        p.name AS "productName",
-        i."storeId",
-        st.name AS "storeName",
-        i.quantity,
-        i."lowStockThreshold"
-      FROM "inventory" i
-      INNER JOIN "product" p ON p.id = i."productId"
-      INNER JOIN "store" st ON st.id = i."storeId"
-      WHERE p."isActive" = true
-        AND st."isActive" = true
-        AND i.quantity <= i."lowStockThreshold"
-        ${storeId ? Prisma.sql`AND i."storeId" = ${storeId}` : Prisma.empty}
-      ORDER BY i.quantity ASC, p.name ASC
-      LIMIT 50
-    `;
-
-    return rows;
-  }
-
   private async aggregateSales(params: {
     storeId: string;
     fromCalendar: string;
@@ -696,7 +661,23 @@ export class ReportsService {
       WHERE i."storeId" = ${storeId}
         AND p."isActive" = true
         AND st."isActive" = true
+        AND i.quantity > 0
         AND i.quantity <= i."lowStockThreshold"
+    `;
+
+    return Number(rows[0]?.count ?? 0);
+  }
+
+  private async countOutOfStock(storeId: string): Promise<number> {
+    const rows = await this.prisma.$queryRaw<{ count: bigint }[]>`
+      SELECT COUNT(*)::bigint AS count
+      FROM "inventory" i
+      INNER JOIN "product" p ON p.id = i."productId"
+      INNER JOIN "store" st ON st.id = i."storeId"
+      WHERE i."storeId" = ${storeId}
+        AND p."isActive" = true
+        AND st."isActive" = true
+        AND i.quantity = 0
     `;
 
     return Number(rows[0]?.count ?? 0);
@@ -802,12 +783,18 @@ export class ReportsService {
 
   private async computeLiveStockMetrics(storeId?: string) {
     const rows = await this.prisma.$queryRaw<
-      { stockValue: unknown; units: number; lowStockCount: number }[]
+      {
+        stockValue: unknown;
+        units: number;
+        lowStockCount: number;
+        outOfStockCount: number;
+      }[]
     >`
       SELECT
         COALESCE(SUM(i.quantity * p."purchasePrice"), 0)::numeric AS "stockValue",
         COALESCE(SUM(i.quantity), 0)::int AS units,
-        COALESCE(SUM(CASE WHEN i.quantity <= i."lowStockThreshold" THEN 1 ELSE 0 END), 0)::int AS "lowStockCount"
+        COALESCE(SUM(CASE WHEN i.quantity > 0 AND i.quantity <= i."lowStockThreshold" THEN 1 ELSE 0 END), 0)::int AS "lowStockCount",
+        COALESCE(SUM(CASE WHEN i.quantity = 0 THEN 1 ELSE 0 END), 0)::int AS "outOfStockCount"
       FROM "inventory" i
       INNER JOIN "product" p ON p.id = i."productId"
       INNER JOIN "store" st ON st.id = i."storeId"
@@ -820,6 +807,7 @@ export class ReportsService {
       stockValue: parseRawMoney(rows[0]?.stockValue),
       units: rows[0]?.units ?? 0,
       lowStockCount: rows[0]?.lowStockCount ?? 0,
+      outOfStockCount: rows[0]?.outOfStockCount ?? 0,
     };
   }
 
