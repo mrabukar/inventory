@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { buildLoginUrl } from "@/lib/auth/redirect";
+import { isRouteAllowedForRole } from "@/lib/auth/routes";
 import { useAppStore } from "@/store/app";
 import { Sidebar } from "./sidebar";
 import { Navbar } from "./navbar";
@@ -32,6 +33,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const collapsed = useAppStore((s) => s.collapsed);
   const setCollapsed = useAppStore((s) => s.setCollapsed);
 
+  const roleDenied =
+    !authLoading &&
+    isAuthenticated &&
+    user != null &&
+    !isRouteAllowedForRole(user.role, pathname);
+
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       const query = searchParams.toString();
@@ -40,7 +47,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [authLoading, isAuthenticated, router, pathname, searchParams]);
 
-  if (authLoading || !user) return null;
+  useEffect(() => {
+    if (roleDenied) {
+      router.replace("/dashboard");
+    }
+  }, [roleDenied, router]);
+
+  if (authLoading || !user || roleDenied) return null;
 
   const title = PAGE_TITLES[pathname] ?? "Dashboard";
 
