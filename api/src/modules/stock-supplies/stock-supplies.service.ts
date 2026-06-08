@@ -129,12 +129,14 @@ export class StockSuppliesService {
         type: "correction_subtract",
       },
       user,
+      { allowInactiveProduct: true },
     );
   }
 
   private async recordStockChange(
     input: RecordStockChangeInput,
     user: CurrentUserPayload,
+    options?: { allowInactiveProduct?: boolean },
   ): Promise<StockSupplyWithDetails> {
     const {
       productId,
@@ -152,7 +154,9 @@ export class StockSuppliesService {
 
     const [, product] = await Promise.all([
       this.storesService.findOne(storeId),
-      this.productsService.findOne(productId),
+      options?.allowInactiveProduct
+        ? this.productsService.findOneIncludingInactive(productId)
+        : this.productsService.findOne(productId),
       this.assertCorrectsSupply(correctsSupplyId, productId, storeId),
     ]);
 
