@@ -3,7 +3,7 @@ import { useRef, useState, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { PanelLeft, Sun, Moon, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useSignOut } from "@/lib/auth/hooks";
+import { useSignOut } from "@/hooks/auth/sign-out";
 import { useAppStore } from "@/store/app";
 import { initials } from "@/lib/utils";
 
