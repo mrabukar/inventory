@@ -13,6 +13,7 @@ import { DeactivateProductDto } from "./dto/deactivate-product.dto";
 import { ProductQueryDto } from "./dto/product-query.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
 import { normalizeProductName } from "./product-name.util";
+import { assertSellingPriceNotBelowPurchase } from "./product-price.util";
 
 export type ProductWithCategory = Prisma.ProductGetPayload<{
   include: { category: true };
@@ -71,6 +72,20 @@ export class ProductsService {
     return product;
   }
 
+  /** Active or inactive — for admin inventory reads and stock corrections on discontinued products. */
+  async findOneIncludingInactive(id: string): Promise<ProductWithCategory> {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: { category: true },
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product with id "${id}" not found`);
+    }
+
+    return product;
+  }
+
   async create(
     dto: CreateProductDto,
     user: CurrentUserPayload,
@@ -80,6 +95,8 @@ export class ProductsService {
     const name = dto.name.trim();
     const normalizedName = normalizeProductName(name);
     await this.assertUniqueActiveName(normalizedName);
+
+    assertSellingPriceNotBelowPurchase(dto.purchasePrice, dto.sellingPrice);
 
     const product = await this.prisma.product.create({
       data: {
@@ -135,6 +152,19 @@ export class ProductsService {
 
       data.name = name;
       data.normalizedName = normalizedName;
+    }
+
+    const purchasePrice =
+      dto.purchasePrice !== undefined
+        ? dto.purchasePrice
+        : Number(existing.purchasePrice);
+    const sellingPrice =
+      dto.sellingPrice !== undefined
+        ? dto.sellingPrice
+        : Number(existing.sellingPrice);
+
+    if (dto.purchasePrice !== undefined || dto.sellingPrice !== undefined) {
+      assertSellingPriceNotBelowPurchase(purchasePrice, sellingPrice);
     }
 
     const product = await this.prisma.product.update({
