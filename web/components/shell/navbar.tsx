@@ -3,6 +3,7 @@ import { useRef, useState, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { PanelLeft, Sun, Moon, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useSignOut } from "@/lib/auth/hooks";
 import { useAppStore } from "@/store/app";
 import { initials } from "@/lib/utils";
 
@@ -15,7 +16,7 @@ interface Props {
 export function Navbar({ title, collapsed, onToggle }: Props) {
   const { theme, setTheme } = useTheme();
   const router = useRouter();
-  const logout = useAppStore((s) => s.logout);
+  const signOut = useSignOut();
   const user = useAppStore((s) => s.user);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -29,8 +30,9 @@ export function Navbar({ title, collapsed, onToggle }: Props) {
   }, []);
 
   const handleLogout = () => {
-    logout();
-    router.push("/login");
+    signOut.mutate(undefined, {
+      onSettled: () => router.push("/login"),
+    });
   };
 
   const ini = user ? initials(user.name) : "?";
