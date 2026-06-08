@@ -290,7 +290,7 @@ Example:
 | `todayRevenue` | Today | Same calendar day last month |
 | `monthRevenue` | 1st of month → today | Same day range last month |
 
-Live metrics (`inStockBalance`, `lowStockCount`) have **no** comparison — they are point-in-time snapshots.
+Live metrics (`inStockBalance`, `lowStockCount`, `outOfStockCount`) have **no** comparison — they are point-in-time snapshots.
 
 ---
 
@@ -305,8 +305,7 @@ Live metrics (`inStockBalance`, `lowStockCount`) have **no** comparison — they
   "period": { "from", "to", "timezone" },
   "summary": { ... },
   "charts": { ... },
-  "recentSales": [ ... ],
-  "lowStock": [ ... ]
+  "recentSales": [ ... ]
 }
 ```
 
@@ -323,6 +322,7 @@ Live metrics (`inStockBalance`, `lowStockCount`) have **no** comparison — they
 | `currentStockValue` | Current Stock Value |
 | `inStockBalance` | In-Stock Balance |
 | `lowStockCount` | Low Stock Alerts |
+| `outOfStockCount` | Out of Stock |
 
 ### `charts`
 
@@ -368,9 +368,16 @@ Frontend: optional second donut or reuse same component with different title.
 
 Last 20 sales in the filtered period, with product, store, seller, and category included.
 
-### `lowStock`
+### Stock alert tables (not on dashboard payload)
 
-Up to 50 inventory rows where `quantity ≤ lowStockThreshold`, across active products and stores (or one store if filtered).
+Load paginated lists from the inventory module:
+
+| UI table | Endpoint |
+|----------|----------|
+| Low stock | `GET /api/inventory/low-stock` |
+| Out of stock | `GET /api/inventory/out-of-stock` |
+
+Admin: optional `?storeId=` (omit for all stores). Manager: auto-scoped to assigned store. Both support `page`, `limit`, `search`, `categoryId`. Stat cards still use `summary.lowStockCount` and `summary.outOfStockCount`.
 
 ---
 
@@ -388,7 +395,8 @@ Automatically scoped to the manager’s assigned `storeId`. No query params.
 | `todayUnitsSold` | Units sold today |
 | `monthRevenue` | Revenue from **1st of current month** through today |
 | `inStockBalance` | Total units in their store now |
-| `lowStockCount` | Low-stock items in their store now |
+| `lowStockCount` | Low-stock items in their store now (`quantity > 0` and `<= threshold`) |
+| `outOfStockCount` | Out-of-stock items in their store now (`quantity = 0`) |
 
 ### `charts`
 
@@ -397,7 +405,7 @@ Automatically scoped to the manager’s assigned `storeId`. No query params.
 | `salesTrend` | Daily revenue for the last 30 calendar days |
 | `stockByCategory` | Units in stock grouped by product category |
 
-Also includes `recentSales` (last 20 for their store) and `lowStock` for their store.
+Also includes `recentSales` (last 20 for their store). Low/out-of-stock tables: `GET /api/inventory/low-stock` and `GET /api/inventory/out-of-stock`.
 
 ---
 
@@ -531,7 +539,7 @@ These always reflect **current** state:
 - `currentStockValue`
 - `inStockBalance`
 - `lowStockCount`
-- `lowStock` list
+- `outOfStockCount`
 
 ---
 
@@ -570,7 +578,7 @@ These always reflect **current** state:
 
 | UI element | API source |
 |------------|------------|
-| Stat cards (8) | `summary.*` |
+| Stat cards (9+) | `summary.*` (includes `outOfStockCount`) |
 | Revenue vs COGS vs Expenses chart | `charts.revenueCogsExpenses` |
 | Expense breakdown donut | `charts.expenseBreakdown` |
 | Product distribution donut | **`GET /product-distribution`** — `products`, `totalUnitsSold`; **required** `categoryId` |
@@ -579,7 +587,8 @@ These always reflect **current** state:
 | Top products bars | `charts.topProducts` |
 | Top stores bars | `charts.topStores` |
 | Recent sales table | `recentSales` |
-| Low stock table | `lowStock` |
+| Low stock table | `GET /inventory/low-stock` |
+| Out of stock table | `GET /inventory/out-of-stock` |
 | Date / store filters | Query params `fromDate`, `toDate`, `storeId` |
 | Product distribution filters | Separate call: **required** `categoryId`, optional `fromDate`, `toDate`, `storeId` |
 
@@ -597,10 +606,11 @@ These always reflect **current** state:
 | UI element | API source |
 |------------|------------|
 | Today’s / month sales cards | `summary.todayRevenue`, `summary.monthRevenue` |
-| In-stock / low-stock cards | `summary.inStockBalance`, `summary.lowStockCount` |
+| In-stock / low-stock / out-of-stock cards | `summary.inStockBalance`, `summary.lowStockCount`, `summary.outOfStockCount` |
 | Sales trend line | `charts.salesTrend` |
 | Stock by category donut | `charts.stockByCategory` |
-| Recent sales / stock tables | `recentSales`, `lowStock` |
+| Recent sales table | `recentSales` |
+| Low / out-of-stock tables | `GET /inventory/low-stock`, `GET /inventory/out-of-stock` |
 
 ### UX notes
 
