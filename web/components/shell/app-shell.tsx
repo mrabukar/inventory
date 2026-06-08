@@ -1,6 +1,8 @@
 "use client";
 import { useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useAuth } from "@/components/auth/auth-provider";
+import { buildLoginUrl } from "@/lib/auth/redirect";
 import { useAppStore } from "@/store/app";
 import { Sidebar } from "./sidebar";
 import { Navbar } from "./navbar";
@@ -24,15 +26,21 @@ const PAGE_TITLES: Record<string, string> = {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { isLoading: authLoading, isAuthenticated } = useAuth();
   const user = useAppStore((s) => s.user);
   const collapsed = useAppStore((s) => s.collapsed);
   const setCollapsed = useAppStore((s) => s.setCollapsed);
 
   useEffect(() => {
-    if (!user) router.replace("/login");
-  }, [user, router]);
+    if (!authLoading && !isAuthenticated) {
+      const query = searchParams.toString();
+      const returnPath = query ? `${pathname}?${query}` : pathname;
+      router.replace(buildLoginUrl(returnPath));
+    }
+  }, [authLoading, isAuthenticated, router, pathname, searchParams]);
 
-  if (!user) return null;
+  if (authLoading || !user) return null;
 
   const title = PAGE_TITLES[pathname] ?? "Dashboard";
 
