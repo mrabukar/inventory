@@ -11,7 +11,7 @@ import {
 } from "../../common/utils/app-timezone.util";
 import { lockInventoryForMutation } from "../../common/utils/inventory-lock.util";
 import {
-  requireManagerStore,
+  requireActiveManagerStore,
   assertStoreAccess,
   resolveStoreFilter,
 } from "../../common/utils/store-scope.util";
@@ -110,11 +110,31 @@ export class SalesService {
     };
   }
 
+  async findOne(
+    id: string,
+    user: CurrentUserPayload,
+  ): Promise<SaleWithDetails> {
+    const sale = await this.prisma.sale.findUnique({
+      where: { id },
+      include: saleInclude,
+    });
+
+    if (!sale) {
+      throw new NotFoundException(`Sale with id "${id}" not found`);
+    }
+
+    assertStoreAccess(sale.storeId, user);
+
+    return sale;
+  }
+
   async create(
     dto: CreateSaleDto,
     user: CurrentUserPayload,
   ): Promise<SaleWithDetails> {
-    const storeId = requireManagerStore(user);
+    const storeId = await requireActiveManagerStore(user, (id) =>
+      this.findManagerStore(id),
+    );
     const product = await this.productsService.findOne(dto.productId);
     const saleDate = parseAndValidateSaleDate(dto.saleDate);
 
@@ -216,7 +236,9 @@ export class SalesService {
     dto: CorrectSaleDto,
     user: CurrentUserPayload,
   ): Promise<SaleWithDetails> {
-    const storeId = requireManagerStore(user);
+    const storeId = await requireActiveManagerStore(user, (id) =>
+      this.findManagerStore(id),
+    );
 
     const existing = await this.prisma.sale.findFirst({
       where: { id, storeId },
@@ -342,6 +364,13 @@ export class SalesService {
     return this.prisma.sale.findUniqueOrThrow({
       where: { id: saleId },
       include: saleInclude,
+    });
+  }
+
+  private findManagerStore(storeId: string) {
+    return this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: { isActive: true },
     });
   }
 }
