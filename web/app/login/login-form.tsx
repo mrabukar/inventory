@@ -6,7 +6,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { LogoMark } from "@/components/logo";
 import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
-import { useSignIn } from "@/lib/auth/hooks";
+import { useSignIn } from "@/hooks/auth/sign-in";
 import { getPostLoginRedirect } from "@/lib/auth/redirect";
 
 export function LoginForm() {
