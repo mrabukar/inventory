@@ -72,7 +72,8 @@ Shared helpers in **`src/common/utils/store-scope.util.ts`** — call these from
 |--------|-----|
 | `assertStoreAccess(storeId, user)` | Path/query store must match manager's store (403 if not) |
 | `resolveStoreFilter(user, queryStoreId?)` | List queries: admin may filter; manager always gets their store |
-| `requireManagerStore(user)` | Mutations with no store in request (submit sale, manager dashboard) |
+| `requireManagerStore(user)` | Read-only manager paths (dashboard, sales history) — **inactive store allowed** |
+| `requireActiveManagerStore(user, findStore)` | Manager **mutations** — assigned store must be **active** (403 if inactive) |
 
 **Where applied:**
 
@@ -80,8 +81,9 @@ Shared helpers in **`src/common/utils/store-scope.util.ts`** — call these from
 |--------|--------|
 | Inventory | `assertStoreAccess` on `:storeId` in path |
 | Sales list | `assertStoreAccess` if manager passes `?storeId=`; then `resolveStoreFilter` |
-| Sales create / correct | `requireManagerStore`; correct also verifies sale belongs to store |
-| Manager dashboard | `requireManagerStore` |
+| Sales get by id | `assertStoreAccess` on the sale's `storeId` |
+| Sales create / correct | `requireActiveManagerStore` — blocked when store is inactive |
+| Manager dashboard | `requireManagerStore` — works even when store is inactive (read-only snapshot) |
 
 Admin-only modules (stores, products, stock supply, expenses) rely on `@Roles` only.
 
@@ -93,6 +95,7 @@ Admin-only modules (stores, products, stock supply, expenses) rely on `@Roles` o
 
 - Email + password via Better Auth (`POST /api/auth/sign-in/email`).
 - **Inactive users** (`isActive: false`) are rejected at sign-in with a generic unauthorized response.
+- **Inactive assigned store** does **not** block sign-in — branch managers may log in to view dashboard and sales history; store **mutations** are blocked separately (see [§7](#7-sales--corrections)).
 - Session cookie: `better-auth.session_token`.
 - Session lifetime: **1 hour** (`expiresIn` and cookie cache in auth config).
 - Password minimum length: **8 characters**, plus strength rules (see below).
@@ -154,14 +157,14 @@ Sign-up validation (auth hooks):
 
 | Rule | Detail |
 |------|--------|
-| Create | Requires valid `categoryId`. `purchasePrice` and `sellingPrice` must be positive decimals (max 2 places). Name max 150 chars. |
+| Create | Requires valid `categoryId`. `purchasePrice` and `sellingPrice` must be positive decimals (max 2 places). **`sellingPrice` must be ≥ `purchasePrice`** (break-even allowed). Name max 150 chars. |
 | Name uniqueness | Among **active** products only, compared via normalized name (case/spacing insensitive). |
 | Update | Audited as `PRODUCT_UPDATED`. Renaming re-checks active-name uniqueness. |
 | Deactivate | Soft delete. Audited as `PRODUCT_DEACTIVATED`. **Blocked** if any store has `quantity > 0` unless body includes `{ "force": true }` (forced deactivations record remaining stock in audit). Rows with `quantity === 0` do not block. |
 | Reactivate | Allowed if no other **active** product has the same normalized name. Audited as `PRODUCT_REACTIVATED`. |
-| Active-only reads | `findOne` and supply/sale flows require `isActive: true`. |
+| Active-only reads | `findOne` and supply/sale flows require `isActive: true`. Admin inventory and **correction subtract** may use inactive products (see [§5](#5-inventory)). |
 
-**Price validation:** There is **no** rule that `sellingPrice >= purchasePrice`. Both must only be positive.
+**Price validation:** `sellingPrice` must be **≥ `purchasePrice`** on create and update (evaluates the **effective** pair after a partial `PATCH`). Break-even (`selling === purchase`) is allowed. Historical sale/supply snapshots are unchanged.
 
 ---
 
@@ -183,16 +186,33 @@ Inventory rows represent **live quantity** per product–store pair. Quantity is
 
 - Admin may read any store; manager may read **only** their assigned store.
 - List filters:
-  - **Active products** only (`product.isActive: true`).
+  - **Managers:** **active products** only (`product.isActive: true`).
+  - **Admins:** active products **plus** inactive products with **`quantity > 0`** (discontinued stock after `force` deactivate). Response includes `product.isActive` for UI labeling.
   - **Active stores** only (`store.isActive: true`).
   - Optional: `categoryId`, `search`, `lowStockOnly`.
-- `lowStockOnly`: rows where `quantity <= lowStockThreshold`.
+- `lowStockOnly`: rows where `quantity > 0` and `quantity <= lowStockThreshold` (excludes out-of-stock). Prefer dedicated alert endpoints below for paginated low/out-of-stock tables.
+- **Get one** (`GET .../products/:productId`): admins may fetch inventory for inactive products; managers require an active product.
+
+### Stock alert lists
+
+Dedicated paginated endpoints (admin + branch manager). **Active products and active stores only** — same rules as dashboard counts.
+
+| Endpoint | Rows included |
+|----------|----------------|
+| `GET /inventory/low-stock` | `quantity > 0` and `quantity <= lowStockThreshold` |
+| `GET /inventory/out-of-stock` | `quantity = 0` |
+
+Query params: `page`, `limit`, optional `search`, `categoryId`, and optional `storeId` (**admin only** — omit for all stores). Managers are always scoped to their assigned store; a mismatched `storeId` returns **403**.
+
+Dashboard stat cards use `summary.lowStockCount` / `summary.outOfStockCount` from `/reports/*-dashboard`; load these list endpoints for alert tables.
 
 ### Low stock threshold
 
 - Default **5** on each inventory row (`lowStockThreshold` column).
 - Used in inventory list filter, admin/manager dashboards, and reports.
-- **Admin only:** `PATCH /inventory/stores/:storeId/products/:productId/threshold` with `{ "lowStockThreshold": number }` (integer `>= 0`). Requires an existing inventory row; active product and store. Audited as `INVENTORY_UPDATED` (threshold fields only in old/new values). Quantity is **not** changed by this endpoint.
+- **Admin only:** `PATCH /inventory/stores/:storeId/products/:productId/threshold` with `{ "lowStockThreshold": number }` (integer `>= 0`). Works for inactive products when an inventory row exists. Audited as `INVENTORY_UPDATED` (threshold fields only in old/new values). Quantity is **not** changed by this endpoint.
+
+**Reports:** stock value and low-stock metrics still count **active products only** (orphan discontinued stock is excluded from dashboard totals).
 
 ### Stock cannot go negative
 
@@ -228,7 +248,7 @@ Admin only. See [`stock-supply-design.md`](./stock-supply-design.md) for full de
 | Rule | Detail |
 |------|--------|
 | Immutability | Supply rows are **never edited or deleted**. Mistakes are fixed with correction endpoints. |
-| Active product & store | Both must pass `findOne` (active only). |
+| Active product & store | Normal supply and correction **add** require an **active** product and store. **Correction subtract** allows an **inactive** product (clear discontinued stock). |
 | Quantity | Must be **non-zero**. Normal/correction DTOs require **positive** input; subtract endpoint negates internally. |
 | Note | **Optional** on normal supply. **Required** on corrections (max 500 chars). |
 | `correctsSupplyId` | Optional on corrections. If provided, referenced supply must exist and match the **same product and store**. |
@@ -246,13 +266,23 @@ Negative inventory adjustments are **only** allowed through `correction_subtract
 | Action | Admin | Branch manager |
 |--------|:-----:|:--------------:|
 | List sales | ✓ (optional `storeId` filter) | ✓ (forced to own store) |
-| Submit sale | ✗ | ✓ |
-| Correct sale | ✗ | ✓ (own store only) |
+| Get sale by id | ✓ (any store) | ✓ (own store only) |
+| Submit sale | ✗ | ✓ (assigned store must be **active**) |
+| Correct sale | ✗ | ✓ (own store only; store must be **active**) |
+
+### Get sale (`GET /sales/:id`)
+
+| Rule | Detail |
+|------|--------|
+| Access | Admin: any sale. Manager: sale must belong to their `storeId` (`assertStoreAccess`). |
+| Response | Same shape as list rows — product (with category), store, soldBy, corrections (newest first). |
+| Not found | `404` if id does not exist, or manager requests another store’s sale. |
 
 ### Submit sale (`POST /sales`)
 
 | Rule | Detail |
 |------|--------|
+| Active store | Manager's assigned store must be **active** (`isActive: true`). Otherwise **403**. |
 | Product | Must be **active** and have an **inventory row** at the manager’s store. |
 | Quantity | Integer, **positive** (`@IsPositive`). |
 | Stock check | Rejected if `quantitySold > inventory.quantity`. |
@@ -266,6 +296,7 @@ Negative inventory adjustments are **only** allowed through `correction_subtract
 
 | Rule | Detail |
 |------|--------|
+| Active store | Same as submit sale — assigned store must be **active**. |
 | Eligibility | Sale must belong to manager’s store and have status **`active`**. |
 | Corrected quantity | Integer **`>= 0`**. Must **differ** from original `quantitySold`. |
 | Reason | **Required** (max 500 chars). |
@@ -329,7 +360,8 @@ All report endpoints are **read-only**. No PDF/Excel export (see [§12](#12-gaps
 | Expenses | By `expenseDate`; store filter applies per rules above |
 | Stock investment (period) | Sum of `stock_supply.quantity × unitPurchasePrice` where `createdAt` falls in period |
 | Current stock value (live) | Sum of `inventory.quantity × product.purchasePrice` using **today’s catalog cost**, not supply snapshots |
-| Low stock count | Inventory rows where `quantity <= lowStockThreshold` (active products/stores) |
+| Low stock count | Inventory rows where `quantity > 0` and `quantity <= lowStockThreshold` (active products/stores) |
+| Out of stock count | Inventory rows where `quantity = 0` (active products/stores; row must exist) |
 
 Period comparisons (e.g. vs previous month) use the same timezone-aware calendar logic as sale/expense dates. See [`reports-module.md`](./reports-module.md).
 
@@ -462,47 +494,25 @@ Block by default when any store has `quantity > 0`. Override with `PATCH /produc
 
 Deactivate blocked when active branch managers are assigned or when the store has inventory with `quantity > 0`.
 
-### 13.3 Sales and corrections at deactivated stores
+### ~~13.3 Sales and corrections at deactivated stores~~ ✓ Resolved
 
-**Current state:** Sale create/correct uses the manager’s `user.storeId` but **does not verify** `store.isActive`. Supply and inventory **reads** require active stores; **writes** do not.
+`POST /sales` and `PATCH /sales/:id/correct` use `requireActiveManagerStore` — **403** when the manager's assigned store is inactive. `GET /sales` and the manager dashboard remain available (read-only).
 
-**Impact:** A manager assigned to a deactivated store can still submit sales and corrections if inventory rows exist.
+### ~~13.4 Managers at deactivated stores can still sign in~~ ✓ Resolved (by design)
 
----
+Sign-in is **not** blocked when the assigned store is inactive. Managers can log in and view dashboard / sales history; they cannot submit or correct sales until the store is reactivated or they are reassigned (see [§13.2](#132-store-deactivate-without-guard-rails)).
 
-### 13.4 Managers at deactivated stores can still sign in
+### ~~13.5 No validation that selling price ≥ purchase price~~ ✓ Resolved
 
-**Current state:** Sign-in checks **user** `isActive`, not whether the assigned **store** is active.
+`POST /products` and `PATCH /products/:id` reject when effective `sellingPrice < purchasePrice` (`400`). Break-even is allowed.
 
-**Impact:** Deactivating a store does not automatically block its managers from logging in and operating (see [§13.3](#133-sales-and-corrections-at-deactivated-stores)).
+### ~~13.6 No `GET /sales/:id` detail endpoint~~ ✓ Resolved
 
----
+`GET /api/sales/:id` — admin or branch manager (own store). Returns full sale with product, store, soldBy, and corrections.
 
-### 13.5 No validation that selling price ≥ purchase price
+### ~~13.7 Deactivated product inventory visibility~~ ✓ Resolved
 
-**Design:** Lists purchase and selling price separately; does not mandate margin.
-
-**Current state:** Admin may set `sellingPrice` **below** `purchasePrice`.
-
-**Impact:** Sales and profit reports remain mathematically correct but may show negative unit margin by configuration.
-
----
-
-### 13.6 No `GET /sales/:id` detail endpoint
-
-**Current state:** Sales are listed via `GET /sales` with pagination and filters. There is **no** get-by-id route.
-
-**Impact:** Clients must find a sale in the list or query by filters; no direct fetch for a correction workflow UI unless added later.
-
----
-
-### 13.7 Deactivated product inventory visibility
-
-**Current state:** Inventory **list** hides inactive products. A direct inventory lookup for an inactive product still goes through `productsService.findOne`, which requires **active** product — so managers cannot fetch that row via normal API paths even if quantity > 0 in the database.
-
-**Impact:** Orphan stock for deactivated products is invisible via API until the product is reactivated (or data is fixed in DB).
-
----
+**Admins:** inventory list includes inactive products when `quantity > 0`; get-one and threshold PATCH work for inactive products. **Managers:** active products only. **Correction subtract** works on inactive products to clear orphan stock. Dashboard stock metrics remain active-product-only.
 
 ## 14. Related documentation
 
