@@ -5,6 +5,7 @@ import {
   type CurrentUserPayload,
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { InventoryAlertQueryDto } from "./dto/inventory-alert-query.dto";
 import { InventoryQueryDto } from "./dto/inventory-query.dto";
 import { UpdateInventoryThresholdDto } from "./dto/update-inventory-threshold.dto";
 import { InventoryService } from "./inventory.service";
@@ -13,6 +14,22 @@ import { InventoryService } from "./inventory.service";
 @Controller("inventory")
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
+
+  @Get("low-stock")
+  findLowStock(
+    @Query() query: InventoryAlertQueryDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.inventoryService.findLowStock(query, user);
+  }
+
+  @Get("out-of-stock")
+  findOutOfStock(
+    @Query() query: InventoryAlertQueryDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.inventoryService.findOutOfStock(query, user);
+  }
 
   @Get("stores/:storeId/products/:productId")
   findOne(
