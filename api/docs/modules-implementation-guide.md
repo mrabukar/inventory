@@ -118,6 +118,7 @@ import {
   assertStoreAccess,
   resolveStoreFilter,
   requireManagerStore,
+  requireActiveManagerStore,
 } from '../../common/utils/store-scope.util';
 
 // Inventory: store id in URL path
@@ -127,8 +128,13 @@ assertStoreAccess(storeId, user);
 if (queryStoreId) assertStoreAccess(queryStoreId, user);
 const storeId = resolveStoreFilter(user, query.storeId);
 
-// Submit sale / manager dashboard
+// Manager dashboard / sales history (inactive store OK)
 const storeId = requireManagerStore(user);
+
+// Submit sale / correct sale (store must be active)
+const storeId = await requireActiveManagerStore(user, (id) =>
+  prisma.store.findUnique({ where: { id }, select: { isActive: true } }),
+);
 ```
 
 Do **not** duplicate role/store checks inline — import from this util.
@@ -555,7 +561,7 @@ Build and test one endpoint at a time in Postman before moving on.
 | 1 | **Stores** | POST, GET all, GET one, PATCH, PATCH deactivate |
 | 2 | **Categories** | GET all (read-only, seeded data) |
 | 3 | **Products** | POST, GET all, GET one, PATCH, PATCH deactivate |
-| 4 | **Inventory** | GET stock by store, GET stock for one product-store |
+| 4 | **Inventory** | GET stock by store, GET one product-store, GET low-stock / out-of-stock alerts, PATCH threshold |
 | 5 | **Stock Supply** | POST (admin supplies stock), GET history |
 | 6 | **Sales** | POST (manager submits), GET history, PATCH correct |
 | 7 | **Expenses** | POST, GET all, PATCH, DELETE |
