@@ -1,34 +1,79 @@
 "use client";
+import Link from "next/link";
 import {
-  TrendingUp, CreditCard, Layers, Package, AlertTriangle, ShoppingCart, Truck, SquarePen, UserX,
+  TrendingUp, CreditCard, Layers, Package, AlertTriangle, ShoppingCart, XCircle,
 } from "lucide-react";
 import { PageHeader }   from "@/components/ui/page-header";
 import { StatCard }     from "@/components/ui/stat-card";
 import { Card }         from "@/components/ui/card";
 import { FilterBtn }    from "@/components/ui/search";
-import { Badge }        from "@/components/ui/badge";
+import { EmptyState }   from "@/components/ui/empty-state";
 import { GroupedBar }   from "@/components/charts/grouped-bar";
 import { Donut }        from "@/components/charts/donut";
 import { LineArea }     from "@/components/charts/line-area";
 import { HBars }        from "@/components/charts/h-bars";
-import {
-  SUMMARY, REV_COGS_EXP, EXPENSE_BREAKDOWN, NET_PROFIT, MONTHS,
-  TOP_PRODUCTS, TOP_STORES, SALES, INVENTORY, FEED,
-} from "@/lib/data";
+import { useAdminDashboard } from "@/hooks/reports/admin-dashboard";
+import { formatExpenseTrend, formatPeriodTrend, formatSaleDate, toNumber } from "@/lib/reports/format";
 import { fmt, fmtK } from "@/lib/utils";
 
-const COLOR_MAP: Record<string, string> = {
-  indigo: "var(--brand-indigo)", teal: "var(--brand-teal)",
-  amber: "var(--status-amber)", rose: "var(--status-rose)", violet: "var(--brand-violet)",
-};
-const TINT_MAP: Record<string, string> = {
-  indigo: "var(--tint-indigo)", teal: "var(--tint-teal)",
-  amber: "var(--tint-amber)", rose: "var(--tint-rose)", violet: "var(--tint-violet)",
-};
+const DONUT_COLORS = [
+  "var(--brand-indigo)",
+  "var(--brand-teal)",
+  "var(--brand-violet)",
+  "var(--status-amber)",
+  "var(--status-rose)",
+  "var(--status-emerald)",
+];
 
 export function AdminDashboard() {
-  const s = SUMMARY;
-  const lowStock = INVENTORY.filter((i) => i.qty <= i.threshold);
+  const { data, isLoading, isError, error } = useAdminDashboard();
+
+  if (isLoading) {
+    return (
+      <>
+        <PageHeader title="Dashboard" desc="Company-wide performance across all stores" />
+        <div className="muted" style={{ padding: "24px 0" }}>Loading dashboard…</div>
+      </>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <>
+        <PageHeader title="Dashboard" desc="Company-wide performance across all stores" />
+        <div className="alert-error" style={{ marginTop: 16 }}>
+          <XCircle size={16} />
+          {error instanceof Error ? error.message : "Failed to load dashboard."}
+        </div>
+      </>
+    );
+  }
+
+  const { period, summary: s, comparison, charts, recentSales } = data;
+
+  const revenueChart = charts.revenueCogsExpenses.map((row) => ({
+    m: row.month,
+    rev: row.revenue,
+    cogs: row.cogs,
+    exp: row.expenses,
+  }));
+
+  const expenseDonut = charts.expenseBreakdown.map((row, i) => ({
+    label: row.categoryName,
+    value: row.amount,
+    color: DONUT_COLORS[i % DONUT_COLORS.length],
+  }));
+
+  const stockDonut = charts.stockByCategory.map((row, i) => ({
+    label: row.categoryName,
+    value: row.units,
+    color: DONUT_COLORS[i % DONUT_COLORS.length],
+  }));
+
+  const expenseTotal = charts.expenseBreakdown.reduce((sum, row) => sum + row.amount, 0);
+  const stockTotal = charts.stockByCategory.reduce((sum, row) => sum + row.units, 0);
+
+  const periodLabel = `${period.from} → ${period.to}`;
 
   return (
     <>
@@ -37,112 +82,172 @@ export function AdminDashboard() {
         desc="Company-wide performance across all stores"
         action={
           <div style={{ display: "flex", gap: 10 }}>
-            <FilterBtn label="Last 6 months" />
+            <FilterBtn label={periodLabel} />
             <FilterBtn label="All stores" />
           </div>
         }
       />
 
-      {/* Stat cards */}
       <div className="stat-grid grid-4 mb-16">
-        <StatCard icon={TrendingUp}    color="indigo"  value={fmt(s.total_revenue)}       label="Total Revenue"      trend="12.4%" />
-        <StatCard icon={TrendingUp}    color="teal"    value={fmt(s.gross_profit)}         label="Gross Profit"       trend="6.1%"  />
-        <StatCard icon={TrendingUp}    color="violet"  value={fmt(s.net_profit)}           label="Net Profit"         trend="8.1%"  />
-        <StatCard icon={CreditCard}    color="amber"   value={fmt(s.total_expenses)}       label="Total Expenses"     trend="2.0%"  trendDir="down" />
-        <StatCard icon={Layers}        color="indigo"  value={fmt(s.current_stock_value)}  label="Current Stock Value" />
-        <StatCard icon={Package}       color="teal"    value={s.in_stock_balance.toLocaleString()} label="In-Stock Balance" />
-        <StatCard icon={AlertTriangle} color="amber"   value={s.low_stock_count}           label="Low Stock Alerts"   />
-        <StatCard icon={ShoppingCart}  color="violet"  value={s.units_sold}                label="Units Sold"         />
+        <StatCard
+          icon={TrendingUp}
+          color="indigo"
+          value={fmt(s.totalRevenue)}
+          label="Total Revenue"
+          {...formatPeriodTrend(comparison.totalRevenue)}
+        />
+        <StatCard
+          icon={TrendingUp}
+          color="teal"
+          value={fmt(s.grossProfit)}
+          label="Gross Profit"
+          {...formatPeriodTrend(comparison.grossProfit)}
+        />
+        <StatCard
+          icon={TrendingUp}
+          color="violet"
+          value={fmt(s.netProfit)}
+          label="Net Profit"
+          valueColor={s.netProfit < 0 ? "var(--status-rose)" : undefined}
+          {...formatPeriodTrend(comparison.netProfit)}
+        />
+        <StatCard
+          icon={CreditCard}
+          color="amber"
+          value={fmt(s.totalExpenses)}
+          label="Total Expenses"
+          {...formatExpenseTrend(comparison.totalExpenses)}
+        />
+        <StatCard icon={Layers} color="indigo" value={fmt(s.currentStockValue)} label="Current Stock Value" />
+        <StatCard icon={Package} color="teal" value={s.inStockBalance.toLocaleString()} label="In-Stock Balance" />
+        <StatCard icon={AlertTriangle} color="amber" value={s.lowStockCount} label="Low Stock Alerts" />
+        <StatCard icon={AlertTriangle} color="rose" value={s.outOfStockCount} label="Out of Stock" />
+        <StatCard
+          icon={ShoppingCart}
+          color="violet"
+          value={s.totalUnitsSold.toLocaleString()}
+          label="Units Sold"
+          {...formatPeriodTrend(comparison.totalUnitsSold)}
+        />
+        <StatCard icon={CreditCard} color="indigo" value={fmt(s.cogs)} label="Cost of Goods Sold" />
       </div>
 
-      {/* Charts row */}
       <div className="dash-charts mb-16">
         <Card title="Revenue vs COGS vs Expenses" pad>
-          <GroupedBar data={REV_COGS_EXP} />
+          {revenueChart.length > 0 ? (
+            <GroupedBar data={revenueChart} />
+          ) : (
+            <EmptyState title="No sales data" sub="No revenue in the selected period." />
+          )}
         </Card>
         <Card title="Expense Breakdown" pad>
-          <Donut
-            data={EXPENSE_BREAKDOWN}
-            centerLabel="Total"
-            centerValue={fmtK(EXPENSE_BREAKDOWN.reduce((a, b) => a + b.value, 0))}
-          />
+          {expenseDonut.length > 0 ? (
+            <Donut
+              data={expenseDonut}
+              centerLabel="Total"
+              centerValue={fmtK(expenseTotal)}
+            />
+          ) : (
+            <EmptyState title="No expenses" sub="No expenses recorded in the selected period." />
+          )}
         </Card>
       </div>
 
-      {/* Second charts row */}
       <div className="grid-3 mb-16">
         <Card title="Net Profit Trend" pad>
-          <LineArea values={NET_PROFIT} labels={MONTHS} height={180} />
+          {charts.netProfitTrend.length > 0 ? (
+            <LineArea
+              values={charts.netProfitTrend.map((row) => row.netProfit)}
+              labels={charts.netProfitTrend.map((row) => row.month)}
+              height={180}
+            />
+          ) : (
+            <EmptyState title="No profit trend" sub="Not enough data for this period." />
+          )}
         </Card>
         <Card title="Top Selling Products" pad>
-          <HBars data={TOP_PRODUCTS} valueKey="units" labelKey="name" color="var(--brand-teal)" />
+          {charts.topProducts.length > 0 ? (
+            <HBars
+              data={charts.topProducts.map((row) => ({
+                name: row.productName,
+                units: row.unitsSold,
+              }))}
+              valueKey="units"
+              labelKey="name"
+              color="var(--brand-teal)"
+            />
+          ) : (
+            <EmptyState title="No product sales" sub="No products sold in the selected period." />
+          )}
         </Card>
         <Card title="Top Performing Stores" pad>
-          <HBars data={TOP_STORES} valueKey="rev" labelKey="name" color="var(--brand-indigo)" format={fmtK} />
+          {charts.topStores.length > 0 ? (
+            <HBars
+              data={charts.topStores.map((row) => ({
+                name: row.storeName,
+                revenue: row.revenue,
+              }))}
+              valueKey="revenue"
+              labelKey="name"
+              color="var(--brand-indigo)"
+              format={fmtK}
+            />
+          ) : (
+            <EmptyState title="No store rankings" sub="Store rankings appear when viewing all stores." />
+          )}
         </Card>
       </div>
 
-      {/* Tables row */}
       <div className="grid-2 mb-16">
-        <Card title="Recent Sales" link="View all">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Date</th><th>Store</th><th>Product</th>
-                <th className="r">Qty</th><th className="r">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {SALES.slice(0, 5).map((r) => (
-                <tr key={r.id}>
-                  <td className="muted">{r.date}</td>
-                  <td>{r.store.split(" — ")[0]}</td>
-                  <td className="strong">{r.product}</td>
-                  <td className="r num">{r.qty}</td>
-                  <td className="r num t-indigo strong">{fmt(r.qty * r.unit)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <Card title="Stock by Category" pad>
+          {stockDonut.length > 0 ? (
+            <Donut
+              data={stockDonut}
+              centerLabel="Units"
+              centerValue={stockTotal.toLocaleString()}
+            />
+          ) : (
+            <EmptyState title="No stock data" sub="No inventory on hand for the current filters." />
+          )}
         </Card>
 
-        <Card title="Low Stock Alerts" titleIcon={AlertTriangle}>
-          <table className="tbl">
-            <thead>
-              <tr><th>Product</th><th>Store</th><th className="r">Qty</th><th className="r">Threshold</th></tr>
-            </thead>
-            <tbody>
-              {lowStock.map((r) => (
-                <tr key={r.id}>
-                  <td className="strong">{r.product}</td>
-                  <td className="muted">{r.store.split(" — ")[0]}</td>
-                  <td className="r num t-rose strong">{r.qty}</td>
-                  <td className="r num muted">{r.threshold}</td>
+        <Card title="Recent Sales" link="View all">
+          {recentSales.length > 0 ? (
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>Date</th><th>Store</th><th>Product</th>
+                  <th className="r">Qty</th><th className="r">Amount</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {recentSales.slice(0, 5).map((sale) => (
+                  <tr key={sale.id}>
+                    <td className="muted">{formatSaleDate(sale.saleDate)}</td>
+                    <td>{sale.store.name}</td>
+                    <td className="strong">{sale.product.name}</td>
+                    <td className="r num">{sale.quantitySold}</td>
+                    <td className="r num t-indigo strong">{fmt(toNumber(sale.totalAmount))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <EmptyState title="No recent sales" sub="No sales recorded in the selected period." />
+          )}
         </Card>
       </div>
 
-      {/* Activity feed */}
-      <Card title="Recent Activity" link="View full audit log" pad>
-        {FEED.map((f, i) => (
-          <div className="feed-item" key={i}>
-            <div className="feed-ic" style={{ background: TINT_MAP[f.color], color: COLOR_MAP[f.color] }}>
-              {f.icon === "Truck"        && <Truck size={16} />}
-              {f.icon === "ShoppingCart" && <ShoppingCart size={16} />}
-              {f.icon === "CreditCard"   && <CreditCard size={16} />}
-              {f.icon === "SquarePen"    && <SquarePen size={16} />}
-              {f.icon === "UserX"        && <UserX size={16} />}
-            </div>
-            <div>
-              <div className="feed-text" dangerouslySetInnerHTML={{ __html: f.text }} />
-              <div className="feed-time">{f.time}</div>
-            </div>
-          </div>
-        ))}
-      </Card>
+      {(s.lowStockCount > 0 || s.outOfStockCount > 0) && (
+        <Card title="Stock Alerts" titleIcon={AlertTriangle}>
+          <p className="muted" style={{ marginBottom: 12 }}>
+            {s.lowStockCount} low-stock and {s.outOfStockCount} out-of-stock items company-wide.
+          </p>
+          <Link href="/inventory" className="btn btn-outline btn-sm">
+            View inventory alerts
+          </Link>
+        </Card>
+      )}
     </>
   );
 }
