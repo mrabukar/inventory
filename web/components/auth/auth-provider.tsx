@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect } from "react";
-import { useSession } from "@/lib/auth/hooks";
+import { useSession } from "@/hooks/auth/session";
 import { useAppStore } from "@/store/app";
 
 interface AuthContextValue {
