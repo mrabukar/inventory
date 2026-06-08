@@ -2,6 +2,8 @@
 
 This document describes the **business rules enforced by the NestJS API** today: what is allowed, what is blocked, and how money, dates, and access control work. It also records **known gaps** where the original design (`system-design.md`) expects more than the API currently delivers.
 
+**For the authoritative operational playbook** (workflows, prerequisites, action order — intended for frontend and operators), see **[`system-behavior-guide.md`](./system-behavior-guide.md)**.
+
 For implementation patterns (DTOs, controllers, audit), see [`modules-implementation-guide.md`](./modules-implementation-guide.md). For module-specific detail, see [`stock-supply-design.md`](./stock-supply-design.md) and [`reports-module.md`](./reports-module.md).
 
 _Last updated: 2026-06-06_
@@ -518,6 +520,7 @@ Sign-in is **not** blocked when the assigned store is inactive. Managers can log
 
 | Document | Contents |
 |----------|----------|
+| [`system-behavior-guide.md`](./system-behavior-guide.md) | **Operational playbook** — workflows, prerequisites, full behavior spec |
 | [`system-design.md`](../../system-design.md) | Original product/domain design (some auth/report details superseded) |
 | [`modules-implementation-guide.md`](./modules-implementation-guide.md) | NestJS patterns, audit, pagination, soft delete |
 | [`stock-supply-design.md`](./stock-supply-design.md) | Supply immutability, corrections, pricing snapshots |
