@@ -1,17 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
 
-interface Item { [key: string]: string | number; }
-
-interface Props {
-  data: Item[];
-  valueKey: string;
-  labelKey: string;
+interface Props<T extends Record<string, string | number>> {
+  data: T[];
+  valueKey: keyof T & string;
+  labelKey: keyof T & string;
   color?: string;
   format?: (v: number) => string;
 }
 
-export function HBars({ data, valueKey, labelKey, color = "var(--brand-teal)", format }: Props) {
+export function HBars<T extends Record<string, string | number>>({
+  data, valueKey, labelKey, color = "var(--brand-teal)", format,
+}: Props<T>) {
   const [on, setOn] = useState(false);
   useEffect(() => { const t = setTimeout(() => setOn(true), 40); return () => clearTimeout(t); }, []);
 
