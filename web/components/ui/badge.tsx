@@ -45,6 +45,19 @@ export function SaleStatusBadge({ status }: { status: "active" | "corrected" }) 
   );
 }
 
+export function SupplyTypeBadge({
+  type,
+}: {
+  type: "supply" | "correction_add" | "correction_subtract";
+}) {
+  if (type === "supply") return null;
+  return (
+    <Badge color={type === "correction_add" ? "teal" : "amber"}>
+      {type === "correction_add" ? "Fix +" : "Fix −"}
+    </Badge>
+  );
+}
+
 export function RoleBadge({ role }: { role: string }) {
   const isAdmin = role === "admin";
   return (
