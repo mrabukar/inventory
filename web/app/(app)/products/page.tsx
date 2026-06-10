@@ -42,6 +42,7 @@ function productMargin(product: Product): number {
 
 export default function ProductsPage() {
   const addToast = useAppStore((s) => s.addToast);
+  const addErrorToast = useAppStore((s) => s.addErrorToast);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(20);
   const [search, setSearch] = useState("");
@@ -235,7 +236,7 @@ export default function ProductsPage() {
       }
       setSheet(null);
     } catch (e) {
-      addToast({
+      addErrorToast({
         title: "Failed to save product",
         sub: e instanceof Error ? e.message : "Something went wrong",
       });
@@ -249,7 +250,7 @@ export default function ProductsPage() {
       addToast({ title: "Product deactivated" });
       setConfirm(null);
     } catch (e) {
-      addToast({
+      addErrorToast({
         title: "Failed to deactivate product",
         sub: e instanceof Error ? e.message : "Something went wrong",
       });
