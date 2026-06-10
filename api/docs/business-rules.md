@@ -187,6 +187,8 @@ Inventory rows represent **live quantity** per product–store pair. Quantity is
 ### Read rules
 
 - Admin may read any store; manager may read **only** their assigned store.
+- **`GET /inventory`** — paginated list across stores. Admin: optional `?storeId=` (omit for all active stores). Manager: always scoped to assigned store (`storeId` query param ignored after access check if mismatched).
+- **`GET /inventory/stores/:storeId`** — same list shape, store in path (equivalent to `GET /inventory?storeId=` for admins).
 - List filters:
   - **Managers:** **active products** only (`product.isActive: true`).
   - **Admins:** active products **plus** inactive products with **`quantity > 0`** (discontinued stock after `force` deactivate). Response includes `product.isActive` for UI labeling.
