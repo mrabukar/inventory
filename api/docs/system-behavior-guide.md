@@ -363,7 +363,7 @@ Categories: `GET /categories` only (seeded).
 
 | Action | Who | Before | Notes |
 |--------|-----|--------|-------|
-| List by store | Admin, manager | Manager: path `storeId` = assigned store | Admin sees inactive products if `quantity > 0` |
+| List all / by store | Admin, manager | `GET /inventory` — admin optional `?storeId=`; manager own store. `GET /inventory/stores/:storeId` — same shape | Admin sees inactive products if `quantity > 0` |
 | Get one | Admin, manager | Inventory row exists | Admin: inactive product OK |
 | Low-stock list | Admin, manager | — | Active product/store only; `qty > 0` and `≤ threshold` |
 | Out-of-stock list | Admin, manager | — | Active product/store; `qty = 0` |
@@ -574,7 +574,7 @@ Global prefix: `/api`. Session required unless noted.
 | Resource | Paths |
 |----------|-------|
 | Categories | `GET /categories` |
-| Inventory | `GET /inventory/stores/:storeId`, `GET .../products/:productId`, `GET /inventory/low-stock`, `GET /inventory/out-of-stock` |
+| Inventory | `GET /inventory`, `GET /inventory/stores/:storeId`, `GET .../products/:productId`, `GET /inventory/low-stock`, `GET /inventory/out-of-stock` |
 | Sales | `GET/POST /sales`, `GET/PATCH /sales/:id`, `PATCH .../correct` (POST/PATCH write: **manager only**) |
 | Reports | `GET /reports/manager-dashboard` (manager only) |
 
