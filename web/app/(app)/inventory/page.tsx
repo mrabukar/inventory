@@ -1,106 +1,177 @@
 "use client";
-import { useState } from "react";
-import { List, LayoutGrid, Store } from "lucide-react";
-import { PageHeader }  from "@/components/ui/page-header";
-import { FilterBtn }   from "@/components/ui/search";
-import { CategoryBadge, StockBadge } from "@/components/ui/badge";
-import { EmptyState }  from "@/components/ui/empty-state";
-import { INVENTORY }   from "@/lib/data";
-import { fmt }         from "@/lib/utils";
 
-type StatusFilter = "All" | "Low" | "Out";
+import { useCallback, useMemo, useState } from "react";
 
-const fillColor = (qty: number, threshold: number) =>
-  qty <= 0 ? "var(--status-rose)" : qty <= threshold ? "var(--status-amber)" : "var(--status-emerald)";
+import { InventoryGrid } from "./components/inventory-grid";
+import { InventoryPagination } from "./components/inventory-pagination";
+import { InventoryTable } from "./components/inventory-table";
+import {
+  InventoryToolbar,
+  type InventoryStatusFilter,
+  type InventoryView,
+} from "./components/inventory-toolbar";
+import { PageHeader } from "@/components/ui/page-header";
+import { useCategories } from "@/hooks/categories/use-categories";
+import { useInventory } from "@/hooks/inventory/use-inventory";
+import { useStores } from "@/hooks/stores/list-stores";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { listInventory } from "@/service/inventory/list-inventory";
+import type { Inventory, InventoryListScope } from "@/types/inventory/inventory";
+
+function scopeForStatus(status: InventoryStatusFilter): InventoryListScope {
+  if (status === "Low") return "low-stock";
+  if (status === "Out") return "out-of-stock";
+  return "all";
+}
 
 export default function InventoryPage() {
-  const [view,   setView]   = useState<"table" | "grid">("table");
-  const [status, setStatus] = useState<StatusFilter>("All");
+  const [view, setView] = useState<InventoryView>("table");
+  const [status, setStatus] = useState<InventoryStatusFilter>("All");
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
+  const [search, setSearch] = useState("");
+  const [storeId, setStoreId] = useState<string | undefined>();
+  const [categoryId, setCategoryId] = useState<string | undefined>();
+  const debouncedSearch = useDebouncedValue(search, 300);
 
-  const rows = INVENTORY.filter((r) => {
-    if (status === "All") return true;
-    if (status === "Low") return r.qty > 0 && r.qty <= r.threshold;
-    return r.qty <= 0;
-  });
+  const scope = scopeForStatus(status);
+  const listQuery = useMemo(
+    () => ({
+      page: pageIndex + 1,
+      limit: pageSize,
+      search: debouncedSearch || undefined,
+      categoryId: categoryId ? Number(categoryId) : undefined,
+      storeId: storeId || undefined,
+    }),
+    [pageIndex, pageSize, debouncedSearch, categoryId, storeId],
+  );
+
+  const { data: categories = [] } = useCategories();
+  const { data: storesData } = useStores({ limit: 100 });
+  const { data, isPending, isFetching, isError, error } = useInventory(
+    listQuery,
+    scope,
+  );
+
+  const rows = data?.data ?? [];
+  const rowCount = data?.meta.total ?? 0;
+  const isLoading =
+    isPending || (isFetching && (data?.data.length ?? 0) === 0);
+
+  const storeItems = useMemo(
+    () =>
+      (storesData?.data ?? []).map((store) => ({
+        value: store.id,
+        label: store.name,
+      })),
+    [storesData],
+  );
+
+  const categoryItems = useMemo(
+    () =>
+      categories.map((category) => ({
+        value: String(category.id),
+        label: category.name,
+      })),
+    [categories],
+  );
+
+  const resetPage = () => setPageIndex(0);
+
+  const handleExportAll = useCallback(async () => {
+    const limit = 100;
+    let page = 1;
+    const exported: Inventory[] = [];
+    let totalPages = 1;
+
+    do {
+      const response = await listInventory(
+        {
+          page,
+          limit,
+          search: debouncedSearch || undefined,
+          categoryId: categoryId ? Number(categoryId) : undefined,
+          storeId: storeId || undefined,
+        },
+        scope,
+      );
+      exported.push(...response.data);
+      totalPages = response.meta.totalPages;
+      page += 1;
+    } while (page <= totalPages);
+
+    return exported;
+  }, [debouncedSearch, categoryId, storeId, scope]);
 
   return (
     <>
       <PageHeader title="Inventory" desc="Live stock levels per store" />
 
-      <div className="filterbar">
-        <FilterBtn label="All stores" />
-        <FilterBtn label="All categories" />
-        {(["All", "Low", "Out"] as StatusFilter[]).map((s) => (
-          <FilterBtn
-            key={s}
-            label={s === "All" ? "All status" : s === "Low" ? "Low stock" : "Out of stock"}
-            active={status === s}
-            onClick={() => setStatus(s)}
-          />
-        ))}
-        <span className="spacer" />
-        <div className="view-toggle">
-          <button className={view === "table" ? "vt-on" : ""} onClick={() => setView("table")} title="Table view">
-            <List size={17} />
-          </button>
-          <button className={view === "grid" ? "vt-on" : ""} onClick={() => setView("grid")} title="Grid view">
-            <LayoutGrid size={17} />
-          </button>
+      {isError && (
+        <div className="alert-error" style={{ marginBottom: 16 }}>
+          {error instanceof Error ? error.message : "Failed to load inventory."}
         </div>
-      </div>
+      )}
+
+      <InventoryToolbar
+        search={search}
+        onSearchChange={(value) => {
+          setSearch(value);
+          resetPage();
+        }}
+        storeId={storeId}
+        onStoreIdChange={(value) => {
+          setStoreId(value);
+          resetPage();
+        }}
+        storeItems={storeItems}
+        categoryId={categoryId}
+        onCategoryIdChange={(value) => {
+          setCategoryId(value);
+          resetPage();
+        }}
+        categoryItems={categoryItems}
+        status={status}
+        onStatusChange={(value) => {
+          setStatus(value);
+          resetPage();
+        }}
+        view={view}
+        onViewChange={setView}
+      />
 
       {view === "table" ? (
-        <div className="table-wrap">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Product</th><th>Store</th>
-                <th className="r">Quantity</th><th className="r">Threshold</th>
-                <th>Status</th><th className="r">Stock Value</th><th>Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id}>
-                  <td><span className="strong">{r.product}</span>&nbsp;<CategoryBadge cat={r.cat} /></td>
-                  <td className="muted">
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                      <Store size={13} />{r.store.split(" — ")[0]}
-                    </span>
-                  </td>
-                  <td className={`r num ${r.qty <= 0 ? "t-rose strong" : r.qty <= r.threshold ? "t-amber strong" : ""}`}>{r.qty}</td>
-                  <td className="r num muted">{r.threshold}</td>
-                  <td><StockBadge qty={r.qty} threshold={r.threshold} /></td>
-                  <td className="r num t-indigo">{fmt(r.qty * r.purchase)}</td>
-                  <td className="muted">{r.updated}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!rows.length && <EmptyState title="No inventory records" sub="Try adjusting your filters." />}
-        </div>
+        <InventoryTable
+          rows={rows}
+          rowCount={rowCount}
+          pageIndex={pageIndex}
+          pageSize={pageSize}
+          onPaginationChange={({ pageIndex: nextPage, pageSize: nextSize }) => {
+            setPageIndex(nextPage);
+            setPageSize(nextSize);
+          }}
+          isLoading={isLoading}
+          onExportAll={handleExportAll}
+        />
       ) : (
-        <div className="inv-grid">
-          {rows.map((r) => (
-            <div className="inv-card" key={r.id}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <div>
-                  <div className="ic-name">{r.product}</div>
-                  <div className="ic-store"><Store size={13} />{r.store.split(" — ")[0]}</div>
-                </div>
-                <CategoryBadge cat={r.cat} />
-              </div>
-              <div className="ic-qty num" style={{ color: fillColor(r.qty, r.threshold) }}>{r.qty}</div>
-              <div className="ic-prog">
-                <div className="ic-fill" style={{ width: Math.min(100, (r.qty / (r.threshold * 3)) * 100) + "%", background: fillColor(r.qty, r.threshold) }} />
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
-                <StockBadge qty={r.qty} threshold={r.threshold} />
-                <span className="num" style={{ fontSize: 12, color: "var(--fg3)" }}>thr {r.threshold}</span>
-              </div>
-            </div>
-          ))}
-        </div>
+        <>
+          <InventoryGrid rows={rows} isLoading={isLoading} />
+          <div
+            className="table-wrap"
+            style={{ marginTop: rows.length ? 16 : 0 }}
+          >
+            <InventoryPagination
+              pageIndex={pageIndex}
+              pageSize={pageSize}
+              total={rowCount}
+              onPageIndexChange={setPageIndex}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPageIndex(0);
+              }}
+            />
+          </div>
+        </>
       )}
     </>
   );
