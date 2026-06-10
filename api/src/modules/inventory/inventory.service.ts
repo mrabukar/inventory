@@ -31,6 +31,23 @@ export class InventoryService {
     private readonly productsService: ProductsService,
   ) {}
 
+  async findAll(
+    query: InventoryQueryDto,
+    user: CurrentUserPayload,
+  ): Promise<PaginatedResult<InventoryWithDetails>> {
+    const queryStoreId =
+      typeof query.storeId === "string" ? query.storeId.trim() : undefined;
+    if (queryStoreId) {
+      assertStoreAccess(queryStoreId, user);
+    }
+    const storeId = resolveStoreFilter(user, query.storeId);
+    if (storeId) {
+      await this.storesService.findOne(storeId);
+    }
+
+    return this.listInventory(storeId, query, user);
+  }
+
   async findByStore(
     storeId: string,
     query: InventoryQueryDto,
@@ -39,6 +56,14 @@ export class InventoryService {
     assertStoreAccess(storeId, user);
     await this.storesService.findOne(storeId);
 
+    return this.listInventory(storeId, query, user);
+  }
+
+  private async listInventory(
+    storeId: string | undefined,
+    query: InventoryQueryDto,
+    user: CurrentUserPayload,
+  ): Promise<PaginatedResult<InventoryWithDetails>> {
     const { page, limit, search, categoryId, lowStockOnly } = query;
     const skip = (page - 1) * limit;
 
@@ -54,16 +79,21 @@ export class InventoryService {
       lowStockFilter,
     );
 
+    const orderBy: Prisma.InventoryOrderByWithRelationInput[] = storeId
+      ? [{ product: { name: "asc" } }, { updatedAt: "desc" }]
+      : [
+          { store: { name: "asc" } },
+          { product: { name: "asc" } },
+          { updatedAt: "desc" },
+        ];
+
     const [data, total] = await Promise.all([
       this.prisma.inventory.findMany({
         where,
         skip,
         take: limit,
-        orderBy: [{ product: { name: "asc" } }, { updatedAt: "desc" }],
-        include: {
-          product: { include: { category: true } },
-          store: true,
-        },
+        orderBy,
+        include: inventoryInclude,
       }),
       this.prisma.inventory.count({ where }),
     ]);
@@ -193,7 +223,7 @@ export class InventoryService {
   }
 
   private buildInventoryWhere(
-    storeId: string,
+    storeId: string | undefined,
     user: CurrentUserPayload,
     filters: { search?: string; categoryId?: number },
     lowStockFilter: Prisma.InventoryWhereInput,
@@ -203,7 +233,7 @@ export class InventoryService {
       filters.categoryId,
     );
     const base: Prisma.InventoryWhereInput = {
-      storeId,
+      ...(storeId ? { storeId } : undefined),
       store: { isActive: true },
       ...lowStockFilter,
     };
@@ -228,7 +258,7 @@ export class InventoryService {
   }
 
   private async buildLowStockFilter(
-    storeId: string,
+    storeId: string | undefined,
     lowStockOnly?: boolean,
   ): Promise<Prisma.InventoryWhereInput> {
     if (!lowStockOnly) {
@@ -237,9 +267,9 @@ export class InventoryService {
 
     const lowStockRows = await this.prisma.$queryRaw<{ id: string }[]>`
       SELECT id FROM inventory
-      WHERE "storeId" = ${storeId}
-      AND quantity > 0
+      WHERE quantity > 0
       AND quantity <= "lowStockThreshold"
+      ${storeId ? Prisma.sql`AND "storeId" = ${storeId}` : Prisma.empty}
     `;
 
     if (lowStockRows.length === 0) {
