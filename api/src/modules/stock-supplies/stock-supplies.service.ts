@@ -5,6 +5,10 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
+import {
+  parseDateColumnRangeEnd,
+  parseDateColumnRangeStart,
+} from "../../common/utils/app-timezone.util";
 import { lockInventoryForMutation } from "../../common/utils/inventory-lock.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ProductsService } from "../products/products.service";
@@ -50,11 +54,40 @@ export class StockSuppliesService {
   ): Promise<PaginatedResult<StockSupplyWithDetails>> {
     const { page, limit, storeId, productId } = query;
     const skip = (page - 1) * limit;
+    const searchTerm =
+      typeof query.search === "string" ? query.search.trim() : "";
+    const fromDate =
+      typeof query.fromDate === "string" ? query.fromDate.trim() : "";
+    const toDate = typeof query.toDate === "string" ? query.toDate.trim() : "";
 
     const where: Prisma.StockSupplyWhereInput = {
       ...(storeId ? { storeId } : undefined),
       ...(productId ? { productId } : undefined),
       ...(query.type ? { type: query.type } : undefined),
+      ...(query.categoryId || searchTerm
+        ? {
+            product: {
+              ...(query.categoryId
+                ? { categoryId: query.categoryId }
+                : undefined),
+              ...(searchTerm
+                ? { name: { contains: searchTerm, mode: "insensitive" } }
+                : undefined),
+            },
+          }
+        : undefined),
+      ...(fromDate || toDate
+        ? {
+            createdAt: {
+              ...(fromDate
+                ? { gte: parseDateColumnRangeStart(fromDate) }
+                : undefined),
+              ...(toDate
+                ? { lte: parseDateColumnRangeEnd(toDate) }
+                : undefined),
+            },
+          }
+        : undefined),
     };
 
     const [data, total] = await Promise.all([
