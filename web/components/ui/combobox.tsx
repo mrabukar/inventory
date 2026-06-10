@@ -36,6 +36,7 @@ interface ComboboxProps {
   loading?: boolean;
   disabled?: boolean;
   className?: string;
+  popoverClassName?: string;
 }
 
 export function Combobox({
@@ -49,6 +50,7 @@ export function Combobox({
   loading = false,
   disabled = false,
   className,
+  popoverClassName,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
 
@@ -81,7 +83,10 @@ export function Combobox({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[260px] p-0" align="end">
+      <PopoverContent
+        className={cn("z-50 w-[260px] p-0", popoverClassName)}
+        align="end"
+      >
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
