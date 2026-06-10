@@ -48,6 +48,21 @@ export function daysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
 }
 
+export function getLast7DaysRange(timeZone = APP_TIMEZONE): {
+  fromDate: string;
+  toDate: string;
+} {
+  const { year, month, day } = getCalendarParts(new Date(), timeZone);
+  const end = new Date(year, month - 1, day);
+  const start = new Date(end);
+  start.setDate(start.getDate() - 6);
+
+  return {
+    fromDate: toYmd(start.getFullYear(), start.getMonth() + 1, start.getDate()),
+    toDate: toYmd(year, month, day),
+  };
+}
+
 export function getCurrentMonthRange(timeZone = APP_TIMEZONE): {
   fromDate: string;
   toDate: string;
