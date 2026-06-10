@@ -1272,6 +1272,23 @@ table.tbl {
   color: var(--fg2);
   margin-top: 1px;
 }
+.toast--error {
+  background: color-mix(in srgb, var(--status-rose) 18%, var(--surface));
+  border-color: color-mix(in srgb, var(--status-rose) 45%, var(--border));
+  box-shadow:
+    var(--shadow-lg),
+    0 0 0 1px color-mix(in srgb, var(--status-rose) 12%, transparent);
+}
+.toast--error .toast-ic {
+  background: var(--status-rose);
+  color: #fff;
+}
+.toast--error .toast-title {
+  color: var(--status-rose);
+}
+.toast-sub--error {
+  color: color-mix(in srgb, var(--status-rose) 75%, var(--fg));
+}
 
 /* ============================================================================
    Empty state
