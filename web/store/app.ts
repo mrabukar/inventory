@@ -11,6 +11,7 @@ interface AppState {
   clearUser: () => void;
   setCollapsed: (v: boolean) => void;
   addToast: (t: Omit<Toast, "id">) => void;
+  addErrorToast: (t: Omit<Toast, "id" | "kind">) => void;
   removeToast: (id: number) => void;
 }
 
@@ -27,7 +28,14 @@ export const useAppStore = create<AppState>()(
 
       addToast: (t) => {
         const id = Date.now() + Math.random();
-        set((s) => ({ toasts: [...s.toasts, { id, kind: "success", ...t }] }));
+        const toast: Toast = { kind: "success", ...t, id };
+        set((s) => ({ toasts: [...s.toasts, toast] }));
+        setTimeout(() => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })), 3200);
+      },
+      addErrorToast: (t) => {
+        const id = Date.now() + Math.random();
+        const toast: Toast = { kind: "error", ...t, id };
+        set((s) => ({ toasts: [...s.toasts, toast] }));
         setTimeout(() => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })), 3200);
       },
       removeToast: (id) =>
