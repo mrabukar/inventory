@@ -42,23 +42,29 @@ export function DateRangePicker({
   className,
 }: DateRangePickerProps) {
   const [open, setOpen] = React.useState(false);
-  const [pending, setPending] = React.useState<DateRange | undefined>();
+  const [draft, setDraft] = React.useState<DateRange | undefined>();
+  const [month, setMonth] = React.useState<Date>(() => ymdToDate(fromDate));
 
-  const selected: DateRange = {
-    from: ymdToDate(fromDate),
-    to: ymdToDate(toDate),
-  };
+  React.useEffect(() => {
+    if (!open) {
+      setDraft(undefined);
+      return;
+    }
 
-  const calendarValue = pending ?? selected;
+    setDraft({
+      from: ymdToDate(fromDate),
+      to: ymdToDate(toDate),
+    });
+    setMonth(ymdToDate(fromDate));
+  }, [open, fromDate, toDate]);
 
   function applyRange(range: { fromDate: string; toDate: string }) {
     onChange(range);
-    setPending(undefined);
     setOpen(false);
   }
 
   function handleCalendarSelect(range: DateRange | undefined) {
-    setPending(range);
+    setDraft(range);
     if (range?.from && range?.to) {
       applyRange({
         fromDate: dateToYmd(range.from),
@@ -68,13 +74,7 @@ export function DateRangePicker({
   }
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) setPending(undefined);
-      }}
-    >
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -111,8 +111,10 @@ export function DateRangePicker({
         <Calendar
           autoFocus
           mode="range"
-          defaultMonth={calendarValue.from}
-          selected={calendarValue}
+          resetOnSelect
+          month={month}
+          onMonthChange={setMonth}
+          selected={draft}
           onSelect={handleCalendarSelect}
           numberOfMonths={2}
         />
