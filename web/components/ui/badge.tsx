@@ -18,10 +18,13 @@ export function Badge({ color = "slate", children, showAlert }: Props) {
   );
 }
 
+const CATEGORY_COLORS: Color[] = ["indigo", "teal", "violet", "amber"];
+
 export function CategoryBadge({ cat }: { cat: string }) {
-  return (
-    <Badge color={cat === "Mobiles" ? "indigo" : "teal"}>{cat}</Badge>
-  );
+  const index =
+    Math.abs(cat.split("").reduce((sum, ch) => sum + ch.charCodeAt(0), 0)) %
+    CATEGORY_COLORS.length;
+  return <Badge color={CATEGORY_COLORS[index]}>{cat}</Badge>;
 }
 
 export function StockBadge({ qty, threshold }: { qty: number; threshold: number }) {
