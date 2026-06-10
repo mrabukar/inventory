@@ -108,8 +108,9 @@ export function LoginForm() {
           </Field>
 
           <Button
-            variant="primary"
-            size="lg"
+            // variant=""
+            // size="lg"
+            className="w-full"
             block
             onClick={() => void handleSubmit()}
             disabled={signIn.isPending}
