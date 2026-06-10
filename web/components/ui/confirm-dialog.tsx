@@ -33,7 +33,12 @@ export function ConfirmDialog({
         <p>{message}</p>
         <div className="dialog-row">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button variant={variant} onClick={onConfirm}>{confirmLabel}</Button>
+          <Button
+            variant={variant === "danger" ? "destructive" : "default"}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </Button>
         </div>
       </div>
     </div>
