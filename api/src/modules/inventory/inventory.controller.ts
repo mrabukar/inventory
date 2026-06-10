@@ -31,6 +31,14 @@ export class InventoryController {
     return this.inventoryService.findOutOfStock(query, user);
   }
 
+  @Get()
+  findAll(
+    @Query() query: InventoryQueryDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.inventoryService.findAll(query, user);
+  }
+
   @Get("stores/:storeId/products/:productId")
   findOne(
     @Param("storeId") storeId: string,
