@@ -4,14 +4,13 @@ import {
   IsOptional,
   IsPositive,
   IsString,
-  IsUUID,
   MaxLength,
 } from "class-validator";
 import { PaginationQueryDto } from "../../../common/dto/pagination-query.dto";
 
 export class InventoryAlertQueryDto extends PaginationQueryDto {
   @IsOptional()
-  @IsUUID()
+  @IsString()
   storeId?: string;
 
   @IsOptional()
