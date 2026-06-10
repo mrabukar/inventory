@@ -9,7 +9,7 @@ import {
 } from "./audit-log-date.util";
 
 const auditLogInclude = {
-  user: { select: { id: true, name: true, email: true } },
+  user: { select: { id: true, name: true, email: true, role: true } },
 } satisfies Prisma.AuditLogInclude;
 
 export type AuditLogWithUser = Prisma.AuditLogGetPayload<{
