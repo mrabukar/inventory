@@ -17,7 +17,7 @@ import { LineArea } from "@/components/charts/line-area";
 import { ReportFilterBar } from "@/components/filters/report-filter-bar";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatCard } from "@/app/(app)/dashboard/components/stat-card";
 import { Card } from "@/components/ui/card";
 import { useReportFilters } from "@/hooks/filters/use-report-filters";
 import { useFinancialSummary } from "@/hooks/reports/use-financial-summary";
