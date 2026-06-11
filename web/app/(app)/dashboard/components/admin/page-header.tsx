@@ -10,7 +10,7 @@ export function DashboardPageHeader({ filters }: Props) {
   return (
     <PageHeader
       title="Dashboard"
-      desc="Company-wide performance across all stores"
+      desc="Monitor revenue, profit, expenses, and inventory for the selected period."
       action={<ReportFilterBar filters={filters} />}
     />
   );
