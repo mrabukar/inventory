@@ -35,9 +35,9 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/sales", label: "Sales", icon: ShoppingCart },
   { href: "/supply", label: "Stock Supply", icon: Truck },
   { href: "/expenses", label: "Expenses", icon: CreditCard },
-  { href: "/financial", label: "Financial Summary", icon: TrendingUp },
   { href: "/users", label: "Users", icon: Users },
   { href: "/audit", label: "Audit Log", icon: ClipboardList },
+  { href: "/financial", label: "Financial Summary", icon: TrendingUp },
 ];
 
 const MANAGER_NAV: NavItem[] = [
