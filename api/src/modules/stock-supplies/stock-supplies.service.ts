@@ -9,6 +9,7 @@ import {
   parseDateColumnRangeEnd,
   parseDateColumnRangeStart,
 } from "../../common/utils/app-timezone.util";
+import { MUTATION_TRANSACTION_OPTIONS } from "../../common/constants/prisma-transaction.constants";
 import { lockInventoryForMutation } from "../../common/utils/inventory-lock.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ProductsService } from "../products/products.service";
@@ -265,7 +266,7 @@ export class StockSuppliesService {
       });
 
       return stockSupply.id;
-    });
+    }, MUTATION_TRANSACTION_OPTIONS);
 
     return this.prisma.stockSupply.findUniqueOrThrow({
       where: { id: supplyId },
