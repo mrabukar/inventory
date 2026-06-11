@@ -11,6 +11,7 @@ import {
   XCircle,
 } from "lucide-react";
 
+import { FinancialLoadingSkeleton } from "./components/loading-skeleton";
 import { PnlBreakdown } from "./components/pnl-breakdown";
 import { GroupedBar } from "@/components/charts/grouped-bar";
 import { LineArea } from "@/components/charts/line-area";
@@ -69,9 +70,7 @@ export default function FinancialPage() {
     return (
       <>
         {header}
-        <div className="muted" style={{ padding: "24px 0" }}>
-          Loading financial summary…
-        </div>
+        <FinancialLoadingSkeleton />
       </>
     );
   }
