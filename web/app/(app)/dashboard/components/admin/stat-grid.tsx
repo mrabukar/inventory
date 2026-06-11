@@ -19,7 +19,7 @@ interface Props {
 
 export function AdminStatGrid({ summary: s, comparison }: Props) {
   return (
-    <div className="stat-grid grid-4 mb-16">
+    <div className="stat-grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 mb-16">
       <StatCard
         icon={TrendingUp}
         color="indigo"
@@ -49,10 +49,30 @@ export function AdminStatGrid({ summary: s, comparison }: Props) {
         label="Total Expenses"
         {...formatExpenseTrend(comparison.totalExpenses)}
       />
-      <StatCard icon={Layers} color="indigo" value={fmt(s.currentStockValue)} label="Current Stock Value" />
-      <StatCard icon={Package} color="teal" value={s.inStockBalance.toLocaleString()} label="In-Stock Balance" />
-      <StatCard icon={AlertTriangle} color="amber" value={s.lowStockCount} label="Low Stock Alerts" />
-      <StatCard icon={AlertTriangle} color="rose" value={s.outOfStockCount} label="Out of Stock" />
+      <StatCard
+        icon={Layers}
+        color="indigo"
+        value={fmt(s.currentStockValue)}
+        label="Current Stock Value"
+      />
+      <StatCard
+        icon={Package}
+        color="teal"
+        value={s.inStockBalance.toLocaleString()}
+        label="In-Stock Balance"
+      />
+      <StatCard
+        icon={AlertTriangle}
+        color="amber"
+        value={s.lowStockCount}
+        label="Low Stock Alerts"
+      />
+      <StatCard
+        icon={AlertTriangle}
+        color="rose"
+        value={s.outOfStockCount}
+        label="Out of Stock"
+      />
       <StatCard
         icon={ShoppingCart}
         color="violet"
@@ -60,7 +80,12 @@ export function AdminStatGrid({ summary: s, comparison }: Props) {
         label="Units Sold"
         {...formatPeriodTrend(comparison.totalUnitsSold)}
       />
-      <StatCard icon={CreditCard} color="indigo" value={fmt(s.cogs)} label="Cost of Goods Sold" />
+      <StatCard
+        icon={CreditCard}
+        color="indigo"
+        value={fmt(s.cogs)}
+        label="Cost of Goods Sold"
+      />
     </div>
   );
 }
