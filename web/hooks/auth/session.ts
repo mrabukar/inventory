@@ -21,12 +21,16 @@ export function useSession() {
       return failureCount < 1;
     },
     staleTime: 30_000,
+    refetchOnMount: (query) => query.state.data !== null,
   });
 
+  const user = query.isSuccess && query.data ? query.data : null;
+
   return {
-    user: query.data ?? null,
-    isLoading: query.isLoading,
-    isAuthenticated: !!query.data,
+    user,
+    isLoading: query.isPending,
+    isFetched: query.isFetched,
+    isAuthenticated: query.isSuccess && !!query.data,
     error: query.error,
   };
 }
