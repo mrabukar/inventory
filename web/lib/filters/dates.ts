@@ -74,6 +74,13 @@ export function getCurrentMonthRange(timeZone = APP_TIMEZONE): {
   };
 }
 
+export function getCurrentMonthLabel(timeZone = APP_TIMEZONE): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    month: "long",
+  }).format(new Date());
+}
+
 export function getLastMonthRange(timeZone = APP_TIMEZONE): {
   fromDate: string;
   toDate: string;
