@@ -28,24 +28,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { isLoading: authLoading, isAuthenticated } = useAuth();
+  const { isLoading: authLoading, isFetched, isAuthenticated } = useAuth();
   const user = useAppStore((s) => s.user);
   const collapsed = useAppStore((s) => s.collapsed);
   const setCollapsed = useAppStore((s) => s.setCollapsed);
 
   const roleDenied =
+    isFetched &&
     !authLoading &&
     isAuthenticated &&
     user != null &&
     !isRouteAllowedForRole(user.role, pathname);
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    if (isFetched && !authLoading && !isAuthenticated) {
       const query = searchParams.toString();
       const returnPath = query ? `${pathname}?${query}` : pathname;
       router.replace(buildLoginUrl(returnPath));
     }
-  }, [authLoading, isAuthenticated, router, pathname, searchParams]);
+  }, [isFetched, authLoading, isAuthenticated, router, pathname, searchParams]);
 
   useEffect(() => {
     if (roleDenied) {
@@ -53,7 +54,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [roleDenied, router]);
 
-  if (authLoading || !user || roleDenied) return null;
+  if (!isFetched || authLoading || !user || roleDenied) return null;
 
   const title = PAGE_TITLES[pathname] ?? "Dashboard";
 
