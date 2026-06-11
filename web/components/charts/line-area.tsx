@@ -10,6 +10,7 @@ interface Props {
   height?: number;
   color?: string;
   valueLabel?: string;
+  formatValue?: (value: number) => string;
 }
 
 function svgX(event: MouseEvent<SVGRectElement>): number | null {
@@ -29,31 +30,40 @@ export function LineArea({
   height = 240,
   color = "var(--brand-violet)",
   valueLabel = "Net Profit",
+  formatValue = fmt,
 }: Props) {
   const [on, setOn] = useState(false);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   useEffect(() => {
+    setOn(false);
     const t = setTimeout(() => setOn(true), 40);
     return () => clearTimeout(t);
-  }, []);
+  }, [values, labels]);
 
   if (values.length === 0) return null;
+
+  // A single point cannot form a line path — duplicate it so the chart renders.
+  const plotValues = values.length === 1 ? [values[0], values[0]] : values;
+  const plotLabels =
+    labels.length === 1 ? [labels[0], labels[0]] : labels.length === values.length
+      ? labels
+      : values.map((_, i) => labels[i] ?? "");
 
   const W = 560;
   const H = height;
   const pad = { t: 16, r: 14, b: 28, l: 44 };
   const iw = W - pad.l - pad.r;
   const ih = H - pad.t - pad.b;
-  const max = Math.max(...values, 1) * 1.15;
-  const min = Math.min(0, ...values);
-  const span = Math.max(values.length - 1, 1);
+  const max = Math.max(...plotValues, 1) * 1.15;
+  const min = Math.min(0, ...plotValues);
+  const span = Math.max(plotValues.length - 1, 1);
   const x = (i: number) => pad.l + (iw / span) * i;
   const y = (v: number) => pad.t + ih - ((v - min) / (max - min)) * ih;
-  const pts = values.map((v, i) => [x(i), y(v)] as [number, number]);
+  const pts = plotValues.map((v, i) => [x(i), y(v)] as [number, number]);
   const line = pts.map((p, i) => (i ? "L" : "M") + p[0] + " " + p[1]).join(" ");
   const area =
-    line + ` L${x(values.length - 1)} ${y(min)} L${x(0)} ${y(min)} Z`;
+    line + ` L${x(plotValues.length - 1)} ${y(min)} L${x(0)} ${y(min)} Z`;
 
   const tooltipLeft =
     hoverIndex != null ? (x(hoverIndex) / W) * 100 : 0;
@@ -66,7 +76,7 @@ export function LineArea({
     }
     const raw = ((px - pad.l) / iw) * span;
     const i = Math.round(raw);
-    setHoverIndex(i >= 0 && i < values.length ? i : null);
+    setHoverIndex(i >= 0 && i < plotValues.length ? i : null);
   };
 
   return (
@@ -77,12 +87,12 @@ export function LineArea({
           style={{ left: `${tooltipLeft}%` }}
           role="tooltip"
         >
-          <div className="chart-tooltip-title">{labels[hoverIndex]}</div>
+          <div className="chart-tooltip-title">{plotLabels[hoverIndex]}</div>
           <div className="chart-tooltip-row">
             <span className="chart-tooltip-dot" style={{ background: color }} />
             <span className="chart-tooltip-label">{valueLabel}</span>
             <span className="chart-tooltip-value num">
-              {fmt(values[hoverIndex])}
+              {formatValue(plotValues[hoverIndex])}
             </span>
           </div>
         </div>
@@ -140,20 +150,22 @@ export function LineArea({
             pointerEvents="none"
           />
         ))}
-        {labels.map((l, i) => (
-          <text
-            key={i}
-            x={x(i)}
-            y={H - 9}
-            textAnchor="middle"
-            fontSize="11"
-            fill={hoverIndex === i ? "var(--fg1)" : "var(--fg3)"}
-            fontFamily="var(--font-sans)"
-            pointerEvents="none"
-          >
-            {l}
-          </text>
-        ))}
+        {plotLabels.map((l, i) =>
+          i === 1 && values.length === 1 ? null : (
+            <text
+              key={i}
+              x={x(i)}
+              y={H - 9}
+              textAnchor="middle"
+              fontSize="11"
+              fill={hoverIndex === i ? "var(--fg1)" : "var(--fg3)"}
+              fontFamily="var(--font-sans)"
+              pointerEvents="none"
+            >
+              {l}
+            </text>
+          ),
+        )}
         <rect
           x={pad.l}
           y={pad.t}
