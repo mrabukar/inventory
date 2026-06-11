@@ -104,8 +104,10 @@ export interface FeedItem {
 export interface Toast {
   id: number;
   kind?: "success" | "error";
+  /** Shown as the toast message body. */
   title: string;
   sub?: string;
+  createdAt: string;
 }
 
 export interface AppUser {
