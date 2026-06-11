@@ -65,8 +65,7 @@ export default function SalesPage() {
 
   const rows = data?.data ?? [];
   const rowCount = data?.meta.total ?? 0;
-  const isLoading =
-    isPending || (isFetching && (data?.data.length ?? 0) === 0);
+  const isLoading = isPending || (isFetching && (data?.data.length ?? 0) === 0);
 
   const storeItems = useMemo(
     () =>
@@ -124,7 +123,14 @@ export default function SalesPage() {
   }, [debouncedSearch, storeId, categoryId, status, fromDate, toDate]);
 
   const toolbarExtra = (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 8,
+        alignItems: "center",
+      }}
+    >
       <DateRangePicker
         fromDate={fromDate}
         toDate={toDate}
@@ -178,10 +184,7 @@ export default function SalesPage() {
 
   return (
     <>
-      <PageHeader
-        title="Sales"
-        desc="Every recorded sale across all stores"
-      />
+      <PageHeader title="Sales" desc="Every recorded sale across all stores" />
 
       {isError && (
         <div className="alert-error" style={{ marginBottom: 16 }}>
@@ -189,7 +192,7 @@ export default function SalesPage() {
         </div>
       )}
 
-      <SummaryBar
+      {/* <SummaryBar
         items={[
           { k: "Total Sales", v: `${rows.length} transactions` },
           {
@@ -199,7 +202,7 @@ export default function SalesPage() {
           },
           { k: "Total Units", v: `${pageUnits} sold` },
         ]}
-      />
+      /> */}
 
       <SalesTable
         rows={rows}
