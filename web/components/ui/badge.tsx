@@ -11,9 +11,16 @@ interface Props {
 
 export function Badge({ color = "slate", children, showAlert }: Props) {
   return (
-    <span className={cn("badge", `badge-${color}`)}>
-      {showAlert && <AlertTriangle size={12} />}
-      {children}
+    <span
+      className={cn(
+        "badge inline-flex max-w-max flex-row flex-nowrap items-center gap-1",
+        `badge-${color}`,
+      )}
+    >
+      {showAlert ? (
+        <AlertTriangle size={12} className="size-3 shrink-0" aria-hidden />
+      ) : null}
+      <span className="whitespace-nowrap leading-none">{children}</span>
     </span>
   );
 }
