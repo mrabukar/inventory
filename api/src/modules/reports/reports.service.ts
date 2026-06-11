@@ -173,6 +173,12 @@ export class ReportsService {
       (sum, row) => sum + row.unitsSold,
       0,
     );
+    const trend = await this.fetchProductDistributionTrend(
+      range,
+      storeId,
+      categoryId,
+      products,
+    );
 
     return {
       period: {
@@ -187,6 +193,7 @@ export class ReportsService {
       },
       totalUnitsSold,
       products,
+      trend,
     };
   }
 
@@ -713,6 +720,64 @@ export class ReportsService {
       date,
       revenue: revenueByDate.get(date) ?? 0,
     }));
+  }
+
+  private async fetchProductDistributionTrend(
+    range: ReportDateRange,
+    storeId: string | undefined,
+    categoryId: number,
+    products: Array<{ productId: string; productName: string }>,
+  ) {
+    const dates = eachCalendarDate(range.fromCalendar, range.toCalendar);
+    const productIds = products.map((row) => row.productId);
+
+    if (productIds.length === 0) {
+      return {
+        dates,
+        series: [] as Array<{
+          productId: string;
+          productName: string;
+          values: number[];
+        }>,
+      };
+    }
+
+    const rows = await this.prisma.$queryRaw<
+      { productId: string; date: string; units: number }[]
+    >`
+      SELECT
+        s."productId",
+        to_char(s."saleDate", 'YYYY-MM-DD') AS date,
+        COALESCE(SUM(s."quantitySold"), 0)::int AS units
+      FROM "sale" s
+      INNER JOIN "product" p ON p.id = s."productId"
+      WHERE s."saleDate" >= ${range.fromDate}
+        AND s."saleDate" <= ${range.toDate}
+        AND p."categoryId" = ${categoryId}
+        ${storeId ? Prisma.sql`AND s."storeId" = ${storeId}` : Prisma.empty}
+        AND s."productId" IN (${Prisma.join(productIds)})
+      GROUP BY 1, 2
+      ORDER BY 2, 1
+    `;
+
+    const unitsByProduct = new Map<string, Map<string, number>>();
+    for (const row of rows) {
+      if (!unitsByProduct.has(row.productId)) {
+        unitsByProduct.set(row.productId, new Map());
+      }
+      unitsByProduct.get(row.productId)!.set(row.date, row.units);
+    }
+
+    return {
+      dates,
+      series: products.map((product) => ({
+        productId: product.productId,
+        productName: product.productName,
+        values: dates.map(
+          (date) => unitsByProduct.get(product.productId)?.get(date) ?? 0,
+        ),
+      })),
+    };
   }
 
   private async fetchProductsDistribution(
