@@ -173,6 +173,18 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  --animate-login-bg-drift: login-bg-drift 20s ease-in-out infinite;
+}
+
+@keyframes login-bg-drift {
+  0%,
+  100% {
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+  50% {
+    transform: scale(1.03) translate3d(-0.75%, -0.5%, 0);
+  }
 }
 
 /* ============================================================================
@@ -858,13 +870,25 @@ table.tbl {
    ========================================================================== */
 .badge {
   display: inline-flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   border-radius: 9999px;
   padding: 3px 10px;
   font-size: 12px;
   font-weight: 500;
+  line-height: 1;
   white-space: nowrap;
+  vertical-align: middle;
+}
+.badge svg {
+  display: block;
+  flex: none;
+  width: 12px;
+  height: 12px;
+  max-width: none;
 }
 .badge-indigo {
   background: var(--tint-indigo);
@@ -1237,7 +1261,7 @@ table.tbl {
 }
 .toast {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 11px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1248,6 +1272,34 @@ table.tbl {
   pointer-events: auto;
   transform: translateX(120%);
   animation: toastIn 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+.toast-body {
+  flex: 1;
+  min-width: 0;
+}
+.toast-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.toast-heading {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.toast-time {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg3);
+  white-space: nowrap;
+}
+.toast-message {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--fg);
 }
 @keyframes toastIn {
   to {
@@ -1263,14 +1315,28 @@ table.tbl {
   justify-content: center;
   flex: none;
 }
-.toast-title {
-  font-size: 14px;
-  font-weight: 600;
-}
 .toast-sub {
   font-size: 12px;
   color: var(--fg2);
-  margin-top: 1px;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+.toast--success {
+  background: color-mix(in srgb, var(--status-emerald) 18%, var(--surface));
+  border-color: color-mix(in srgb, var(--status-emerald) 45%, var(--border));
+  box-shadow:
+    var(--shadow-lg),
+    0 0 0 1px color-mix(in srgb, var(--status-emerald) 12%, transparent);
+}
+.toast--success .toast-ic {
+  background: var(--status-emerald);
+  color: #fff;
+}
+.toast--success .toast-heading {
+  color: var(--status-emerald);
+}
+.toast-sub--success {
+  color: color-mix(in srgb, var(--status-emerald) 75%, var(--fg));
 }
 .toast--error {
   background: color-mix(in srgb, var(--status-rose) 18%, var(--surface));
@@ -1283,7 +1349,7 @@ table.tbl {
   background: var(--status-rose);
   color: #fff;
 }
-.toast--error .toast-title {
+.toast--error .toast-heading {
   color: var(--status-rose);
 }
 .toast-sub--error {
@@ -1323,95 +1389,6 @@ table.tbl {
   margin: 5px 0 0;
 }
 
-/* ============================================================================
-   Login
-   ========================================================================== */
-.login {
-  display: flex;
-  height: 100vh;
-}
-.login-art {
-  flex: 0 0 46%;
-  background: linear-gradient(
-    135deg,
-    var(--tint-indigo),
-    var(--tint-teal) 52%,
-    var(--tint-violet)
-  );
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 56px;
-  gap: 28px;
-}
-.login-brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.login-brand span {
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-}
-.login-tag {
-  font-size: 30px;
-  font-weight: 700;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
-  max-width: 420px;
-}
-.login-ministats {
-  display: flex;
-  gap: 14px;
-}
-.ministat {
-  background: rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: var(--r-lg);
-  padding: 14px 16px;
-}
-.ministat .mk {
-  font-size: 12px;
-  color: var(--fg2);
-}
-.ministat .mv {
-  font-size: 22px;
-  font-weight: 700;
-  margin-top: 3px;
-  font-variant-numeric: tabular-nums;
-}
-.login-form {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px;
-}
-.login-card {
-  width: 100%;
-  max-width: 400px;
-}
-.login-card h1 {
-  font-size: 24px;
-  font-weight: 700;
-  margin: 0;
-}
-.login-card .lc-sub {
-  font-size: 14px;
-  color: var(--fg2);
-  margin: 6px 0 26px;
-}
-.pw-wrap {
-  position: relative;
-}
-.pw-toggle {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-}
 .alert-error {
   display: flex;
   align-items: center;
@@ -1559,6 +1536,62 @@ table.tbl {
 /* ============================================================================
    Charts
    ========================================================================== */
+.chart-wrap {
+  position: relative;
+  overflow: visible;
+}
+.chart-svg {
+  cursor: crosshair;
+}
+.chart-hit {
+  cursor: crosshair;
+}
+.chart-tooltip {
+  position: absolute;
+  top: 0;
+  z-index: 5;
+  transform: translateX(-50%);
+  min-width: 148px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  pointer-events: none;
+}
+.chart-tooltip-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg1);
+  margin-bottom: 8px;
+}
+.chart-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.chart-tooltip-row + .chart-tooltip-row {
+  margin-top: 4px;
+}
+.chart-tooltip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  flex: none;
+}
+.chart-tooltip-label {
+  flex: 1;
+  color: var(--fg2);
+}
+.chart-tooltip-value {
+  font-weight: 600;
+  color: var(--fg1);
+}
+.chart-tooltip--compact {
+  min-width: 120px;
+}
 .legend {
   display: flex;
   gap: 16px;
@@ -1652,9 +1685,6 @@ table.tbl {
 @media (max-width: 640px) {
   .grid-2 {
     grid-template-columns: 1fr;
-  }
-  .login-art {
-    display: none;
   }
 }
 
@@ -1851,9 +1881,16 @@ table.tbl {
 }
 .dt-body td > .strong,
 .dt-body td > .num,
-.dt-body td > .badge,
-.dt-body td > span {
+.dt-body td > span:not(.badge) {
   display: inline-block;
+}
+.dt-body td > .badge {
+  display: inline-flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  max-width: max-content;
 }
 .dt-empty {
   padding: 48px 16px;
