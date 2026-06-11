@@ -283,7 +283,7 @@ export default function SupplyPage() {
         </div>
       )}
 
-      <SummaryBar
+      {/* <SummaryBar
         items={[
           { k: "Records", v: `${rows.length} on this page` },
           {
@@ -293,7 +293,7 @@ export default function SupplyPage() {
           },
           { k: "Net Units", v: `${pageUnits > 0 ? "+" : ""}${pageUnits}` },
         ]}
-      />
+      /> */}
 
       <SupplyTable
         rows={rows}
