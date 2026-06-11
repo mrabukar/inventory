@@ -1,5 +1,5 @@
 import type {
-  Summary, Product, InventoryRow, Sale, Expense,
+  Summary, Product, InventoryRow, Sale,
   SupplyRow, User, AuditRow, FeedItem,
 } from "./types";
 
@@ -80,14 +80,6 @@ export const SALES: Sale[] = [
   { id: "s4", date: "Jun 02", store: "Store A — Downtown",  product: "AirPods Pro", cat: "Accessories", manager: "Walaa A.", qty:  5, unit: 249,  profit:  545, status: "active"    },
   { id: "s5", date: "Jun 01", store: "Store D — Westgate",  product: "30W Charger", cat: "Accessories", manager: "Lina R.",  qty: 12, unit: 29,   profit:  240, status: "active"    },
   { id: "s6", date: "Jun 01", store: "Store B — Riverside", product: "Galaxy S24",  cat: "Mobiles",     manager: "Sara M.",  qty:  1, unit: 899,  profit:  259, status: "active"    },
-];
-
-export const EXPENSES: Expense[] = [
-  { id: "e1", date: "Jun 02", title: "June Electricity Bill",  cat: "Utilities", store: "Store A — Downtown",  amount:  640, by: "Walaa A." },
-  { id: "e2", date: "Jun 01", title: "Staff Salaries — May",   cat: "Salaries",  store: null,                  amount: 3600, by: "Walaa A." },
-  { id: "e3", date: "May 30", title: "Warehouse Rent",         cat: "Rent",      store: null,                  amount: 4800, by: "Omar K."  },
-  { id: "e4", date: "May 28", title: "Courier — bulk transfer",cat: "Logistics", store: "Store C — Airport",   amount:  410, by: "Omar K."  },
-  { id: "e5", date: "May 25", title: "Social ads campaign",    cat: "Marketing", store: null,                  amount:  800, by: "Walaa A." },
 ];
 
 export const SUPPLY: SupplyRow[] = [
