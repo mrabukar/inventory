@@ -1,7 +1,8 @@
 import { XCircle } from "lucide-react";
+import { DashboardLoadingSkeleton } from "./loading-skeleton";
 
 export function DashboardLoading() {
-  return <div className="muted" style={{ padding: "24px 0" }}>Loading dashboard…</div>;
+  return <DashboardLoadingSkeleton />;
 }
 
 export function DashboardError({ message }: { message: string }) {
