@@ -9,6 +9,7 @@ import {
   parseDateColumnRangeEnd,
   parseDateColumnRangeStart,
 } from "../../common/utils/app-timezone.util";
+import { MUTATION_TRANSACTION_OPTIONS } from "../../common/constants/prisma-transaction.constants";
 import { lockInventoryForMutation } from "../../common/utils/inventory-lock.util";
 import {
   requireActiveManagerStore,
@@ -223,7 +224,7 @@ export class SalesService {
       });
 
       return sale.id;
-    });
+    }, MUTATION_TRANSACTION_OPTIONS);
 
     return this.prisma.sale.findUniqueOrThrow({
       where: { id: saleId },
@@ -359,7 +360,7 @@ export class SalesService {
       });
 
       return sale.id;
-    });
+    }, MUTATION_TRANSACTION_OPTIONS);
 
     return this.prisma.sale.findUniqueOrThrow({
       where: { id: saleId },
