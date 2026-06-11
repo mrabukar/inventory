@@ -21,8 +21,10 @@ export interface ReportFilters {
   setStoreId: (storeId: string | undefined) => void;
 }
 
-export function useReportFilters(): ReportFilters {
-  const [query, setQuery] = useState<ReportQuery>(() => getCurrentMonthRange());
+export function useReportFilters(
+  initialQuery: ReportQuery = getCurrentMonthRange(),
+): ReportFilters {
+  const [query, setQuery] = useState<ReportQuery>(() => initialQuery);
 
   const activePreset = useMemo((): ReportFilters["activePreset"] => {
     if (isSameRange(query, getCurrentMonthRange())) return "this-month";
