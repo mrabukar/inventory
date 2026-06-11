@@ -10,8 +10,20 @@ export function useSignIn() {
   const setUser = useAppStore((s) => s.setUser);
 
   return useMutation({
-    mutationFn: async ({ email, password }: { email: string; password: string }) => {
-      const result = await authClient.signIn.email({ email, password });
+    mutationFn: async ({
+      email,
+      password,
+      rememberMe = true,
+    }: {
+      email: string;
+      password: string;
+      rememberMe?: boolean;
+    }) => {
+      const result = await authClient.signIn.email({
+        email,
+        password,
+        rememberMe,
+      });
 
       if (result.error) {
         throw new Error(result.error.message ?? "Invalid email or password.");
