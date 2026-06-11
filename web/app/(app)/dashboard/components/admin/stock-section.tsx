@@ -1,3 +1,7 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Donut } from "@/components/charts/donut";
@@ -11,6 +15,8 @@ interface Props {
 }
 
 export function AdminStockSection({ stockByCategory, recentSales }: Props) {
+  const router = useRouter();
+
   const stockDonut = stockByCategory.map((row, i) => ({
     label: row.categoryName,
     value: row.units,
@@ -20,7 +26,7 @@ export function AdminStockSection({ stockByCategory, recentSales }: Props) {
   const stockTotal = stockByCategory.reduce((sum, row) => sum + row.units, 0);
 
   return (
-    <div className="grid-2 mb-16">
+    <div className="grid-2 dash-stock-row mb-16">
       <Card title="Stock by Category" pad>
         {stockDonut.length > 0 ? (
           <Donut data={stockDonut} centerLabel="Units" centerValue={stockTotal.toLocaleString()} />
@@ -29,7 +35,12 @@ export function AdminStockSection({ stockByCategory, recentSales }: Props) {
         )}
       </Card>
 
-      <Card title="Recent Sales" link="View all">
+      <Card
+        className="dash-card-embed dash-recent-sales"
+        title="Recent Sales"
+        link="View all"
+        onLink={() => router.push("/sales")}
+      >
         <AdminRecentSalesTable sales={recentSales} />
       </Card>
     </div>
