@@ -1,5 +1,4 @@
 "use client";
-import { useEffect, useState } from "react";
 
 interface Props<T extends Record<string, string | number>> {
   data: T[];
@@ -10,29 +9,38 @@ interface Props<T extends Record<string, string | number>> {
 }
 
 export function HBars<T extends Record<string, string | number>>({
-  data, valueKey, labelKey, color = "var(--brand-teal)", format,
+  data,
+  valueKey,
+  labelKey,
+  color = "var(--brand-teal)",
+  format,
 }: Props<T>) {
-  const [on, setOn] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setOn(true), 40); return () => clearTimeout(t); }, []);
-
-  const max = Math.max(...data.map((d) => d[valueKey] as number));
+  const max = Math.max(...data.map((d) => d[valueKey] as number), 1);
 
   return (
     <div>
-      {data.map((d, i) => (
-        <div className="hbar-row" key={i}>
-          <span className="hb-name" title={String(d[labelKey])}>{d[labelKey]}</span>
-          <span className="hbar-track">
-            <span
-              className="hbar-fill"
-              style={{ width: on ? ((d[valueKey] as number) / max) * 100 + "%" : 0, background: color, transition: "width .7s ease" }}
-            />
-          </span>
-          <span className="hb-val">
-            {format ? format(d[valueKey] as number) : d[valueKey]}
-          </span>
-        </div>
-      ))}
+      {data.map((d, i) => {
+        const value = d[valueKey] as number;
+        const widthPct = max > 0 ? (value / max) * 100 : 0;
+
+        return (
+          <div className="hbar-row" key={i}>
+            <span className="hb-name" title={String(d[labelKey])}>
+              {d[labelKey]}
+            </span>
+            <div className="hbar-track">
+              <div
+                className="hbar-fill"
+                style={{
+                  width: `${widthPct}%`,
+                  backgroundColor: color,
+                }}
+              />
+            </div>
+            <span className="hb-val">{format ? format(value) : value}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
