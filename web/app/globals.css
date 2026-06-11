@@ -650,6 +650,70 @@ button {
   color: var(--brand-indigo-600);
 }
 
+/* Card with embedded DataTable — flush top, compact text */
+.card.dash-card-embed {
+  overflow: hidden;
+}
+.card.dash-card-embed .dt {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+.card.dash-card-embed .dt-table {
+  font-size: 12px;
+}
+.card.dash-card-embed .dt-head th {
+  font-size: 10px;
+  padding: 8px 10px;
+}
+.card.dash-card-embed .dt-body td {
+  padding: 9px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.card.dash-card-embed .dt-body td .badge {
+  font-size: 10px;
+  padding: 2px 7px;
+}
+.card.dash-card-embed .dt-footer {
+  padding: 10px 12px;
+}
+.card.dash-card-embed .dt-footer-meta,
+.card.dash-card-embed .dt-page-size {
+  font-size: 12px;
+}
+
+/* Dashboard stock row — equal-height cards, scrollable recent sales */
+.dash-stock-row {
+  align-items: stretch;
+}
+.dash-stock-row > .card {
+  display: flex;
+  flex-direction: column;
+}
+.card.dash-recent-sales > div:not(.card-head) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.card.dash-recent-sales .dash-recent-sales-dt {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.card.dash-recent-sales .dash-recent-sales-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.card.dash-recent-sales .dt-head th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
 /* ============================================================================
    Stat card
    ========================================================================== */
@@ -1540,6 +1604,56 @@ table.tbl {
   position: relative;
   overflow: visible;
 }
+.dash-chart-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.dash-chart-toolbar__desc {
+  margin: 0;
+  font-size: 13px;
+  flex: 1;
+  min-width: 0;
+}
+.striped-line-chart {
+  overflow: visible;
+}
+.striped-line-chart__plot {
+  padding: 4px 0 0;
+}
+.striped-line-chart__legend {
+  margin-top: 14px;
+  justify-content: center;
+  gap: 10px 24px;
+}
+.striped-line-chart__legend .li span:last-child {
+  white-space: normal;
+  line-height: 1.35;
+}
+.multi-line-chart__grid {
+  stroke: var(--border);
+  stroke-width: 1;
+  opacity: 0.65;
+}
+.multi-line-chart__axis {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.multi-line-chart__tick {
+  font-size: 11px;
+  fill: var(--fg3);
+  font-family: var(--font-sans);
+}
+.multi-line-chart__legend-item {
+  gap: 8px;
+}
+.multi-line-chart__legend-mark {
+  flex: none;
+  display: block;
+}
 .chart-svg {
   cursor: crosshair;
 }
@@ -1626,14 +1740,18 @@ table.tbl {
   text-overflow: ellipsis;
 }
 .hbar-track {
+  display: block;
   height: 18px;
   background: var(--input-bg);
   border-radius: 4px;
   overflow: hidden;
 }
 .hbar-fill {
+  display: block;
   height: 100%;
+  min-width: 2px;
   border-radius: 4px;
+  transition: width 0.5s ease;
 }
 .hbar-row .hb-val {
   font-size: 12px;
