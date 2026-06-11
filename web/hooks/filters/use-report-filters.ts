@@ -19,6 +19,7 @@ export interface ReportFilters {
   setDateRange: (fromDate: string, toDate: string) => void;
   setPreset: (preset: DateRangePreset) => void;
   setStoreId: (storeId: string | undefined) => void;
+  setCategoryId: (categoryId: number | undefined) => void;
 }
 
 export function useReportFilters(
@@ -63,6 +64,18 @@ export function useReportFilters(
     });
   }, []);
 
+  const setCategoryId = useCallback((categoryId: number | undefined) => {
+    setQuery((prev) => {
+      const next = { ...prev };
+      if (categoryId != null) {
+        next.categoryId = categoryId;
+      } else {
+        delete next.categoryId;
+      }
+      return next;
+    });
+  }, []);
+
   return {
     query,
     dateLabel: formatPeriodLabel(query.fromDate, query.toDate),
@@ -70,5 +83,6 @@ export function useReportFilters(
     setDateRange,
     setPreset,
     setStoreId,
+    setCategoryId,
   };
 }
