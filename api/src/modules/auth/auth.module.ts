@@ -4,6 +4,7 @@ import { PrismaModule } from "../../prisma/prisma.module";
 import { PrismaService } from "../../prisma/prisma.service";
 import { createAuth } from "./auth.config";
 import { MeController } from "./auth.controller";
+import { MeService } from "./me.service";
 import {
   AuthSignInHook,
   AuthSignUpHook,
@@ -26,6 +27,6 @@ import {
     }),
   ],
   controllers: [MeController],
-  providers: [AuthSignInHook, AuthSignUpHook, AuthUserDatabaseHook],
+  providers: [AuthSignInHook, AuthSignUpHook, AuthUserDatabaseHook, MeService],
 })
 export class BetterAuthNestModule {}
