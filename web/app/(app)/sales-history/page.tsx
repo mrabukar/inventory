@@ -1,119 +1,229 @@
 "use client";
-import { useState } from "react";
-import { SquarePen, History } from "lucide-react";
-import { PageHeader }    from "@/components/ui/page-header";
-import { FilterBtn, Search } from "@/components/ui/search";
-import { Sheet }         from "@/components/ui/sheet";
-import { Field }         from "@/components/ui/field";
-import { Button }        from "@/components/ui/button";
-import { CategoryBadge, SaleStatusBadge } from "@/components/ui/badge";
-import { EmptyState }    from "@/components/ui/empty-state";
-import { useAppStore }   from "@/store/app";
-import { SALES }         from "@/lib/data";
-import { fmt }           from "@/lib/utils";
-import type { Sale }     from "@/lib/types";
 
-function CorrectionSheet({ sale, onClose, onSave }: { sale: Sale; onClose: () => void; onSave: (s: Sale, qty: number) => void }) {
-  const [qty, setQty]       = useState(String(sale.qty));
+import { useMemo, useState } from "react";
+import { PageHeader } from "@/components/ui/page-header";
+import { Sheet } from "@/components/ui/sheet";
+import { Field } from "@/components/ui/field";
+import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { SalesHistoryTable } from "./components/sales-history-table";
+import { useCorrectSale } from "@/hooks/sales/use-correct-sale";
+import { useSales } from "@/hooks/sales/use-sales";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { getLast30DaysRange } from "@/lib/filters/dates";
+import { formatSaleDate } from "@/lib/reports/format";
+import { useAppStore } from "@/store/app";
+import type { Sale, SaleStatus } from "@/types/sales/sale";
+
+const STATUS_ITEMS = [
+  { value: "active", label: "Active" },
+  { value: "corrected", label: "Corrected" },
+] as const;
+
+function CorrectionSheet({
+  sale,
+  onClose,
+  onSave,
+  isSaving,
+}: {
+  sale: Sale;
+  onClose: () => void;
+  onSave: (qty: number, reason: string) => void;
+  isSaving: boolean;
+}) {
+  const [qty, setQty] = useState(String(sale.quantitySold));
   const [reason, setReason] = useState("");
-  const [err, setErr]       = useState<{ qty?: string; reason?: string }>({});
+  const [err, setErr] = useState<{ qty?: string; reason?: string }>({});
 
   const save = () => {
     const e: typeof err = {};
-    if (!qty || +qty < 0) e.qty = "Enter a valid quantity";
-    if (!reason.trim())   e.reason = "Reason is required";
+    const parsed = qty === "" ? NaN : parseInt(qty, 10);
+    if (qty === "" || Number.isNaN(parsed) || parsed < 0)
+      e.qty = "Enter a valid whole number";
+    if (!reason.trim()) e.reason = "Reason is required";
     setErr(e);
     if (Object.keys(e).length) return;
-    onSave(sale, +qty);
+    onSave(parsed, reason.trim());
   };
 
   return (
     <Sheet
       title="Correct Sale"
       onClose={onClose}
-      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save}>Submit Correction</Button></>}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={isSaving}>
+            Cancel
+          </Button>
+          <Button onClick={save} disabled={isSaving}>
+            {isSaving ? "Submitting…" : "Submit Correction"}
+          </Button>
+        </>
+      }
     >
-      <div className="readout" style={{ flexDirection: "column", alignItems: "flex-start", gap: 6, marginBottom: 18 }}>
-        <div><b>{sale.product}</b></div>
-        <div>Original quantity: <b>{sale.qty}</b></div>
-        <div>Sale date: {sale.date}</div>
+      <div
+        className="readout"
+        style={{
+          flexDirection: "column",
+          alignItems: "flex-start",
+          gap: 6,
+          marginBottom: 18,
+        }}
+      >
+        <div>
+          <b>{sale.product.name}</b>
+        </div>
+        <div>
+          Original quantity: <b>{sale.quantitySold}</b>
+        </div>
+        <div>Sale date: {formatSaleDate(sale.saleDate)}</div>
       </div>
       <Field label="Corrected quantity" required error={err.qty}>
-        <input className={`f-input${err.qty ? " error" : ""}`} type="number" min="0" value={qty} onChange={(e) => setQty(e.target.value)} />
+        <input
+          className={`f-input${err.qty ? " error" : ""}`}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={qty}
+          onChange={(e) => {
+            const next = e.target.value;
+            if (next === "") {
+              setQty("");
+              return;
+            }
+            setQty(next.replace(/\D/g, ""));
+          }}
+        />
       </Field>
       <Field label="Reason" required error={err.reason}>
-        <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Explain why this sale is being corrected" />
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Explain why this sale is being corrected"
+        />
       </Field>
     </Sheet>
   );
 }
 
 export default function SalesHistoryPage() {
-  const user     = useAppStore((s) => s.user);
   const addToast = useAppStore((s) => s.addToast);
-  const store    = user?.store ?? "";
+  const addErrorToast = useAppStore((s) => s.addErrorToast);
 
-  const [rows,    setRows]    = useState<Sale[]>(SALES.filter((s) => s.store === store).map((s) => ({ ...s })));
+  const defaultRange = useMemo(() => getLast30DaysRange(), []);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<SaleStatus | undefined>();
+  const [fromDate, setFromDate] = useState(defaultRange.fromDate);
+  const [toDate, setToDate] = useState(defaultRange.toDate);
   const [correct, setCorrect] = useState<Sale | null>(null);
+  const debouncedSearch = useDebouncedValue(search, 300);
 
-  const doCorrect = (sale: Sale, newQty: number) => {
-    setRows((rs) => rs.map((r) => r.id === sale.id ? { ...r, qty: newQty, status: "corrected" } : r));
-    setCorrect(null);
-    addToast({ title: "Sale corrected", sub: `${sale.product} → ${newQty} units` });
+  const correctSale = useCorrectSale();
+
+  const listQuery = useMemo(
+    () => ({
+      page: pageIndex + 1,
+      limit: pageSize,
+      search: debouncedSearch || undefined,
+      status,
+      fromDate,
+      toDate,
+    }),
+    [pageIndex, pageSize, debouncedSearch, status, fromDate, toDate],
+  );
+
+  const { data, isPending, isFetching, isError, error } = useSales(listQuery);
+
+  const rows = data?.data ?? [];
+  const rowCount = data?.meta.total ?? 0;
+  const isLoading = isPending || (isFetching && (data?.data.length ?? 0) === 0);
+
+  const handleCorrect = async (qty: number, reason: string) => {
+    if (!correct) return;
+
+    try {
+      await correctSale.mutateAsync({
+        id: correct.id,
+        input: { correctedQuantity: qty, reason },
+      });
+      addToast({
+        title: "Sale corrected",
+        sub: `${correct.product.name} → ${qty} units`,
+      });
+      setCorrect(null);
+    } catch (e) {
+      addErrorToast({
+        title: "Failed to correct sale",
+        sub: e instanceof Error ? e.message : "Something went wrong",
+      });
+    }
   };
+
+  const toolbarExtra = (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      <DateRangePicker
+        fromDate={fromDate}
+        toDate={toDate}
+        onChange={({ fromDate: nextFrom, toDate: nextTo }) => {
+          setFromDate(nextFrom);
+          setToDate(nextTo);
+          setPageIndex(0);
+        }}
+      />
+      <Combobox
+        value={status}
+        onValueChange={(value) => {
+          setStatus(value as SaleStatus | undefined);
+          setPageIndex(0);
+        }}
+        items={[...STATUS_ITEMS]}
+        placeholder="All status"
+        clearOption={{ label: "All status" }}
+        className="min-w-[140px]"
+      />
+    </div>
+  );
 
   return (
     <>
       <PageHeader title="Sales History" desc="Your submitted sales" />
 
-      <div className="filterbar">
-        <FilterBtn label="Last 30 days" />
-        <Search placeholder="Search product…" value="" onChange={() => {}} />
-        <FilterBtn label="All status" />
-      </div>
+      {isError && (
+        <div className="alert-error" style={{ marginBottom: 16 }}>
+          {error instanceof Error ? error.message : "Failed to load sales."}
+        </div>
+      )}
 
-      <div className="table-wrap">
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th>Date</th><th>Product</th>
-              <th className="r">Qty</th><th className="r">Unit Price</th><th className="r">Total</th>
-              <th>Status</th><th className="r">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length ? rows.map((r) => (
-              <tr key={r.id}>
-                <td className="muted">{r.date}</td>
-                <td><span className="strong">{r.product}</span>&nbsp;<CategoryBadge cat={r.cat} /></td>
-                <td className="r num">{r.qty}</td>
-                <td className="r num muted">{fmt(r.unit)}</td>
-                <td className="r num t-indigo strong">{fmt(r.qty * r.unit)}</td>
-                <td><SaleStatusBadge status={r.status} /></td>
-                <td>
-                  <div className="actions">
-                    <button
-                      className="act-btn"
-                      title="Correct"
-                      disabled={r.status === "corrected"}
-                      style={r.status === "corrected" ? { opacity: 0.35, cursor: "not-allowed" } : undefined}
-                      onClick={() => r.status !== "corrected" && setCorrect(r)}
-                    >
-                      <SquarePen size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            )) : (
-              <tr><td colSpan={7}>
-                <EmptyState icon={History} title="No sales yet" sub="Your submitted sales will appear here." />
-              </td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <SalesHistoryTable
+        rows={rows}
+        rowCount={rowCount}
+        pageIndex={pageIndex}
+        pageSize={pageSize}
+        searchValue={search}
+        onSearchChange={(value) => {
+          setSearch(value);
+          setPageIndex(0);
+        }}
+        onPaginationChange={({ pageIndex: nextPage, pageSize: nextSize }) => {
+          setPageIndex(nextPage);
+          setPageSize(nextSize);
+        }}
+        isLoading={isLoading}
+        onCorrect={setCorrect}
+        toolbarExtra={toolbarExtra}
+      />
 
-      {correct && <CorrectionSheet sale={correct} onClose={() => setCorrect(null)} onSave={doCorrect} />}
+      {correct && (
+        <CorrectionSheet
+          sale={correct}
+          onClose={() => setCorrect(null)}
+          onSave={handleCorrect}
+          isSaving={correctSale.isPending}
+        />
+      )}
     </>
   );
 }
