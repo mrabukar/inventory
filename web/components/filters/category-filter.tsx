@@ -5,11 +5,22 @@ import { useCategories } from "@/hooks/categories/use-categories";
 import { Combobox } from "@/components/ui/combobox";
 
 interface CategoryFilterProps {
-  filters: ReportFilters;
+  filters?: ReportFilters;
+  value?: number;
+  onValueChange?: (categoryId: number | undefined) => void;
+  allowClear?: boolean;
 }
 
-export function CategoryFilter({ filters }: CategoryFilterProps) {
+export function CategoryFilter({
+  filters,
+  value,
+  onValueChange,
+  allowClear = true,
+}: CategoryFilterProps) {
   const { data: categories = [], isLoading } = useCategories();
+
+  const selectedCategoryId =
+    value !== undefined ? value : filters?.query.categoryId;
 
   const items = categories.map((category) => ({
     value: String(category.id),
@@ -20,17 +31,21 @@ export function CategoryFilter({ filters }: CategoryFilterProps) {
   return (
     <Combobox
       value={
-        filters.query.categoryId != null
-          ? String(filters.query.categoryId)
-          : undefined
+        selectedCategoryId != null ? String(selectedCategoryId) : undefined
       }
-      onValueChange={(value) => {
-        filters.setCategoryId(value ? Number(value) : undefined);
+      onValueChange={(nextValue) => {
+        const categoryId = nextValue ? Number(nextValue) : undefined;
+        if (onValueChange) {
+          onValueChange(categoryId);
+          return;
+        }
+        filters?.setCategoryId(categoryId);
       }}
       items={items}
       placeholder="Category"
       searchPlaceholder="Search categories…"
       emptyText="No categories found."
+      clearOption={allowClear ? { label: "All categories" } : undefined}
       loading={isLoading}
       className="min-w-[160px]"
     />
