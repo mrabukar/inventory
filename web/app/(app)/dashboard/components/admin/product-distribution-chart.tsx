@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { CategoryFilter } from "@/components/filters/category-filter";
 import { Card } from "@/components/ui/card";
+import { useCategories } from "@/hooks/categories/use-categories";
 import type { ReportFilters } from "@/hooks/filters/use-report-filters";
 import {
   getCurrentMonthLabel,
@@ -19,22 +20,25 @@ interface Props {
 
 export function AdminProductDistributionChart({ filters }: Props) {
   const { query: reportQuery } = filters;
+  const { data: categories = [] } = useCategories();
+  const [categoryId, setCategoryId] = useState<number | undefined>();
+  const activeCategoryId = categoryId ?? categories[0]?.id;
   const monthRange = getCurrentMonthRange();
   const monthLabel = getCurrentMonthLabel();
   const [modalOpen, setModalOpen] = useState(false);
 
   const distributionQuery = useMemo((): ProductDistributionQuery | null => {
-    if (reportQuery.categoryId == null) return null;
+    if (activeCategoryId == null) return null;
     return {
       fromDate: monthRange.fromDate,
       toDate: monthRange.toDate,
       storeId: reportQuery.storeId,
-      categoryId: reportQuery.categoryId,
+      categoryId: activeCategoryId,
     };
   }, [
+    activeCategoryId,
     monthRange.fromDate,
     monthRange.toDate,
-    reportQuery.categoryId,
     reportQuery.storeId,
   ]);
 
@@ -50,7 +54,11 @@ export function AdminProductDistributionChart({ filters }: Props) {
           className="dash-chart-toolbar"
           style={{ justifyContent: "flex-end", marginBottom: 0 }}
         >
-          <CategoryFilter filters={filters} />
+          <CategoryFilter
+            value={activeCategoryId}
+            onValueChange={setCategoryId}
+            allowClear={false}
+          />
         </div>
 
         <ProductDistributionContent
@@ -63,7 +71,7 @@ export function AdminProductDistributionChart({ filters }: Props) {
       <ProductDistributionModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        initialCategoryId={reportQuery.categoryId}
+        initialCategoryId={activeCategoryId}
         initialStoreId={reportQuery.storeId}
       />
     </div>
