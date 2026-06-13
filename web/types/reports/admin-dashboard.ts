@@ -1,4 +1,9 @@
-import type { AdminPeriodComparison, ReportPeriod } from "./common";
+import type {
+  AdminPeriodComparison,
+  DashboardRecentSale,
+  ReportPeriod,
+  StockByCategoryRow,
+} from "./common";
 import type { ReportQuery } from "./query";
 
 export interface AdminDashboardSummary {
@@ -35,12 +40,6 @@ export interface ExpenseBreakdownRow {
   amount: number;
 }
 
-export interface StockByCategoryRow {
-  categoryId: number;
-  categoryName: string;
-  units: number;
-}
-
 export interface TopProductRow {
   productId: string;
   productName: string;
@@ -51,33 +50,6 @@ export interface TopStoreRow {
   storeId: string;
   storeName: string;
   revenue: number;
-}
-
-export interface DashboardRecentSaleProduct {
-  id: string;
-  name: string;
-  category: {
-    id: number;
-    name: string;
-  };
-}
-
-export interface DashboardRecentSale {
-  id: string;
-  quantitySold: number;
-  totalAmount: number;
-  saleDate: string;
-  status: string;
-  product: DashboardRecentSaleProduct;
-  store: {
-    id: string;
-    name: string;
-  };
-  soldBy: {
-    id: string;
-    name: string;
-    email: string;
-  };
 }
 
 export interface AdminDashboardCharts {
@@ -100,3 +72,5 @@ export interface AdminDashboardResponse {
 export interface AdminDashboardQuery extends ReportQuery {
   categoryId?: number;
 }
+
+export type { DashboardRecentSale } from "./common";
