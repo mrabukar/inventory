@@ -2,6 +2,8 @@
 
 import { useMemo, useState, type MouseEvent } from "react";
 
+import { cn } from "@/lib/utils";
+
 export interface StripedLineSeries {
   values: number[];
   color: string;
@@ -13,6 +15,8 @@ interface Props {
   labels: string[];
   series: StripedLineSeries[];
   height?: number;
+  className?: string;
+  legendClassName?: string;
 }
 
 function svgX(event: MouseEvent<SVGRectElement>): number | null {
@@ -67,7 +71,13 @@ function labelStep(count: number): number {
   return Math.ceil(count / 10);
 }
 
-export function StripedLineChart({ labels, series, height = 300 }: Props) {
+export function StripedLineChart({
+  labels,
+  series,
+  height = 300,
+  className,
+  legendClassName,
+}: Props) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const pointCount = series[0]?.values.length ?? 0;
@@ -118,7 +128,7 @@ export function StripedLineChart({ labels, series, height = 300 }: Props) {
   };
 
   return (
-    <div className="striped-line-chart">
+    <div className={cn("striped-line-chart overflow-visible", className)}>
       <div className="chart-wrap striped-line-chart__plot">
         {hoverIndex != null && (
           <div
@@ -259,7 +269,12 @@ export function StripedLineChart({ labels, series, height = 300 }: Props) {
         </svg>
       </div>
 
-      <div className="legend striped-line-chart__legend">
+      <div
+        className={cn(
+          "legend striped-line-chart__legend flex flex-wrap justify-center gap-x-4 gap-y-2",
+          legendClassName,
+        )}
+      >
         {series.map((line) => (
           <div key={line.label} className="li multi-line-chart__legend-item">
             <svg
