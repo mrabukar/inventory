@@ -49,7 +49,7 @@ export function ExpenseCategoryPicker({
   }, [categories, value]);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -73,10 +73,12 @@ export function ExpenseCategoryPicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="z-[200] w-[var(--radix-popover-trigger-width)] p-0"
+        className="z-[200] flex w-[var(--radix-popover-trigger-width)] flex-col overflow-hidden p-0"
         align="start"
+        side="bottom"
+        collisionPadding={12}
       >
-        <Command>
+        <Command className="max-h-[min(22rem,var(--radix-popover-content-available-height))]">
           <button
             type="button"
             className="flex w-full items-center gap-2 border-b border-border px-3 py-2.5 text-left text-sm font-medium text-primary hover:bg-accent"
@@ -89,7 +91,7 @@ export function ExpenseCategoryPicker({
             See all categories
           </button>
           <CommandInput placeholder="Search categories…" />
-          <CommandList>
+          <CommandList className="min-h-0 flex-1">
             <CommandEmpty>No categories found.</CommandEmpty>
             <CommandGroup>
               {categories.map((category) => (
