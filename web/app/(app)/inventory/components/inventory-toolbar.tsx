@@ -3,10 +3,16 @@
 import { LayoutGrid, List } from "lucide-react";
 
 import { Combobox, type ComboboxItem } from "@/components/ui/combobox";
-import { FilterBtn, Search } from "@/components/ui/search";
+import { Search } from "@/components/ui/search";
 
 export type InventoryStatusFilter = "All" | "Low" | "Out";
 export type InventoryView = "table" | "grid";
+
+const STATUS_ITEMS: { value: InventoryStatusFilter; label: string }[] = [
+  { value: "All", label: "All status" },
+  { value: "Low", label: "Low stock" },
+  { value: "Out", label: "Out of stock" },
+];
 
 interface InventoryToolbarProps {
   search: string;
@@ -64,20 +70,15 @@ export function InventoryToolbar({
         clearOption={{ label: "All categories" }}
         className="min-w-[160px]"
       />
-      {(["All", "Low", "Out"] as InventoryStatusFilter[]).map((s) => (
-        <FilterBtn
-          key={s}
-          label={
-            s === "All"
-              ? "All status"
-              : s === "Low"
-                ? "Low stock"
-                : "Out of stock"
-          }
-          active={status === s}
-          onClick={() => onStatusChange(s)}
-        />
-      ))}
+      <Combobox
+        value={status}
+        onValueChange={(value) =>
+          onStatusChange((value as InventoryStatusFilter | undefined) ?? "All")
+        }
+        items={STATUS_ITEMS}
+        placeholder="All status"
+        className="min-w-[160px]"
+      />
       <span className="spacer" />
       <div className="view-toggle">
         <button
