@@ -3,6 +3,7 @@ export const PROTECTED_ROUTE_PREFIXES = [
   "/dashboard",
   "/products",
   "/inventory",
+  "/stock-report",
   "/sales",
   "/supply",
   "/expenses",
@@ -18,6 +19,7 @@ export const PROTECTED_ROUTE_PREFIXES = [
 export const ADMIN_ONLY_ROUTE_PREFIXES = [
   "/products",
   "/inventory",
+  "/stock-report",
   "/sales",
   "/supply",
   "/expenses",
