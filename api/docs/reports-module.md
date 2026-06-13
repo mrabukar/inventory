@@ -91,6 +91,7 @@ Registered in `app.module.ts` as `ReportsModule`. Global API prefix: `/api`.
 | `GET` | `/api/reports/manager-dashboard` | Branch manager | Store-scoped mini-dashboard |
 | `GET` | `/api/reports/financial-summary` | Admin | Full P&L breakdown for a period |
 | `GET` | `/api/reports/product-distribution` | Admin | Units sold by product within one category (donut chart) |
+| `GET` | `/api/reports/stock-report` | Admin | Purchase, in-stock, and sales units by product |
 
 All endpoints require an authenticated session (Better Auth cookie). Unauthenticated or wrong-role requests are rejected by the global auth/roles guards.
 
@@ -105,14 +106,14 @@ Cookie: better-auth.session_token=...
 
 ## 4. Query Parameters
 
-Used by **admin-dashboard** and **financial-summary** (`ReportQueryDto`):
+Used by **admin-dashboard**, **financial-summary**, and **stock-report** (`ReportQueryDto`):
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `fromDate` | `YYYY-MM-DD` | No | Start of reporting period (inclusive) |
 | `toDate` | `YYYY-MM-DD` | No | End of reporting period (inclusive) |
 | `storeId` | string (cuid) | No | Limit to one store |
-| `categoryId` | number | No | Limit sales to one product category (**admin-dashboard only**) |
+| `categoryId` | number | No | Limit to one product category (**admin-dashboard** and **stock-report**; on admin-dashboard limits sales only; on stock-report scopes purchases, in-stock, sales, and all totals) |
 
 ### Defaults when dates are omitted
 
@@ -145,6 +146,12 @@ Used only by **`GET /api/reports/product-distribution`** — independent of admi
 You must pick **one category** per request. The response lists **products** in that category with units sold and share of the category total.
 
 Defaults for dates match the admin dashboard (last 6 months through today when omitted).
+
+### Stock report query
+
+Used by **`GET /api/reports/stock-report`** — same `ReportQueryDto` as admin dashboard and financial summary (`fromDate`, `toDate`, `storeId`, `categoryId`).
+
+When `categoryId` is set, **purchase devices**, **in-stock**, **sales devices**, product rows, and all returned totals are scoped to active products in that category. Omit `categoryId` to include all products with any purchase, stock, or sales activity in the period.
 
 ---
 
@@ -516,7 +523,7 @@ Applied to all sale-based metrics in a request:
 
 - **Date range** — `saleDate` between `fromDate` and `toDate` (inclusive)
 - **`storeId`** — one store only
-- **`categoryId`** — admin dashboard only; limits sales to products in that category
+- **`categoryId`** — admin dashboard (sales metrics only) and stock report (purchases, in-stock, sales, and totals)
 
 ### Expense filters
 
