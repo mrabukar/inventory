@@ -1,34 +1,57 @@
 "use client";
 
 import { PageHeader } from "@/components/ui/page-header";
-import { INVENTORY, SALES } from "@/lib/data";
 import type { AppUser } from "@/lib/types";
+import { useManagerDashboard } from "@/hooks/reports/manager-dashboard";
+import { DashboardError, DashboardLoading } from "./components/admin/status";
 import { ManagerChartsSection } from "./components/manager/charts-section";
 import { ManagerRecentSalesTable } from "./components/manager/recent-sales-table";
 import { ManagerStatGrid } from "./components/manager/stat-grid";
-import { ManagerStockLevelsTable } from "./components/manager/stock-levels-table";
+import { ManagerStockAlertsTable } from "./components/manager/stock-alerts-table";
 
 export function ManagerDashboard({ user }: { user: AppUser }) {
-  const store = user.store ?? "";
-  const label = store.split(" — ")[0];
-  const myStock = INVENTORY.filter((i) => i.store === store);
-  const mySales = SALES.filter((s) => s.store === store);
+  const label = user.store?.split(" — ")[0] ?? "My Store";
+  const { data, isLoading, isError, error } = useManagerDashboard();
 
-  const mobiles = myStock.filter((i) => i.cat === "Mobiles").reduce((a, b) => a + b.qty, 0);
-  const accessories = myStock.filter((i) => i.cat === "Accessories").reduce((a, b) => a + b.qty, 0);
-  const lowCount = myStock.filter((i) => i.qty <= i.threshold).length;
+  const header = (
+    <PageHeader title={`Dashboard — ${label}`} desc="Your store at a glance" />
+  );
+
+  if (isLoading) {
+    return (
+      <>
+        {header}
+        <DashboardLoading />
+      </>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <>
+        {header}
+        <DashboardError
+          message={error instanceof Error ? error.message : "Failed to load dashboard."}
+        />
+      </>
+    );
+  }
+
+  const { summary, comparison, charts, recentSales } = data;
 
   return (
     <>
-      <PageHeader title={`Dashboard — ${label}`} desc="Your store at a glance" />
+      {header}
 
-      <ManagerStatGrid inStockBalance={mobiles + accessories} lowStockCount={lowCount} />
-      <ManagerChartsSection mobiles={mobiles} accessories={accessories} />
+      <ManagerStatGrid summary={summary} comparison={comparison} />
+      <ManagerChartsSection charts={charts} />
 
-      <div className="grid-2">
-        <ManagerRecentSalesTable sales={mySales} />
-        <ManagerStockLevelsTable stock={myStock} />
-      </div>
+      <ManagerRecentSalesTable sales={recentSales} />
+
+      <ManagerStockAlertsTable
+        lowStockCount={summary.lowStockCount}
+        outOfStockCount={summary.outOfStockCount}
+      />
     </>
   );
 }
