@@ -286,15 +286,11 @@ export function Sidebar({ role, collapsed, storeName }: Props) {
               ),
             )
           : MANAGER_NAV.map((item) => (
-              <SidebarNavLink
-                key={item.href}
-                item={item}
-                pathname={pathname}
-              />
+              <SidebarNavLink key={item.href} item={item} pathname={pathname} />
             ))}
       </nav>
 
-      <div className="sb-foot">
+      {/* <div className="sb-foot">
         <div className="role-chip">
           {role === "admin" ? (
             <>
@@ -308,7 +304,7 @@ export function Sidebar({ role, collapsed, storeName }: Props) {
             </>
           )}
         </div>
-      </div>
+      </div> */}
     </aside>
   );
 }
