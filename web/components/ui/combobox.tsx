@@ -60,7 +60,7 @@ export function Combobox({
   }, [items, value]);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -84,12 +84,17 @@ export function Combobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className={cn("z-50 w-[260px] p-0", popoverClassName)}
-        align="end"
+        className={cn(
+          "z-50 flex w-[var(--radix-popover-trigger-width)] min-w-[12rem] flex-col overflow-hidden p-0",
+          popoverClassName,
+        )}
+        align="start"
+        side="bottom"
+        collisionPadding={12}
       >
-        <Command>
+        <Command className="max-h-[min(20rem,var(--radix-popover-content-available-height))]">
           <CommandInput placeholder={searchPlaceholder} />
-          <CommandList>
+          <CommandList className="min-h-0 flex-1">
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>
               {clearOption && (
