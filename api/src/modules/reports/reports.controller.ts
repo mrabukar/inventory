@@ -36,4 +36,10 @@ export class ReportsController {
   getProductDistribution(@Query() query: ProductDistributionQueryDto) {
     return this.reportsService.getProductDistribution(query);
   }
+
+  @Get("stock-report")
+  @Roles(UserRole.admin)
+  getStockReport(@Query() query: ReportQueryDto) {
+    return this.reportsService.getStockReport(query);
+  }
 }
