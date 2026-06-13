@@ -197,6 +197,42 @@ export class ReportsService {
     };
   }
 
+  async getStockReport(query: ReportQueryDto) {
+    const range = resolveReportDateRange(query.fromDate, query.toDate);
+    const storeId =
+      typeof query.storeId === "string" ? query.storeId.trim() : undefined;
+    const categoryId = query.categoryId;
+
+    const products = await this.fetchStockReportRows(
+      range,
+      storeId,
+      categoryId,
+    );
+
+    const totals = products.reduce(
+      (acc, row) => ({
+        purchaseDevices: acc.purchaseDevices + row.purchaseDevices,
+        inStock: acc.inStock + row.inStock,
+        salesDevices: acc.salesDevices + row.salesDevices,
+      }),
+      { purchaseDevices: 0, inStock: 0, salesDevices: 0 },
+    );
+
+    return {
+      period: {
+        from: range.fromCalendar,
+        to: range.toCalendar,
+        timezone: getAppTimezone(),
+      },
+      filters: {
+        storeId: storeId ?? null,
+        categoryId: categoryId ?? null,
+      },
+      totals,
+      products,
+    };
+  }
+
   async getManagerDashboard(user: CurrentUserPayload) {
     const storeId = requireManagerStore(user);
     const today = todayCalendarDate();
@@ -889,5 +925,107 @@ export class ReportsService {
     `;
 
     return parseRawMoney(rows[0]?.total);
+  }
+
+  private async fetchStockReportRows(
+    range: ReportDateRange,
+    storeId?: string,
+    categoryId?: number,
+  ): Promise<
+    Array<{
+      productId: string;
+      productName: string;
+      purchaseDevices: number;
+      inStock: number;
+      salesDevices: number;
+    }>
+  > {
+    const productFilter = categoryId
+      ? { categoryId, isActive: true as const }
+      : { isActive: true as const };
+
+    const [purchaseRows, salesRows, inventoryRows] = await Promise.all([
+      this.prisma.stockSupply.groupBy({
+        by: ["productId"],
+        where: {
+          ...(storeId ? { storeId } : undefined),
+          product: productFilter,
+          createdAt: {
+            gte: range.fromTimestamp,
+            lte: range.toTimestamp,
+          },
+        },
+        _sum: { quantity: true },
+      }),
+      this.prisma.sale.groupBy({
+        by: ["productId"],
+        where: {
+          ...(storeId ? { storeId } : undefined),
+          ...(categoryId ? { product: { categoryId } } : undefined),
+          status: "active",
+          saleDate: { gte: range.fromDate, lte: range.toDate },
+        },
+        _sum: { quantitySold: true },
+      }),
+      this.prisma.inventory.groupBy({
+        by: ["productId"],
+        where: {
+          ...(storeId ? { storeId } : undefined),
+          store: { isActive: true },
+          product: productFilter,
+        },
+        _sum: { quantity: true },
+      }),
+    ]);
+
+    const purchaseByProduct = new Map(
+      purchaseRows.map((row) => [row.productId, row._sum.quantity ?? 0]),
+    );
+    const salesByProduct = new Map(
+      salesRows.map((row) => [row.productId, row._sum.quantitySold ?? 0]),
+    );
+    const stockByProduct = new Map(
+      inventoryRows.map((row) => [row.productId, row._sum.quantity ?? 0]),
+    );
+
+    let productIds: string[];
+    if (categoryId) {
+      const categoryProducts = await this.prisma.product.findMany({
+        where: { categoryId, isActive: true },
+        select: { id: true },
+      });
+      productIds = categoryProducts.map((row) => row.id);
+    } else {
+      productIds = [
+        ...new Set([
+          ...purchaseByProduct.keys(),
+          ...salesByProduct.keys(),
+          ...stockByProduct.keys(),
+        ]),
+      ].filter((id) => {
+        const purchase = purchaseByProduct.get(id) ?? 0;
+        const sales = salesByProduct.get(id) ?? 0;
+        const stock = stockByProduct.get(id) ?? 0;
+        return purchase !== 0 || sales !== 0 || stock !== 0;
+      });
+    }
+
+    if (productIds.length === 0) {
+      return [];
+    }
+
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+
+    return products.map((product) => ({
+      productId: product.id,
+      productName: product.name,
+      purchaseDevices: purchaseByProduct.get(product.id) ?? 0,
+      inStock: stockByProduct.get(product.id) ?? 0,
+      salesDevices: salesByProduct.get(product.id) ?? 0,
+    }));
   }
 }
