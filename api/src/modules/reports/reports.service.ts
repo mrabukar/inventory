@@ -959,12 +959,7 @@ export class ReportsService {
       }),
       this.prisma.sale.groupBy({
         by: ["productId"],
-        where: {
-          ...(storeId ? { storeId } : undefined),
-          ...(categoryId ? { product: { categoryId } } : undefined),
-          status: "active",
-          saleDate: { gte: range.fromDate, lte: range.toDate },
-        },
+        where: this.buildSaleWhere(range, storeId, categoryId),
         _sum: { quantitySold: true },
       }),
       this.prisma.inventory.groupBy({
