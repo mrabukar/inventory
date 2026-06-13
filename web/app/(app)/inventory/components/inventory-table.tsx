@@ -24,6 +24,14 @@ interface InventoryTableProps {
   onPaginationChange: (state: PaginationState) => void;
   isLoading?: boolean;
   onExportAll?: () => Promise<Inventory[]>;
+  hideStoreColumn?: boolean;
+  hideStockValue?: boolean;
+  hideUpdatedAt?: boolean;
+  enableRowSelection?: boolean;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+  searchPlaceholder?: string;
+  toolbarExtra?: React.ReactNode;
 }
 
 export function InventoryTable({
@@ -34,9 +42,17 @@ export function InventoryTable({
   onPaginationChange,
   isLoading = false,
   onExportAll,
+  hideStoreColumn = false,
+  hideStockValue = false,
+  hideUpdatedAt = false,
+  enableRowSelection = true,
+  searchValue,
+  onSearchChange,
+  searchPlaceholder,
+  toolbarExtra,
 }: InventoryTableProps) {
-  const columns = useMemo<ColumnDef<Inventory>[]>(
-    () => [
+  const columns = useMemo<ColumnDef<Inventory>[]>(() => {
+    const cols: ColumnDef<Inventory>[] = [
       {
         id: "product",
         accessorFn: (row) => row.product.name,
@@ -55,7 +71,10 @@ export function InventoryTable({
           </>
         ),
       },
-      {
+    ];
+
+    if (!hideStoreColumn) {
+      cols.push({
         id: "store",
         accessorFn: (row) => row.store.name,
         meta: {
@@ -74,7 +93,10 @@ export function InventoryTable({
             {row.original.store.name}
           </span>
         ),
-      },
+      });
+    }
+
+    cols.push(
       {
         accessorKey: "quantity",
         meta: {
@@ -127,7 +149,10 @@ export function InventoryTable({
         ),
         enableSorting: false,
       },
-      {
+    );
+
+    if (!hideStockValue) {
+      cols.push({
         id: "stockValue",
         accessorFn: (row) => stockValue(row),
         meta: {
@@ -141,8 +166,11 @@ export function InventoryTable({
         cell: ({ row }) => (
           <span className="num t-indigo">{fmt(stockValue(row.original))}</span>
         ),
-      },
-      {
+      });
+    }
+
+    if (!hideUpdatedAt) {
+      cols.push({
         accessorKey: "updatedAt",
         meta: {
           label: "Updated",
@@ -156,10 +184,11 @@ export function InventoryTable({
             {formatRelativeTime(row.original.updatedAt)}
           </span>
         ),
-      },
-    ],
-    [],
-  );
+      });
+    }
+
+    return cols;
+  }, [hideStoreColumn, hideStockValue, hideUpdatedAt]);
 
   return (
     <DataTable
@@ -170,7 +199,11 @@ export function InventoryTable({
       pageSize={pageSize}
       onPaginationChange={onPaginationChange}
       isLoading={isLoading}
-      enableRowSelection={true}
+      searchValue={searchValue}
+      onSearchChange={onSearchChange}
+      searchPlaceholder={searchPlaceholder}
+      toolbarExtra={toolbarExtra}
+      enableRowSelection={enableRowSelection}
       exportFileName="inventory"
       onExportAll={onExportAll}
       getRowId={(row) => row.id}
