@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useMemo } from "react";
 
-import { useCategories } from "@/hooks/categories/use-categories";
-import { useReportFilters } from "@/hooks/filters/use-report-filters";
 import { useAdminDashboard } from "@/hooks/reports/admin-dashboard";
+import { useReportFilters } from "@/hooks/filters/use-report-filters";
 import { AdminPerformanceCharts } from "./components/admin/performance-charts";
 import { AdminProductDistributionChart } from "./components/admin/product-distribution-chart";
 import { AdminRevenueCharts } from "./components/admin/revenue-charts";
@@ -16,14 +15,15 @@ import { DashboardPageHeader } from "./components/admin/page-header";
 
 export function AdminDashboard() {
   const filters = useReportFilters();
-  const { data: categories = [] } = useCategories();
-  const { data, isLoading, isError, error } = useAdminDashboard(filters.query);
-
-  useEffect(() => {
-    if (categories.length > 0 && filters.query.categoryId == null) {
-      filters.setCategoryId(categories[0].id);
-    }
-  }, [categories, filters.query.categoryId, filters.setCategoryId]);
+  const dashboardQuery = useMemo(
+    () => ({
+      fromDate: filters.query.fromDate,
+      toDate: filters.query.toDate,
+      storeId: filters.query.storeId,
+    }),
+    [filters.query.fromDate, filters.query.toDate, filters.query.storeId],
+  );
+  const { data, isLoading, isError, error } = useAdminDashboard(dashboardQuery);
 
   const header = <DashboardPageHeader filters={filters} />;
 
