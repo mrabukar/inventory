@@ -1,34 +1,59 @@
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { LineArea } from "@/components/charts/line-area";
 import { Donut } from "@/components/charts/donut";
+import type { ManagerDashboardCharts } from "@/types/reports/manager-dashboard";
+import { DONUT_COLORS } from "../donut-colors";
 
 interface Props {
-  mobiles: number;
-  accessories: number;
+  charts: ManagerDashboardCharts;
 }
 
-export function ManagerChartsSection({ mobiles, accessories }: Props) {
-  const total = mobiles + accessories;
+function thinDateLabels(dates: string[], step = 7): string[] {
+  return dates.map((date, i) => {
+    if (i === 0 || i === dates.length - 1 || i % step === 0) {
+      return date.slice(5);
+    }
+    return "";
+  });
+}
+
+export function ManagerChartsSection({ charts }: Props) {
+  const { salesTrend, stockByCategory } = charts;
+
+  const stockDonut = stockByCategory.map((row, i) => ({
+    label: row.categoryName,
+    value: row.units,
+    color: DONUT_COLORS[i % DONUT_COLORS.length],
+  }));
+
+  const stockTotal = stockByCategory.reduce((sum, row) => sum + row.units, 0);
 
   return (
     <div className="grid-2 mb-16">
       <Card title="Sales Trend (30 days)" pad>
-        <LineArea
-          values={[820, 1100, 640, 1340, 980, 1620, 1210]}
-          labels={["W1", "", "W2", "", "W3", "", "W4"]}
-          height={200}
-          color="var(--brand-indigo)"
-        />
+        {salesTrend.length > 0 ? (
+          <LineArea
+            values={salesTrend.map((row) => row.revenue)}
+            labels={thinDateLabels(salesTrend.map((row) => row.date))}
+            height={200}
+            color="var(--brand-indigo)"
+            valueLabel="Revenue"
+          />
+        ) : (
+          <EmptyState title="No sales trend" sub="No sales recorded in the last 30 days." />
+        )}
       </Card>
       <Card title="Stock by Category" pad>
-        <Donut
-          data={[
-            { label: "Mobiles", value: mobiles || 1, color: "var(--brand-indigo)" },
-            { label: "Accessories", value: accessories || 1, color: "var(--brand-teal)" },
-          ]}
-          centerLabel="units"
-          centerValue={total}
-        />
+        {stockDonut.length > 0 ? (
+          <Donut
+            data={stockDonut}
+            centerLabel="units"
+            centerValue={stockTotal.toLocaleString()}
+          />
+        ) : (
+          <EmptyState title="No stock data" sub="No inventory on hand at your store." />
+        )}
       </Card>
     </div>
   );
