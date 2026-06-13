@@ -22,3 +22,47 @@ export interface AdminPeriodComparison {
   totalExpenses: PeriodDelta;
   totalUnitsSold: PeriodDelta;
 }
+
+export interface ManagerPeriodComparison {
+  label: string;
+  todayRevenue: PeriodDelta;
+  monthRevenue: PeriodDelta;
+}
+
+export interface DashboardRecentSaleProduct {
+  id: string;
+  name: string;
+  category: {
+    id: number;
+    name: string;
+  };
+}
+
+export interface DashboardRecentSale {
+  id: string;
+  quantitySold: number;
+  totalAmount: number;
+  saleDate: string;
+  status: string;
+  product: DashboardRecentSaleProduct;
+  store: {
+    id: string;
+    name: string;
+  };
+  soldBy: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
+
+export interface StockByCategoryRow {
+  categoryId: number;
+  categoryName: string;
+  units: number;
+}
+
+export interface DailyRevenueRow {
+  date: string;
+  revenue: number;
+}
