@@ -759,6 +759,12 @@ button {
   color: var(--fg2);
   margin: 4px 0 0;
 }
+.submit-sale-page .page-head {
+  margin-bottom: 14px;
+}
+.submit-sale-page .page-head h1 {
+  font-size: 22px;
+}
 
 /* ============================================================================
    Buttons
