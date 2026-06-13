@@ -35,19 +35,19 @@ export function AdminStatGrid({ summary: s, comparison }: Props) {
         {...formatPeriodTrend(comparison.grossProfit)}
       />
       <StatCard
+        icon={CreditCard}
+        color="amber"
+        value={fmt(s.totalExpenses)}
+        label="Total Expenses"
+        {...formatExpenseTrend(comparison.totalExpenses)}
+      />
+      <StatCard
         icon={TrendingUp}
         color="violet"
         value={fmt(s.netProfit)}
         label="Net Profit"
         valueColor={s.netProfit < 0 ? "var(--status-rose)" : undefined}
         {...formatPeriodTrend(comparison.netProfit)}
-      />
-      <StatCard
-        icon={CreditCard}
-        color="amber"
-        value={fmt(s.totalExpenses)}
-        label="Total Expenses"
-        {...formatExpenseTrend(comparison.totalExpenses)}
       />
       <StatCard
         icon={Layers}
