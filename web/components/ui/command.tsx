@@ -41,11 +41,19 @@ function CommandInput({
 
 function CommandList({
   className,
+  onWheel,
   ...props
 }: React.ComponentProps<typeof CommandPrimitive.List>) {
   return (
     <CommandPrimitive.List
-      className={cn("max-h-[300px] overflow-y-auto overflow-x-hidden", className)}
+      className={cn(
+        "max-h-48 overflow-y-auto overflow-x-hidden overscroll-contain",
+        className,
+      )}
+      onWheel={(e) => {
+        onWheel?.(e);
+        e.stopPropagation();
+      }}
       {...props}
     />
   );
@@ -69,7 +77,7 @@ function CommandGroup({
   return (
     <CommandPrimitive.Group
       className={cn(
-        "overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground",
+        "p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground",
         className,
       )}
       {...props}
