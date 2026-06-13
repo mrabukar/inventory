@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { XCircle } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { StripedLineChart } from "@/components/charts/striped-line-chart";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useProductDistribution } from "@/hooks/reports/use-product-distribution";
@@ -14,6 +15,7 @@ interface Props {
   subtitle?: string;
   chartHeight?: number;
   emptySub?: string;
+  compact?: boolean;
 }
 
 function ChartSkeleton({ height }: { height: number }) {
@@ -31,6 +33,7 @@ export function ProductDistributionContent({
   subtitle,
   chartHeight = 300,
   emptySub = "No units sold in this category for the selected period.",
+  compact = false,
 }: Props) {
   const placeholderQuery: ProductDistributionQuery = {
     fromDate: query?.fromDate ?? "",
@@ -76,7 +79,12 @@ export function ProductDistributionContent({
 
   return (
     <>
-      <p className="muted" style={{ margin: "0 0 16px", fontSize: 13 }}>
+      <p
+        className={cn(
+          "muted",
+          compact ? "mb-2 text-xs" : "mb-4 text-[13px]",
+        )}
+      >
         {resolvedSubtitle}
       </p>
 
@@ -94,6 +102,8 @@ export function ProductDistributionContent({
           labels={chartData.labels}
           height={chartHeight}
           series={chartData.series}
+          className={compact ? "[&_.striped-line-chart__plot]:pt-0" : undefined}
+          legendClassName={compact ? "mt-2" : undefined}
         />
       ) : (
         <EmptyState title="No product sales" sub={emptySub} />
