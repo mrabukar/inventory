@@ -1,106 +1,242 @@
 "use client";
-import { useState } from "react";
-import { CheckCircle2, Store, User } from "lucide-react";
-import { PageHeader }  from "@/components/ui/page-header";
-import { Button }      from "@/components/ui/button";
-import { Field }       from "@/components/ui/field";
-import { useAppStore } from "@/store/app";
-import { INVENTORY, PRODUCTS } from "@/lib/data";
-import { fmt }         from "@/lib/utils";
 
-interface Done { qty: number; product: string; total: number; }
+import { useMemo, useState } from "react";
+import { CheckCircle2, Store, User } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Combobox } from "@/components/ui/combobox";
+import { useInventory } from "@/hooks/inventory/use-inventory";
+import { useCreateSale } from "@/hooks/sales/use-create-sale";
+import { todayYmd } from "@/lib/filters/dates";
+import { toNumber } from "@/lib/reports/format";
+import { cn, fmt } from "@/lib/utils";
+import { useAppStore } from "@/store/app";
+import type { Sale } from "@/types/sales/sale";
+
+const inputClassName =
+  "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+
+function FormField({
+  label,
+  required,
+  error,
+  children,
+  className,
+}: {
+  label: string;
+  required?: boolean;
+  error?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("grid gap-1.5", className)}>
+      <label className="text-sm font-medium leading-none">
+        {label}
+        {required ? <span className="text-destructive"> *</span> : null}
+      </label>
+      {children}
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+    </div>
+  );
+}
 
 export default function SubmitSalePage() {
-  const user     = useAppStore((s) => s.user);
+  const user = useAppStore((s) => s.user);
   const addToast = useAppStore((s) => s.addToast);
-  const store    = user?.store ?? "";
+  const addErrorToast = useAppStore((s) => s.addErrorToast);
+  const storeLabel = user?.store ?? "My Store";
 
-  const stock    = INVENTORY.filter((i) => i.store === store && i.qty > 0);
-  const products = PRODUCTS.filter((p) => p.active);
+  const { data, isLoading } = useInventory({ limit: 100 });
+  const createSale = useCreateSale();
 
-  const [pid,  setPid]  = useState("");
-  const [qty,  setQty]  = useState("");
+  const inStock = useMemo(
+    () => (data?.data ?? []).filter((row) => row.quantity > 0),
+    [data],
+  );
+
+  const productItems = useMemo(
+    () =>
+      inStock.map((row) => ({
+        value: row.productId,
+        label: `${row.product.name} · ${row.product.category.name} · ${row.quantity} available`,
+        keywords: [row.product.name, row.product.category.name],
+      })),
+    [inStock],
+  );
+
+  const [productId, setProductId] = useState<string | undefined>();
+  const [qty, setQty] = useState("");
+  const [saleDate, setSaleDate] = useState(todayYmd());
   const [note, setNote] = useState("");
-  const [done, setDone] = useState<Done | null>(null);
+  const [done, setDone] = useState<Sale | null>(null);
 
-  const today = new Date().toISOString().slice(0, 10);
-  const inv   = stock.find((s) => s.product === pid);
-  const prod  = products.find((p) => p.name === pid);
-  const avail = inv?.qty ?? 0;
-  const price = prod?.sell ?? 0;
-  const q     = +qty || 0;
-  const over  = q > avail;
+  const selected = inStock.find((row) => row.productId === productId);
+  const avail = selected?.quantity ?? 0;
+  const price = selected ? toNumber(selected.product.sellingPrice) : 0;
+  const q = qty === "" ? 0 : parseInt(qty, 10);
+  const over = q > avail;
   const total = q * price;
 
-  const submit = () => {
-    if (!pid || q < 1 || over) return;
-    setDone({ qty: q, product: pid, total });
-    addToast({ title: "Sale recorded successfully", sub: `${q} × ${pid} — ${fmt(total)}` });
-    setPid(""); setQty(""); setNote("");
+  const handleQtyChange = (value: string) => {
+    if (value === "") {
+      setQty("");
+      return;
+    }
+    setQty(value.replace(/\D/g, ""));
+  };
+
+  const submit = async () => {
+    if (!productId || !qty || q < 1 || over) return;
+
+    try {
+      const sale = await createSale.mutateAsync({
+        productId,
+        quantitySold: q,
+        saleDate,
+        note: note.trim() || undefined,
+      });
+      setDone(sale);
+      addToast({
+        title: "Sale recorded successfully",
+        sub: `${q} × ${sale.product.name} — ${fmt(toNumber(sale.totalAmount))}`,
+      });
+      setProductId(undefined);
+      setQty("");
+      setNote("");
+    } catch (e) {
+      addErrorToast({
+        title: "Failed to record sale",
+        sub: e instanceof Error ? e.message : "Something went wrong",
+      });
+    }
   };
 
   return (
-    <div style={{ maxWidth: 520, margin: "0 auto" }}>
-      <PageHeader title="Submit Sale" desc={store} />
+    <div className="submit-sale-page mx-auto w-full max-w-3xl">
+      <PageHeader title="Submit Sale" desc={storeLabel} />
 
       {done && (
-        <div className="card card-pad mb-16" style={{ display: "flex", alignItems: "center", gap: 12, background: "var(--tint-emerald)", borderColor: "color-mix(in srgb, var(--status-emerald) 25%, transparent)" }}>
-          <CheckCircle2 size={22} style={{ color: "var(--status-emerald)", flexShrink: 0 }} />
-          <div style={{ fontSize: 14 }}>
-            You recorded <b>{done.qty} × {done.product}</b> — <b>{fmt(done.total)}</b>
-          </div>
+        <div
+          className="card mb-4 flex items-center gap-3 px-4 py-3"
+          style={{
+            background: "var(--tint-emerald)",
+            borderColor:
+              "color-mix(in srgb, var(--status-emerald) 25%, transparent)",
+          }}
+        >
+          <CheckCircle2
+            size={20}
+            style={{ color: "var(--status-emerald)", flexShrink: 0 }}
+          />
+          <p className="text-sm">
+            You recorded{" "}
+            <b>
+              {done.quantitySold} × {done.product.name}
+            </b>{" "}
+            — <b>{fmt(toNumber(done.totalAmount))}</b>
+          </p>
         </div>
       )}
 
-      <div className="card card-pad">
-        <Field label="Product" required>
-          <select value={pid} onChange={(e) => setPid(e.target.value)}>
-            <option value="">Select a product…</option>
-            {stock.map((s) => (
-              <option key={s.id} value={s.product}>
-                {s.product} · {s.cat} · {s.qty} available
-              </option>
-            ))}
-          </select>
-        </Field>
+      <Card bodyClass="px-5 py-4">
+        <div className="grid gap-4">
+          <FormField label="Product" required>
+            <Combobox
+              value={productId}
+              onValueChange={setProductId}
+              items={productItems}
+              placeholder="Select a product…"
+              searchPlaceholder="Search products…"
+              emptyText="No in-stock products found."
+              loading={isLoading}
+              disabled={isLoading}
+              className="h-9 w-full min-w-0"
+            />
+          </FormField>
 
-        <Field label="Quantity" required error={over ? `Only ${avail} units available` : undefined}>
-          <input
-            className={`f-input${over ? " error" : ""}`}
-            type="number" min="1"
-            value={qty}
-            onChange={(e) => setQty(e.target.value)}
-            placeholder="0"
-            disabled={!pid}
-          />
-        </Field>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField
+              label="Quantity"
+              required
+              error={over ? `Only ${avail} units available` : undefined}
+            >
+              <input
+                className={cn(inputClassName, over && "border-destructive")}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={qty}
+                onChange={(e) => handleQtyChange(e.target.value)}
+                placeholder="0"
+                disabled={!productId}
+              />
+            </FormField>
 
-        <Field label="Sale date" required>
-          <input className="f-input" type="date" defaultValue={today} />
-        </Field>
+            <FormField label="Sale date" required>
+              <input
+                className={inputClassName}
+                type="date"
+                value={saleDate}
+                onChange={(e) => setSaleDate(e.target.value)}
+              />
+            </FormField>
+          </div>
 
-        <Field label="Note">
-          <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note about this sale" />
-        </Field>
+          <FormField label="Note">
+            <textarea
+              className={cn(inputClassName, "h-auto min-h-24 resize-y py-2")}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Optional note about this sale"
+              maxLength={500}
+              rows={2}
+            />
+          </FormField>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, margin: "4px 0 14px" }}>
-          <div className="readout"><Store size={15} />{store.split(" — ")[0]}</div>
-          <div className="readout"><User size={15} />{user?.name}</div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="readout py-2">
+              <Store size={15} />
+              {storeLabel}
+            </div>
+            <div className="readout py-2">
+              <User size={15} />
+              {user?.name}
+            </div>
+          </div>
+
+          <div
+            className="flex flex-col gap-3 rounded-md px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            style={{ background: "var(--tint-indigo)" }}
+          >
+            <div className="min-w-0">
+              <p className="text-sm text-muted-foreground">
+                {price
+                  ? `${fmt(price)} per unit`
+                  : "Select a product to see price"}
+              </p>
+              <p
+                className="num text-2xl font-bold leading-tight"
+                style={{ color: "var(--brand-indigo)" }}
+              >
+                {fmt(total)}
+              </p>
+            </div>
+            <Button
+              variant="default"
+              size="default"
+              className="w-full shrink-0 sm:w-auto sm:min-w-[140px]"
+              onClick={submit}
+              disabled={
+                !productId || !qty || q < 1 || over || createSale.isPending
+              }
+            >
+              {createSale.isPending ? "Recording…" : "Record Sale"}
+            </Button>
+          </div>
         </div>
-
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "var(--tint-indigo)", borderRadius: "var(--r-md)", marginBottom: 16 }}>
-          <span style={{ fontSize: 13, color: "var(--fg2)" }}>
-            {price ? `Price: ${fmt(price)} per unit` : "Select a product to see price"}
-          </span>
-          <span className="num" style={{ fontSize: 20, fontWeight: 700, color: "var(--brand-indigo)" }}>
-            {fmt(total)}
-          </span>
-        </div>
-
-        <Button variant="primary" size="lg" block onClick={submit} disabled={!pid || q < 1 || over}>
-          Record Sale
-        </Button>
-      </div>
+      </Card>
     </div>
   );
 }
