@@ -20,13 +20,13 @@ export function ManagerStatGrid({ summary: s, comparison }: Props) {
         label="Today's Sales"
         {...formatPeriodTrend(comparison.todayRevenue)}
       />
-      <StatCard
+      {/* <StatCard
         icon={TrendingUp}
         color="teal"
         value={fmt(s.monthRevenue)}
         label="This Month Sales"
         {...formatPeriodTrend(comparison.monthRevenue)}
-      />
+      /> */}
       <StatCard
         icon={Package}
         color="violet"
