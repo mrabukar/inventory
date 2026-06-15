@@ -12,8 +12,10 @@ model Category {
 
 model Product {
   id             String   @id @default(cuid())
-  name           String
-  normalizedName String
+  name            String
+  normalizedName  String
+  model           String?
+  normalizedModel String?
   categoryId     Int
   category       Category @relation(fields: [categoryId], references: [id])
   description    String?

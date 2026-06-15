@@ -22,6 +22,11 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(50)
+  model?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(500)
   description?: string;
 

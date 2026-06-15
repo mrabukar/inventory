@@ -12,6 +12,7 @@ export interface Product {
   id: string;
   name: string;
   normalizedName: string;
+  model: string | null;
   categoryId: number;
   category: ProductCategory;
   description: string | null;

@@ -94,22 +94,28 @@ export class ProductsService {
 
     const name = dto.name.trim();
     const normalizedName = normalizeProductName(name);
-    await this.assertUniqueActiveName(normalizedName);
+    const model = dto.model?.trim() || null;
+    const normalizedModel = model ? normalizeProductName(model) : null;
+    await this.assertUniqueNameAndModel(normalizedName, normalizedModel);
 
     assertSellingPriceNotBelowPurchase(dto.purchasePrice, dto.sellingPrice);
 
-    const product = await this.prisma.product.create({
-      data: {
-        name,
-        normalizedName,
-        categoryId: dto.categoryId,
-        description: dto.description,
-        purchasePrice: dto.purchasePrice,
-        sellingPrice: dto.sellingPrice,
-        createdById: user.id,
-      },
-      include: { category: true },
-    });
+    const product = await this.prisma.product
+      .create({
+        data: {
+          name,
+          normalizedName,
+          model,
+          normalizedModel,
+          categoryId: dto.categoryId,
+          description: dto.description,
+          purchasePrice: dto.purchasePrice,
+          sellingPrice: dto.sellingPrice,
+          createdById: user.id,
+        },
+        include: { category: true },
+      })
+      .catch((e) => this.handleP2002(e));
 
     await this.prisma.auditLog.create({
       data: {
@@ -142,16 +148,42 @@ export class ProductsService {
 
     const data: Prisma.ProductUpdateInput = { ...dto };
 
+    const existingModel = (existing as any).model as string | null;
+    const existingNormalizedModel = (existing as any).normalizedModel as string | null;
+    const incomingModel =
+      dto.model !== undefined ? dto.model.trim() || null : existingModel;
+    const incomingNormalizedModel = incomingModel
+      ? normalizeProductName(incomingModel)
+      : null;
+
     if (dto.name !== undefined) {
       const name = dto.name.trim();
       const normalizedName = normalizeProductName(name);
 
-      if (normalizedName !== existing.normalizedName) {
-        await this.assertUniqueActiveName(normalizedName, id);
+      if (
+        normalizedName !== existing.normalizedName ||
+        incomingNormalizedModel !== existingNormalizedModel
+      ) {
+        await this.assertUniqueNameAndModel(
+          normalizedName,
+          incomingNormalizedModel,
+          id,
+        );
       }
 
       data.name = name;
       data.normalizedName = normalizedName;
+    } else if (dto.model !== undefined) {
+      await this.assertUniqueNameAndModel(
+        existing.normalizedName,
+        incomingNormalizedModel,
+        id,
+      );
+    }
+
+    if (dto.model !== undefined) {
+      (data as any).model = incomingModel;
+      (data as any).normalizedModel = incomingNormalizedModel;
     }
 
     const purchasePrice =
@@ -167,11 +199,13 @@ export class ProductsService {
       assertSellingPriceNotBelowPurchase(purchasePrice, sellingPrice);
     }
 
-    const product = await this.prisma.product.update({
-      where: { id },
-      data,
-      include: { category: true },
-    });
+    const product = await this.prisma.product
+      .update({
+        where: { id },
+        data,
+        include: { category: true },
+      })
+      .catch((e) => this.handleP2002(e));
 
     await this.prisma.auditLog.create({
       data: {
@@ -248,7 +282,11 @@ export class ProductsService {
       throw new NotFoundException(`Inactive product with id "${id}" not found`);
     }
 
-    await this.assertUniqueActiveName(normalizeProductName(existing.name), id);
+    await this.assertUniqueNameAndModel(
+      normalizeProductName(existing.name),
+      (existing as any).normalizedModel as string | null,
+      id,
+    );
 
     const product = await this.prisma.product.update({
       where: { id },
@@ -280,23 +318,36 @@ export class ProductsService {
     }
   }
 
-  private async assertUniqueActiveName(
+  private async assertUniqueNameAndModel(
     normalizedName: string,
+    normalizedModel: string | null,
     excludeId?: string,
   ): Promise<void> {
     const conflict = await this.prisma.product.findFirst({
       where: {
         normalizedName,
+        normalizedModel,
         isActive: true,
         ...(excludeId ? { id: { not: excludeId } } : undefined),
       },
-      select: { name: true },
+      select: { name: true, model: true },
     });
 
     if (conflict) {
-      throw new ConflictException(
-        `A product named "${conflict.name}" already exists`,
-      );
+      const label = conflict.model
+        ? `${conflict.name} (${conflict.model})`
+        : conflict.name;
+      throw new ConflictException(`A product named "${label}" already exists`);
     }
+  }
+
+  private handleP2002(error: unknown): never {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new ConflictException("A product with this name and model already exists");
+    }
+    throw error;
   }
 }
