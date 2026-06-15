@@ -6,6 +6,7 @@ export interface InventoryProduct {
   id: string;
   name: string;
   normalizedName: string;
+  model: string | null;
   categoryId: number;
   description: string | null;
   purchasePrice: number | string;
