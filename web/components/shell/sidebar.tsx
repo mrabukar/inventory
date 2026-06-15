@@ -73,8 +73,15 @@ const ADMIN_NAV: AdminNavEntry[] = [
   { href: "/sales", label: "Sales", icon: ShoppingCart },
   { href: "/expenses", label: "Expenses", icon: CreditCard },
   { href: "/stores", label: "Stores", icon: Store },
-  { href: "/users", label: "Users", icon: Users },
-  { href: "/audit", label: "Audit Log", icon: ClipboardList },
+  {
+    type: "group",
+    label: "Administration",
+    icon: ShieldCheck,
+    children: [
+      { href: "/users", label: "Users", icon: Users },
+      { href: "/audit", label: "Audit Log", icon: ClipboardList },
+    ],
+  },
   { href: "/financial", label: "Financial Summary", icon: TrendingUp },
 ];
 
