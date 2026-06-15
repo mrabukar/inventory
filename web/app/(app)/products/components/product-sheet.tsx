@@ -11,6 +11,7 @@ import type { Product } from "@/types/products/product";
 export interface ProductFormValues {
   name: string;
   categoryId: string;
+  model: string;
   description: string;
   purchasePrice: string;
   sellingPrice: string;
@@ -34,6 +35,7 @@ export function ProductSheet({
   const [form, setForm] = useState<ProductFormValues>({
     name: initial?.name ?? "",
     categoryId: String(initial?.categoryId ?? categories[0]?.id ?? ""),
+    model: initial?.model ?? "",
     description: initial?.description ?? "",
     purchasePrice: initial ? String(toNumber(initial.purchasePrice)) : "",
     sellingPrice: initial ? String(toNumber(initial.sellingPrice)) : "",
@@ -72,14 +74,6 @@ export function ProductSheet({
         </>
       }
     >
-      <Field label="Product name" required error={err.name}>
-        <input
-          className={`f-input${err.name ? " error" : ""}`}
-          value={form.name}
-          onChange={(e) => set("name", e.target.value)}
-          placeholder="e.g. iPhone 15"
-        />
-      </Field>
       <Field label="Category" required error={err.categoryId}>
         <select
           value={form.categoryId}
@@ -92,11 +86,20 @@ export function ProductSheet({
           ))}
         </select>
       </Field>
-      <Field label="Description">
-        <textarea
-          value={form.description}
-          onChange={(e) => set("description", e.target.value)}
-          placeholder="Optional description"
+      <Field label="Product name" required error={err.name}>
+        <input
+          className={`f-input${err.name ? " error" : ""}`}
+          value={form.name}
+          onChange={(e) => set("name", e.target.value)}
+          placeholder="e.g. iPhone 15"
+        />
+      </Field>
+      <Field label="Model">
+        <input
+          className="f-input"
+          value={form.model}
+          onChange={(e) => set("model", e.target.value)}
+          placeholder="e.g. A15, A16"
         />
       </Field>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -119,6 +122,13 @@ export function ProductSheet({
           />
         </Field>
       </div>
+      <Field label="Description">
+        <textarea
+          value={form.description}
+          onChange={(e) => set("description", e.target.value)}
+          placeholder="Optional description"
+        />
+      </Field>
     </Sheet>
   );
 }
