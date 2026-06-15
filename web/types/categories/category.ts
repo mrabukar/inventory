@@ -4,4 +4,5 @@ export interface Category {
   description: string | null;
   createdAt: string;
   updatedAt: string;
+  _count?: { products: number };
 }
