@@ -75,7 +75,7 @@ export function SupplyModal({
     () =>
       products.map((product) => ({
         value: product.id,
-        label: product.name,
+        label: product.model ? `${product.name} (${product.model})` : product.name,
       })),
     [products],
   );

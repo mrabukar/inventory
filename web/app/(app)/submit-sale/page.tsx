@@ -60,8 +60,8 @@ export default function SubmitSalePage() {
     () =>
       inStock.map((row) => ({
         value: row.productId,
-        label: `${row.product.name} · ${row.product.category.name} · ${row.quantity} available`,
-        keywords: [row.product.name, row.product.category.name],
+        label: `${row.product.model ? `${row.product.name} (${row.product.model})` : row.product.name} · ${row.product.category.name} · ${row.quantity} available`,
+        keywords: [row.product.name, row.product.model ?? "", row.product.category.name],
       })),
     [inStock],
   );

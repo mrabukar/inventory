@@ -86,7 +86,10 @@ const COPY = {
 function productLabelFromSupply(row: StockSupply): string {
   const qty =
     row.quantity > 0 ? `+${row.quantity}` : String(row.quantity);
-  return `${row.product.name} · ${row.createdAt.slice(0, 10)} · ${qty} units`;
+  const productLabel = row.product.model
+    ? `${row.product.name} (${row.product.model})`
+    : row.product.name;
+  return `${productLabel} · ${row.createdAt.slice(0, 10)} · ${qty} units`;
 }
 
 export function SupplyFixModal({
@@ -136,7 +139,7 @@ export function SupplyFixModal({
         value: row.productId,
         label: productLabelFromSupply(row),
         supplyId: row.id,
-        keywords: [row.product.name, row.createdAt.slice(0, 10)],
+        keywords: [row.product.name, row.product.model ?? "", row.createdAt.slice(0, 10)],
       });
     }
 
