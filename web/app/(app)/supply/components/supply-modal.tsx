@@ -178,7 +178,10 @@ export function SupplyModal({
 
             <FormField label="Quantity" required error={err.quantity}>
               <input
-                className={cn(inputClassName, err.quantity && "border-destructive")}
+                className={cn(
+                  inputClassName,
+                  err.quantity && "border-destructive",
+                )}
                 type="number"
                 min={1}
                 value={form.quantity}
@@ -191,7 +194,7 @@ export function SupplyModal({
               label="Unit cost"
               required
               error={err.unitPurchasePrice}
-              helper="Override if this batch cost differs from the catalog price."
+              helper="Taken from the product purchase price."
             >
               <input
                 className={cn(
@@ -200,17 +203,15 @@ export function SupplyModal({
                 )}
                 type="number"
                 value={form.unitPurchasePrice}
-                onChange={(e) => set("unitPurchasePrice", e.target.value)}
+                // onChange={(e) => set("unitPurchasePrice", e.target.value)}
+                disabled
                 placeholder="0.00"
               />
             </FormField>
 
             <FormField label="Note">
               <textarea
-                className={cn(
-                  inputClassName,
-                  "min-h-[80px] resize-y py-2",
-                )}
+                className={cn(inputClassName, "min-h-[80px] resize-y py-2")}
                 value={form.note}
                 onChange={(e) => set("note", e.target.value)}
                 placeholder="Optional note about this supply"
