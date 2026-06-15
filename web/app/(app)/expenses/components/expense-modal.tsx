@@ -113,14 +113,18 @@ export function ExpenseModal({
 }: Props) {
   const isEdit = mode === "edit";
   const today = useMemo(() => dateToYmd(new Date()), []);
-  const [form, setForm] = useState<ExpenseFormValues>(() => initialForm(expense));
-  const [err, setErr] = useState<Partial<Record<keyof ExpenseFormValues, string>>>(
-    {},
+  const [form, setForm] = useState<ExpenseFormValues>(() =>
+    initialForm(expense),
   );
+  const [err, setErr] = useState<
+    Partial<Record<keyof ExpenseFormValues, string>>
+  >({});
   const [showCreateCategory, setShowCreateCategory] = useState(false);
 
-  const set = (key: keyof ExpenseFormValues, value: string | number | undefined) =>
-    setForm((state) => ({ ...state, [key]: value }));
+  const set = (
+    key: keyof ExpenseFormValues,
+    value: string | number | undefined,
+  ) => setForm((state) => ({ ...state, [key]: value }));
 
   const save = () => {
     const next: Partial<Record<keyof ExpenseFormValues, string>> = {};
@@ -141,153 +145,156 @@ export function ExpenseModal({
 
   return (
     <>
-    <Dialog.Root
-      open={open}
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen) onClose();
-      }}
-    >
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-        <Dialog.Content className={dialogContentClassName}>
-          <div className="flex flex-col gap-1.5 text-left">
-            <Dialog.Title className="text-lg font-semibold leading-none tracking-tight">
-              {isEdit ? "Edit Expense" : "Add Expense"}
-            </Dialog.Title>
-            <Dialog.Description className="text-sm text-muted-foreground">
-              {isEdit
-                ? "Update operating cost details."
-                : "Record a company-wide or store-specific expense."}
-            </Dialog.Description>
-          </div>
+      <Dialog.Root
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) onClose();
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+          <Dialog.Content className={dialogContentClassName}>
+            <div className="flex flex-col gap-1.5 text-left">
+              <Dialog.Title className="text-lg font-semibold leading-none tracking-tight">
+                {isEdit ? "Edit Expense" : "Add Expense"}
+              </Dialog.Title>
+              <Dialog.Description className="text-sm text-muted-foreground">
+                {isEdit
+                  ? "Update operating cost details."
+                  : "Record a company-wide or store-specific expense."}
+              </Dialog.Description>
+            </div>
 
-          <div className="grid gap-4 py-2">
-            <FormField label="Title" required error={err.title}>
-              <input
-                className={cn(inputClassName, err.title && "border-destructive")}
-                value={form.title}
-                onChange={(e) => set("title", e.target.value)}
-                placeholder="e.g. June Electricity Bill"
-                maxLength={200}
-              />
-            </FormField>
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label="Amount" required error={err.amount}>
+            <div className="grid gap-4 py-2">
+              <FormField label="Invoice" required error={err.title}>
                 <input
                   className={cn(
                     inputClassName,
-                    err.amount && "border-destructive",
+                    err.title && "border-destructive",
                   )}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.amount}
-                  onChange={(e) => set("amount", e.target.value)}
-                  placeholder="0.00"
+                  value={form.title}
+                  onChange={(e) => set("title", e.target.value)}
+                  placeholder="e.g. Invoice #123456"
+                  maxLength={200}
                 />
               </FormField>
 
-              <FormField label="Category" required error={err.categoryId}>
-                <ExpenseCategoryPicker
-                  value={form.categoryId}
-                  onValueChange={(id) => set("categoryId", id)}
-                  categories={categories}
-                  loading={categoriesLoading}
-                  error={!!err.categoryId}
-                  onSeeAll={onSeeAllCategories}
-                  onAddNew={() => setShowCreateCategory(true)}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Amount" required error={err.amount}>
+                  <input
+                    className={cn(
+                      inputClassName,
+                      err.amount && "border-destructive",
+                    )}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.amount}
+                    onChange={(e) => set("amount", e.target.value)}
+                    placeholder="0.00"
+                  />
+                </FormField>
+
+                <FormField label="Category" required error={err.categoryId}>
+                  <ExpenseCategoryPicker
+                    value={form.categoryId}
+                    onValueChange={(id) => set("categoryId", id)}
+                    categories={categories}
+                    loading={categoriesLoading}
+                    error={!!err.categoryId}
+                    onSeeAll={onSeeAllCategories}
+                    onAddNew={() => setShowCreateCategory(true)}
+                  />
+                </FormField>
+              </div>
+
+              <FormField label="Store">
+                <Combobox
+                  value={form.storeId}
+                  onValueChange={(value) => set("storeId", value)}
+                  items={storeItems}
+                  clearOption={{ label: "Company-wide" }}
+                  placeholder="Company-wide"
+                  searchPlaceholder="Search stores…"
+                  emptyText="No stores found."
+                  className="w-full"
+                  popoverClassName="z-[200]"
+                />
+              </FormField>
+
+              <FormField label="Expense date" required error={err.expenseDate}>
+                <input
+                  className={cn(
+                    inputClassName,
+                    err.expenseDate && "border-destructive",
+                  )}
+                  type="date"
+                  max={today}
+                  value={form.expenseDate}
+                  onChange={(e) => set("expenseDate", e.target.value)}
+                />
+              </FormField>
+
+              <FormField label="Notes">
+                <textarea
+                  className={cn(inputClassName, "min-h-[80px] resize-y py-2")}
+                  value={form.note}
+                  onChange={(e) => set("note", e.target.value)}
+                  placeholder="Optional notes"
+                  maxLength={500}
                 />
               </FormField>
             </div>
 
-            <FormField label="Store">
-              <Combobox
-                value={form.storeId}
-                onValueChange={(value) => set("storeId", value)}
-                items={storeItems}
-                clearOption={{ label: "Company-wide" }}
-                placeholder="Company-wide"
-                searchPlaceholder="Search stores…"
-                emptyText="No stores found."
-                className="w-full"
-                popoverClassName="z-[200]"
-              />
-            </FormField>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                disabled={isSaving || isCheckingProfit}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={save}
+                disabled={isSaving || isCheckingProfit}
+              >
+                {isCheckingProfit
+                  ? "Checking…"
+                  : isSaving
+                    ? "Saving…"
+                    : isEdit
+                      ? "Save Changes"
+                      : "Add Expense"}
+              </Button>
+            </div>
 
-            <FormField label="Expense date" required error={err.expenseDate}>
-              <input
-                className={cn(
-                  inputClassName,
-                  err.expenseDate && "border-destructive",
-                )}
-                type="date"
-                max={today}
-                value={form.expenseDate}
-                onChange={(e) => set("expenseDate", e.target.value)}
-              />
-            </FormField>
-
-            <FormField label="Notes">
-              <textarea
-                className={cn(inputClassName, "min-h-[80px] resize-y py-2")}
-                value={form.note}
-                onChange={(e) => set("note", e.target.value)}
-                placeholder="Optional notes"
-                maxLength={500}
-              />
-            </FormField>
-          </div>
-
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button
+            <Dialog.Close
               type="button"
-              variant="outline"
+              className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               onClick={onClose}
-              disabled={isSaving || isCheckingProfit}
             >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={save}
-              disabled={isSaving || isCheckingProfit}
-            >
-              {isCheckingProfit
-                ? "Checking…"
-                : isSaving
-                  ? "Saving…"
-                  : isEdit
-                    ? "Save Changes"
-                    : "Add Expense"}
-            </Button>
-          </div>
+              <X className="size-4" />
+              <span className="sr-only">Close</span>
+            </Dialog.Close>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
-          <Dialog.Close
-            type="button"
-            className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-            onClick={onClose}
-          >
-            <X className="size-4" />
-            <span className="sr-only">Close</span>
-          </Dialog.Close>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-
-    {showCreateCategory && (
-      <ExpenseCategoryCreateModal
-        open
-        onClose={() => setShowCreateCategory(false)}
-        onSave={(data) =>
-          void tryCreateCategory(onCreateCategory, data, (created) => {
-            set("categoryId", created.id);
-            setShowCreateCategory(false);
-          })
-        }
-        isSaving={isCreatingCategory ?? false}
-      />
-    )}
+      {showCreateCategory && (
+        <ExpenseCategoryCreateModal
+          open
+          onClose={() => setShowCreateCategory(false)}
+          onSave={(data) =>
+            void tryCreateCategory(onCreateCategory, data, (created) => {
+              set("categoryId", created.id);
+              setShowCreateCategory(false);
+            })
+          }
+          isSaving={isCreatingCategory ?? false}
+        />
+      )}
     </>
   );
 }
