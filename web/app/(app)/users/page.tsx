@@ -279,6 +279,7 @@ export default function UsersPage() {
           message={`Deactivate ${confirm.name}? They will no longer be able to sign in.`}
           confirmLabel="Deactivate"
           variant="danger"
+          isLoading={deactivateUser.isPending}
           onConfirm={() => void handleDeactivate()}
           onClose={() => setConfirm(null)}
         />

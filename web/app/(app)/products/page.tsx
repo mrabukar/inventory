@@ -93,6 +93,16 @@ export default function ProductsPage() {
         cell: ({ row }) => <span className="strong">{row.original.name}</span>,
       },
       {
+        accessorKey: "model",
+        meta: { label: "Model", align: "center" },
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Model" />
+        ),
+        cell: ({ row }) => (
+          <span className="muted">{row.original.model ?? "—"}</span>
+        ),
+      },
+      {
         id: "category",
         accessorFn: (row) => row.category.name,
         meta: {
@@ -221,6 +231,7 @@ export default function ProductsPage() {
     const payload = {
       name: form.name.trim(),
       categoryId: Number(form.categoryId),
+      model: form.model.trim() || undefined,
       description: form.description.trim() || undefined,
       purchasePrice: Number(form.purchasePrice),
       sellingPrice: Number(form.sellingPrice),
@@ -333,6 +344,7 @@ export default function ProductsPage() {
           message="This product will be hidden from sales forms. Historical records are preserved."
           confirmLabel="Deactivate"
           variant="danger"
+          isLoading={deactivateProduct.isPending}
           onConfirm={() => void handleDeactivate()}
           onClose={() => setConfirm(null)}
         />

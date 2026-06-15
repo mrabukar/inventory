@@ -477,7 +477,8 @@ export default function ExpensesPage() {
         <ConfirmDialog
           title="Delete expense?"
           message="This expense will be permanently deleted. This action cannot be undone."
-          confirmLabel={deleteExpense.isPending ? "Deleting…" : "Delete"}
+          confirmLabel="Delete"
+          isLoading={deleteExpense.isPending}
           onConfirm={() => void handleDeleteExpense()}
           onClose={() => setDeleteTarget(null)}
         />

@@ -8,6 +8,8 @@ export const PROTECTED_ROUTE_PREFIXES = [
   "/supply",
   "/expenses",
   "/financial",
+  "/categories",
+  "/stores",
   "/users",
   "/audit",
   "/submit-sale",
@@ -24,6 +26,8 @@ export const ADMIN_ONLY_ROUTE_PREFIXES = [
   "/supply",
   "/expenses",
   "/financial",
+  "/categories",
+  "/stores",
   "/users",
   "/audit",
 ] as const;

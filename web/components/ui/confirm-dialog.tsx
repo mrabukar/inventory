@@ -10,6 +10,7 @@ interface Props {
   message: string;
   confirmLabel?: string;
   variant?: "danger" | "primary";
+  isLoading?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }
@@ -19,6 +20,7 @@ export function ConfirmDialog({
   message,
   confirmLabel = "Delete",
   variant = "danger",
+  isLoading = false,
   onConfirm,
   onClose,
 }: Props) {
@@ -41,14 +43,15 @@ export function ConfirmDialog({
         <h2>{title}</h2>
         <p>{message}</p>
         <div className="dialog-row">
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={isLoading}>
             Cancel
           </Button>
           <Button
             variant={variant === "danger" ? "destructive" : "default"}
             onClick={onConfirm}
+            disabled={isLoading}
           >
-            {confirmLabel}
+            {isLoading ? "Loading…" : confirmLabel}
           </Button>
         </div>
       </div>

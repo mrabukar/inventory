@@ -18,6 +18,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/supply":        "Stock Supply",
   "/expenses":      "Expenses",
   "/financial":     "Financial Summary",
+  "/categories":    "Categories",
+  "/stores":        "Stores",
   "/users":         "Users",
   "/audit":         "Audit Log",
   "/submit-sale":   "Submit Sale",

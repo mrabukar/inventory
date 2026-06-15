@@ -12,6 +12,7 @@ import {
   Layers,
   ShoppingCart,
   ShoppingBag,
+  Tag,
   Truck,
   CreditCard,
   TrendingUp,
@@ -56,6 +57,7 @@ const ADMIN_NAV: AdminNavEntry[] = [
     icon: ShoppingBag,
     children: [
       { href: "/products", label: "Products", icon: Package },
+      { href: "/categories", label: "Categories", icon: Tag },
       { href: "/supply", label: "Stock Supply", icon: Truck },
     ],
   },
@@ -70,6 +72,7 @@ const ADMIN_NAV: AdminNavEntry[] = [
   },
   { href: "/sales", label: "Sales", icon: ShoppingCart },
   { href: "/expenses", label: "Expenses", icon: CreditCard },
+  { href: "/stores", label: "Stores", icon: Store },
   { href: "/users", label: "Users", icon: Users },
   { href: "/audit", label: "Audit Log", icon: ClipboardList },
   { href: "/financial", label: "Financial Summary", icon: TrendingUp },
