@@ -11,6 +11,7 @@ import {
   Package,
   Layers,
   ShoppingCart,
+  ShoppingBag,
   Truck,
   CreditCard,
   TrendingUp,
@@ -49,14 +50,21 @@ type AdminNavEntry = NavLinkItem | NavGroupItem;
 
 const ADMIN_NAV: AdminNavEntry[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/products", label: "Products", icon: Package },
+  {
+    type: "group",
+    label: "Purchase",
+    icon: ShoppingBag,
+    children: [
+      { href: "/products", label: "Products", icon: Package },
+      { href: "/supply", label: "Stock Supply", icon: Truck },
+    ],
+  },
   {
     type: "group",
     label: "Stock",
     icon: Boxes,
     children: [
       { href: "/inventory", label: "Inventory", icon: Layers },
-      { href: "/supply", label: "Stock Supply", icon: Truck },
       { href: "/stock-report", label: "Stock Report", icon: FileBarChart2 },
     ],
   },
