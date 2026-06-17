@@ -10,6 +10,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { listStockSupplies } from "@/service/stock-supplies/list-stock-supplies";
 import { stockSuppliesQueryKey } from "@/hooks/stock-supplies/use-stock-supplies";
 import { cn } from "@/lib/utils";
+import { formatProductLabel } from "@/lib/products/format";
 import {
   formatSupplyPickerLabel,
   type CreateStockCorrectionInput,
@@ -86,10 +87,7 @@ const COPY = {
 function productLabelFromSupply(row: StockSupply): string {
   const qty =
     row.quantity > 0 ? `+${row.quantity}` : String(row.quantity);
-  const productLabel = row.product.model
-    ? `${row.product.name} (${row.product.model})`
-    : row.product.name;
-  return `${productLabel} · ${row.createdAt.slice(0, 10)} · ${qty} units`;
+  return `${formatProductLabel(row.product.name, row.product.model)} · ${row.createdAt.slice(0, 10)} · ${qty} units`;
 }
 
 export function SupplyFixModal({
