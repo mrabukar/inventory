@@ -1,9 +1,10 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { CategoryBadge, SaleStatusBadge } from "@/components/ui/badge";
+import { SaleStatusBadge } from "@/components/ui/badge";
 import { Sheet } from "@/components/ui/sheet";
 import { formatRelativeTime } from "@/lib/format-relative-time";
+import { formatProductLabel } from "@/lib/products/format";
 import { formatSaleDate, toNumber } from "@/lib/reports/format";
 import { fmt } from "@/lib/utils";
 import { saleProfit, type Sale } from "@/types/sales/sale";
@@ -29,7 +30,7 @@ export function SaleDetailSheet({ sale, onClose }: SaleDetailSheetProps) {
 
   return (
     <Sheet
-      title={sale.product.name}
+      title={formatProductLabel(sale.product.name, sale.product.model)}
       onClose={onClose}
       footer={
         <Button variant="ghost" onClick={onClose}>
@@ -39,7 +40,6 @@ export function SaleDetailSheet({ sale, onClose }: SaleDetailSheetProps) {
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
         <SaleStatusBadge status={sale.status} />
-        <CategoryBadge cat={sale.product.category.name} />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
