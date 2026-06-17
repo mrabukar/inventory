@@ -12,6 +12,7 @@ import { useCorrectSale } from "@/hooks/sales/use-correct-sale";
 import { useSales } from "@/hooks/sales/use-sales";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { getLast30DaysRange } from "@/lib/filters/dates";
+import { formatProductLabel } from "@/lib/products/format";
 import { formatSaleDate } from "@/lib/reports/format";
 import { useAppStore } from "@/store/app";
 import type { Sale, SaleStatus } from "@/types/sales/sale";
@@ -72,7 +73,7 @@ function CorrectionSheet({
         }}
       >
         <div>
-          <b>{sale.product.name}</b>
+          <b>{formatProductLabel(sale.product.name, sale.product.model)}</b>
         </div>
         <div>
           Original quantity: <b>{sale.quantitySold}</b>
@@ -151,7 +152,7 @@ export default function SalesHistoryPage() {
       });
       addToast({
         title: "Sale corrected",
-        sub: `${correct.product.name} → ${qty} units`,
+        sub: `${formatProductLabel(correct.product.name, correct.product.model)} → ${qty} units`,
       });
       setCorrect(null);
     } catch (e) {
