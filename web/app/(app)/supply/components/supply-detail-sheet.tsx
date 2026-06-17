@@ -1,9 +1,10 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { CategoryBadge, SupplyTypeBadge } from "@/components/ui/badge";
+import { SupplyTypeBadge } from "@/components/ui/badge";
 import { Sheet } from "@/components/ui/sheet";
 import { formatRelativeTime } from "@/lib/format-relative-time";
+import { formatProductLabel } from "@/lib/products/format";
 import { toNumber } from "@/lib/reports/format";
 import { fmt } from "@/lib/utils";
 import {
@@ -41,7 +42,7 @@ export function SupplyDetailSheet({
 }: SupplyDetailSheetProps) {
   return (
     <Sheet
-      title={supply.product.name}
+      title={formatProductLabel(supply.product.name, supply.product.model)}
       onClose={onClose}
       footer={
         <>
@@ -58,7 +59,6 @@ export function SupplyDetailSheet({
         style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}
       >
         <SupplyTypeBadge type={supply.type} />
-        <CategoryBadge cat={supply.product.category.name} />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
