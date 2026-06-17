@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { XCircle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { formatProductLabel } from "@/lib/products/format";
 import { StripedLineChart } from "@/components/charts/striped-line-chart";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useProductDistribution } from "@/hooks/reports/use-product-distribution";
@@ -57,7 +58,7 @@ export function ProductDistributionContent({
     return {
       labels: trend.dates,
       series: trend.series.map((row, index) => ({
-        label: row.productName,
+        label: formatProductLabel(row.productName, row.productModel),
         values: row.values,
         color: DONUT_COLORS[index % DONUT_COLORS.length],
         formatValue: (value: number) => value.toLocaleString(),
