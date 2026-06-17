@@ -47,6 +47,7 @@ type ExpenseCategoryRow = {
 type TopProductRow = {
   productId: string;
   productName: string;
+  productModel: string | null;
   unitsSold: number;
 };
 type TopStoreRow = { storeId: string; storeName: string; revenue: number };
@@ -603,15 +604,19 @@ export class ReportsService {
 
     const products = await this.prisma.product.findMany({
       where: { id: { in: grouped.map((row) => row.productId) } },
-      select: { id: true, name: true },
+      select: { id: true, name: true, model: true },
     });
-    const productMap = new Map(products.map((p) => [p.id, p.name]));
+    const productMap = new Map(products.map((p) => [p.id, p]));
 
-    return grouped.map((row) => ({
-      productId: row.productId,
-      productName: productMap.get(row.productId) ?? "Unknown",
-      unitsSold: row._sum.quantitySold ?? 0,
-    }));
+    return grouped.map((row) => {
+      const product = productMap.get(row.productId);
+      return {
+        productId: row.productId,
+        productName: product?.name ?? "Unknown",
+        productModel: product?.model ?? null,
+        unitsSold: row._sum.quantitySold ?? 0,
+      };
+    });
   }
 
   private async fetchTopStores(
@@ -762,7 +767,11 @@ export class ReportsService {
     range: ReportDateRange,
     storeId: string | undefined,
     categoryId: number,
-    products: Array<{ productId: string; productName: string }>,
+    products: Array<{
+      productId: string;
+      productName: string;
+      productModel: string | null;
+    }>,
   ) {
     const dates = eachCalendarDate(range.fromCalendar, range.toCalendar);
     const productIds = products.map((row) => row.productId);
@@ -773,6 +782,7 @@ export class ReportsService {
         series: [] as Array<{
           productId: string;
           productName: string;
+          productModel: string | null;
           values: number[];
         }>,
       };
@@ -809,6 +819,7 @@ export class ReportsService {
       series: products.map((product) => ({
         productId: product.productId,
         productName: product.productName,
+        productModel: product.productModel,
         values: dates.map(
           (date) => unitsByProduct.get(product.productId)?.get(date) ?? 0,
         ),
@@ -819,7 +830,12 @@ export class ReportsService {
   private async fetchProductsDistribution(
     where: Prisma.SaleWhereInput,
   ): Promise<
-    Array<{ productId: string; productName: string; unitsSold: number }>
+    Array<{
+      productId: string;
+      productName: string;
+      productModel: string | null;
+      unitsSold: number;
+    }>
   > {
     const grouped = await this.prisma.sale.groupBy({
       by: ["productId"],
@@ -834,15 +850,19 @@ export class ReportsService {
 
     const products = await this.prisma.product.findMany({
       where: { id: { in: grouped.map((row) => row.productId) } },
-      select: { id: true, name: true },
+      select: { id: true, name: true, model: true },
     });
-    const productMap = new Map(products.map((p) => [p.id, p.name]));
+    const productMap = new Map(products.map((p) => [p.id, p]));
 
-    return grouped.map((row) => ({
-      productId: row.productId,
-      productName: productMap.get(row.productId) ?? "Unknown",
-      unitsSold: row._sum.quantitySold ?? 0,
-    }));
+    return grouped.map((row) => {
+      const product = productMap.get(row.productId);
+      return {
+        productId: row.productId,
+        productName: product?.name ?? "Unknown",
+        productModel: product?.model ?? null,
+        unitsSold: row._sum.quantitySold ?? 0,
+      };
+    });
   }
 
   private withUnitsSoldPercents<T extends { unitsSold: number }>(
@@ -935,6 +955,7 @@ export class ReportsService {
     Array<{
       productId: string;
       productName: string;
+      productModel: string | null;
       purchaseDevices: number;
       inStock: number;
       salesDevices: number;
@@ -1011,13 +1032,14 @@ export class ReportsService {
 
     const products = await this.prisma.product.findMany({
       where: { id: { in: productIds } },
-      select: { id: true, name: true },
+      select: { id: true, name: true, model: true },
       orderBy: { name: "asc" },
     });
 
     return products.map((product) => ({
       productId: product.id,
       productName: product.name,
+      productModel: product.model,
       purchaseDevices: purchaseByProduct.get(product.id) ?? 0,
       inStock: stockByProduct.get(product.id) ?? 0,
       salesDevices: salesByProduct.get(product.id) ?? 0,
