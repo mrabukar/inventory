@@ -2,6 +2,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LineArea } from "@/components/charts/line-area";
 import { HBars } from "@/components/charts/h-bars";
+import { formatProductLabel } from "@/lib/products/format";
 import { fmtK } from "@/lib/utils";
 import type { AdminDashboardCharts } from "@/types/reports/admin-dashboard";
 
@@ -27,7 +28,7 @@ export function AdminPerformanceCharts({ charts }: Props) {
         {charts.topProducts.length > 0 ? (
           <HBars
             data={charts.topProducts.map((row) => ({
-              name: row.productName,
+              name: formatProductLabel(row.productName, row.productModel),
               units: row.unitsSold,
             }))}
             valueKey="units"
