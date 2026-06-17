@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 
 import { StatCard } from "@/app/(app)/dashboard/components/stat-card";
+import { formatProductLabel } from "@/lib/products/format";
 import type {
   StockReportProduct,
   StockReportTotals,
@@ -98,7 +99,9 @@ export function StockReportTable({ totals, products }: Props) {
             <tbody>
               {products.map((row) => (
                 <tr key={row.productId}>
-                  <td className="stock-report-name">{row.productName}</td>
+                  <td className="stock-report-name">
+                    {formatProductLabel(row.productName, row.productModel)}
+                  </td>
                   <td className="stock-report-num">
                     {formatUnits(row.purchaseDevices)}
                   </td>
