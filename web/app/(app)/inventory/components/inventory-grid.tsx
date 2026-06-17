@@ -2,8 +2,9 @@
 
 import { Store } from "lucide-react";
 
-import { CategoryBadge, StockBadge } from "@/components/ui/badge";
+import { StockBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { formatProductLabel } from "@/lib/products/format";
 import type { Inventory } from "@/types/inventory/inventory";
 
 const fillColor = (qty: number, threshold: number) =>
@@ -40,21 +41,14 @@ export function InventoryGrid({ rows, isLoading = false }: InventoryGridProps) {
     <div className="inv-grid">
       {rows.map((row) => (
         <div className="inv-card" key={row.id}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-            }}
-          >
-            <div>
-              <div className="ic-name">{row.product.name}</div>
-              <div className="ic-store">
-                <Store size={13} />
-                {row.store.name}
-              </div>
+          <div>
+            <div className="ic-name">
+              {formatProductLabel(row.product.name, row.product.model)}
             </div>
-            <CategoryBadge cat={row.product.category.name} />
+            <div className="ic-store">
+              <Store size={13} />
+              {row.store.name}
+            </div>
           </div>
           <div
             className="ic-qty num"
