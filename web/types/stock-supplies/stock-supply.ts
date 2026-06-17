@@ -2,6 +2,7 @@ import type { PaginatedResponse } from "@/types/common/pagination";
 import type { Product, ProductCategory } from "@/types/products/product";
 import type { Store } from "@/types/stores/store";
 import { toNumber } from "@/lib/reports/format";
+import { formatProductLabel } from "@/lib/products/format";
 
 export type StockSupplyType =
   | "supply"
@@ -87,5 +88,5 @@ export function formatSupplyPickerLabel(supply: StockSupply): string {
   const qty =
     supply.quantity > 0 ? `+${supply.quantity}` : String(supply.quantity);
   const date = supply.createdAt.slice(0, 10);
-  return `${date} · ${supply.product.name} · ${supply.store.name} · ${qty} units`;
+  return `${date} · ${formatProductLabel(supply.product.name, supply.product.model)} · ${supply.store.name} · ${qty} units`;
 }
