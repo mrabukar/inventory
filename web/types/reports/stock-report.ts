@@ -4,6 +4,7 @@ import type { ReportQuery } from "./query";
 export interface StockReportProduct {
   productId: string;
   productName: string;
+  productModel: string | null;
   purchaseDevices: number;
   inStock: number;
   salesDevices: number;
