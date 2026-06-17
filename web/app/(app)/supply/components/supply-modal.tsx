@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { useProducts } from "@/hooks/products/use-products";
 import { cn } from "@/lib/utils";
+import { formatProductLabel } from "@/lib/products/format";
 import { toNumber } from "@/lib/reports/format";
 import type { CreateStockSupplyInput } from "@/types/stock-supplies/stock-supply";
 
@@ -75,7 +76,7 @@ export function SupplyModal({
     () =>
       products.map((product) => ({
         value: product.id,
-        label: product.model ? `${product.name} (${product.model})` : product.name,
+        label: formatProductLabel(product.name, product.model),
       })),
     [products],
   );
