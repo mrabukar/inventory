@@ -143,6 +143,18 @@ export function formatPeriodLabel(fromDate: string, toDate: string): string {
   return `${format(fromDate)} → ${format(toDate)}`;
 }
 
+export function formatDisplayDate(iso: string, timeZone = APP_TIMEZONE): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
 export function isSameRange(
   a: { fromDate: string; toDate: string },
   b: { fromDate: string; toDate: string },

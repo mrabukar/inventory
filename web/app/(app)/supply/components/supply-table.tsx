@@ -9,7 +9,7 @@ import { DataTableColumnHeader } from "@/components/data-table/data-table-column
 import { SupplyTypeBadge } from "@/components/ui/badge";
 import { ProductName } from "@/components/ui/product-name";
 import { formatProductLabel } from "@/lib/products/format";
-import { formatRelativeTime } from "@/lib/format-relative-time";
+import { formatDisplayDate } from "@/lib/filters/dates";
 import { toNumber } from "@/lib/reports/format";
 import { fmt } from "@/lib/utils";
 import {
@@ -55,14 +55,14 @@ export function SupplyTable({
         accessorKey: "createdAt",
         meta: {
           label: "Date",
-          exportValue: (row: StockSupply) => row.createdAt.slice(0, 10),
+          exportValue: (row: StockSupply) => formatDisplayDate(row.createdAt),
         },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Date" />
         ),
         cell: ({ row }) => (
           <span className="muted">
-            {formatRelativeTime(row.original.createdAt)}
+            {formatDisplayDate(row.original.createdAt)}
           </span>
         ),
       },

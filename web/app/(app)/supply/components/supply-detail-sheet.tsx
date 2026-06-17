@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { SupplyTypeBadge } from "@/components/ui/badge";
 import { Sheet } from "@/components/ui/sheet";
-import { formatRelativeTime } from "@/lib/format-relative-time";
+import { formatDisplayDate } from "@/lib/filters/dates";
 import { formatProductLabel } from "@/lib/products/format";
 import { toNumber } from "@/lib/reports/format";
 import { fmt } from "@/lib/utils";
@@ -66,7 +66,7 @@ export function SupplyDetailSheet({
         <DetailRow label="Supplied by" value={supply.suppliedBy.name} />
         <DetailRow
           label="Date"
-          value={formatRelativeTime(supply.createdAt)}
+          value={formatDisplayDate(supply.createdAt)}
         />
         <DetailRow label="Quantity" value={formatQuantity(supply.quantity)} />
         <DetailRow
@@ -102,7 +102,7 @@ export function SupplyDetailSheet({
             <div className="strong">
               {formatQuantity(supply.correctsSupply.quantity)} ·{" "}
               {supplyTypeLabel(supply.correctsSupply.type)} ·{" "}
-              {formatRelativeTime(supply.correctsSupply.createdAt)}
+              {formatDisplayDate(supply.correctsSupply.createdAt)}
             </div>
           </div>
         ) : null}
