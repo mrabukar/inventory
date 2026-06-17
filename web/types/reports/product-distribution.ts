@@ -4,6 +4,7 @@ import type { ReportQuery } from "./query";
 export interface ProductDistributionProduct {
   productId: string;
   productName: string;
+  productModel: string | null;
   unitsSold: number;
   percent: number;
 }
@@ -11,6 +12,7 @@ export interface ProductDistributionProduct {
 export interface ProductDistributionTrendSeries {
   productId: string;
   productName: string;
+  productModel: string | null;
   values: number[];
 }
 
