@@ -43,6 +43,7 @@ export interface ExpenseBreakdownRow {
 export interface TopProductRow {
   productId: string;
   productName: string;
+  productModel: string | null;
   unitsSold: number;
 }
 
