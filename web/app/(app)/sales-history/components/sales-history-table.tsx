@@ -6,7 +6,9 @@ import { SquarePen } from "lucide-react";
 
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
-import { CategoryBadge, SaleStatusBadge } from "@/components/ui/badge";
+import { SaleStatusBadge } from "@/components/ui/badge";
+import { ProductName } from "@/components/ui/product-name";
+import { formatProductLabel } from "@/lib/products/format";
 import { formatSaleDate, toNumber } from "@/lib/reports/format";
 import { fmt } from "@/lib/utils";
 import type { Sale } from "@/types/sales/sale";
@@ -54,20 +56,21 @@ export function SalesHistoryTable({
       },
       {
         id: "product",
-        accessorFn: (row) => row.product.name,
+        accessorFn: (row) =>
+          formatProductLabel(row.product.name, row.product.model),
         meta: {
           label: "Product",
-          exportValue: (row: Sale) => row.product.name,
+          exportValue: (row: Sale) =>
+            formatProductLabel(row.product.name, row.product.model),
         },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Product" />
         ),
         cell: ({ row }) => (
-          <>
-            <span className="strong">{row.original.product.name}</span>
-            &nbsp;
-            <CategoryBadge cat={row.original.product.category.name} />
-          </>
+          <ProductName
+            name={row.original.product.name}
+            model={row.original.product.model}
+          />
         ),
       },
       {
