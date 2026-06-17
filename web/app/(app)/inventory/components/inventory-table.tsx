@@ -6,7 +6,9 @@ import { Store } from "lucide-react";
 
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
-import { CategoryBadge, StockBadge } from "@/components/ui/badge";
+import { StockBadge } from "@/components/ui/badge";
+import { ProductName } from "@/components/ui/product-name";
+import { formatProductLabel } from "@/lib/products/format";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import { toNumber } from "@/lib/reports/format";
 import { fmt } from "@/lib/utils";
@@ -55,20 +57,21 @@ export function InventoryTable({
     const cols: ColumnDef<Inventory>[] = [
       {
         id: "product",
-        accessorFn: (row) => row.product.name,
+        accessorFn: (row) =>
+          formatProductLabel(row.product.name, row.product.model),
         meta: {
           label: "Product",
-          exportValue: (row: Inventory) => row.product.name,
+          exportValue: (row: Inventory) =>
+            formatProductLabel(row.product.name, row.product.model),
         },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Product" />
         ),
         cell: ({ row }) => (
-          <>
-            <span className="strong">{row.original.product.name}</span>
-            &nbsp;
-            <CategoryBadge cat={row.original.product.category.name} />
-          </>
+          <ProductName
+            name={row.original.product.name}
+            model={row.original.product.model}
+          />
         ),
       },
     ];
