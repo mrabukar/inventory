@@ -17,6 +17,16 @@ export type CategoryWithCount = {
   _count: { products: number };
 };
 
+const categoryWithProductCount = {
+  include: {
+    _count: {
+      select: {
+        products: { where: { isActive: true } },
+      },
+    },
+  },
+} as const;
+
 @Injectable()
 export class CategoriesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -24,14 +34,14 @@ export class CategoriesService {
   findAll(): Promise<CategoryWithCount[]> {
     return this.prisma.category.findMany({
       orderBy: { name: "asc" },
-      include: { _count: { select: { products: true } } },
+      ...categoryWithProductCount,
     });
   }
 
   async findOne(id: number): Promise<CategoryWithCount> {
     const category = await this.prisma.category.findUnique({
       where: { id },
-      include: { _count: { select: { products: true } } },
+      ...categoryWithProductCount,
     });
     if (!category) {
       throw new NotFoundException(`Category with id "${id}" not found`);
@@ -46,7 +56,7 @@ export class CategoriesService {
         name: dto.name.trim(),
         description: dto.description?.trim() || null,
       },
-      include: { _count: { select: { products: true } } },
+      ...categoryWithProductCount,
     });
   }
 
@@ -66,7 +76,7 @@ export class CategoriesService {
           ? { description: dto.description.trim() || null }
           : undefined),
       },
-      include: { _count: { select: { products: true } } },
+      ...categoryWithProductCount,
     });
   }
 
