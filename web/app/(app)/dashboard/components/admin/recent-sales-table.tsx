@@ -3,6 +3,7 @@
 import { Store } from "lucide-react";
 
 import { EmptyState } from "@/components/ui/empty-state";
+import { ProductName } from "@/components/ui/product-name";
 import { formatSaleDate, toNumber } from "@/lib/reports/format";
 import { fmt } from "@/lib/utils";
 import type { DashboardRecentSale } from "@/types/reports/admin-dashboard";
@@ -50,7 +51,10 @@ export function AdminRecentSalesTable({ sales }: Props) {
                   </span>
                 </td>
                 <td className="dt-cell-left">
-                  <span className="strong">{sale.product.name}</span>
+                  <ProductName
+                    name={sale.product.name}
+                    model={sale.product.model}
+                  />
                 </td>
                 <td className="dt-cell-center">
                   <span className="num">{sale.quantitySold}</span>
