@@ -32,6 +32,7 @@ export interface ManagerPeriodComparison {
 export interface DashboardRecentSaleProduct {
   id: string;
   name: string;
+  model: string | null;
   category: {
     id: number;
     name: string;
