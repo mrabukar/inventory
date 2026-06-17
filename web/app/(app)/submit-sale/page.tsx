@@ -9,6 +9,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { useInventory } from "@/hooks/inventory/use-inventory";
 import { useCreateSale } from "@/hooks/sales/use-create-sale";
 import { todayYmd } from "@/lib/filters/dates";
+import { formatProductLabel } from "@/lib/products/format";
 import { toNumber } from "@/lib/reports/format";
 import { cn, fmt } from "@/lib/utils";
 import { useAppStore } from "@/store/app";
@@ -60,7 +61,7 @@ export default function SubmitSalePage() {
     () =>
       inStock.map((row) => ({
         value: row.productId,
-        label: `${row.product.model ? `${row.product.name} (${row.product.model})` : row.product.name} · ${row.product.category.name} · ${row.quantity} available`,
+        label: `${formatProductLabel(row.product.name, row.product.model)} · ${row.product.category.name} · ${row.quantity} available`,
         keywords: [row.product.name, row.product.model ?? "", row.product.category.name],
       })),
     [inStock],
@@ -100,7 +101,7 @@ export default function SubmitSalePage() {
       setDone(sale);
       addToast({
         title: "Sale recorded successfully",
-        sub: `${q} × ${sale.product.name} — ${fmt(toNumber(sale.totalAmount))}`,
+        sub: `${q} × ${formatProductLabel(sale.product.name, sale.product.model)} — ${fmt(toNumber(sale.totalAmount))}`,
       });
       setProductId(undefined);
       setQty("");
@@ -133,7 +134,8 @@ export default function SubmitSalePage() {
           <p className="text-sm">
             You recorded{" "}
             <b>
-              {done.quantitySold} × {done.product.name}
+              {done.quantitySold} ×{" "}
+              {formatProductLabel(done.product.name, done.product.model)}
             </b>{" "}
             — <b>{fmt(toNumber(done.totalAmount))}</b>
           </p>
