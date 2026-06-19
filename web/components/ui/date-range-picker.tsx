@@ -33,6 +33,7 @@ export interface DateRangePickerProps {
   toDate: string;
   onChange: (range: { fromDate: string; toDate: string }) => void;
   className?: string;
+  disabled?: boolean;
 }
 
 export function DateRangePicker({
@@ -40,6 +41,7 @@ export function DateRangePicker({
   toDate,
   onChange,
   className,
+  disabled = false,
 }: DateRangePickerProps) {
   const [open, setOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<DateRange | undefined>();
@@ -74,10 +76,11 @@ export function DateRangePicker({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={disabled ? false : open} onOpenChange={disabled ? undefined : setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          disabled={disabled}
           className={cn(
             "h-9 min-w-[240px] justify-start text-left font-normal",
             className,
