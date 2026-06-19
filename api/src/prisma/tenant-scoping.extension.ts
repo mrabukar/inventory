@@ -22,13 +22,18 @@ const WHERE_OPERATIONS = new Set([
   "count",
   "aggregate",
   "groupBy",
+  "update",
   "updateMany",
+  "delete",
   "deleteMany",
 ]);
 
 type QueryArgs = Record<string, unknown>;
 
-function shouldBypass(model: string, orgId: string | null | undefined): boolean {
+export function shouldBypass(
+  model: string,
+  orgId: string | null | undefined,
+): boolean {
   if (!TENANT_MODELS.has(model)) {
     return true;
   }
@@ -41,18 +46,18 @@ function shouldBypass(model: string, orgId: string | null | undefined): boolean 
   return false;
 }
 
-function withOrgWhere(where: unknown, orgId: string): QueryArgs {
-  const base =
-    where && typeof where === "object" ? (where as QueryArgs) : {};
+export function withOrgWhere(where: unknown, orgId: string): QueryArgs {
+  const base = where && typeof where === "object" ? (where as QueryArgs) : {};
   return { ...base, organizationId: orgId };
 }
 
 function pickFindArgs(args: QueryArgs): QueryArgs {
-  const { where: _where, ...rest } = args;
+  const rest = { ...args };
+  delete rest.where;
   return rest;
 }
 
-function injectCreateData(
+export function injectCreateData(
   data: unknown,
   orgId: string,
 ): Record<string, unknown> | Record<string, unknown>[] {
@@ -92,7 +97,7 @@ export function createTenantExtension(tenantContext: TenantContextService) {
           }
 
           return delegate.findFirst({
-            ...pickFindArgs(args as QueryArgs),
+            ...pickFindArgs(args),
             where: withOrgWhere((args as QueryArgs).where, orgId as string),
           });
         },
@@ -114,7 +119,7 @@ export function createTenantExtension(tenantContext: TenantContextService) {
           }
 
           return delegate.findFirstOrThrow({
-            ...pickFindArgs(args as QueryArgs),
+            ...pickFindArgs(args),
             where: withOrgWhere((args as QueryArgs).where, orgId as string),
           });
         },
@@ -125,7 +130,7 @@ export function createTenantExtension(tenantContext: TenantContextService) {
             return query(args);
           }
 
-          const scopedArgs = { ...(args as QueryArgs) };
+          const scopedArgs: QueryArgs = { ...args };
 
           if (WHERE_OPERATIONS.has(operation)) {
             scopedArgs.where = withOrgWhere(scopedArgs.where, orgId as string);
@@ -133,12 +138,27 @@ export function createTenantExtension(tenantContext: TenantContextService) {
           }
 
           if (operation === "create") {
-            scopedArgs.data = injectCreateData(scopedArgs.data, orgId as string);
+            scopedArgs.data = injectCreateData(
+              scopedArgs.data,
+              orgId as string,
+            );
             return query(scopedArgs);
           }
 
           if (operation === "createMany") {
-            scopedArgs.data = injectCreateData(scopedArgs.data, orgId as string);
+            scopedArgs.data = injectCreateData(
+              scopedArgs.data,
+              orgId as string,
+            );
+            return query(scopedArgs);
+          }
+
+          if (operation === "upsert") {
+            scopedArgs.where = withOrgWhere(scopedArgs.where, orgId as string);
+            scopedArgs.create = injectCreateData(
+              scopedArgs.create,
+              orgId as string,
+            );
             return query(scopedArgs);
           }
 
