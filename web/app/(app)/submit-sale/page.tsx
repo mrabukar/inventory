@@ -47,7 +47,10 @@ export default function SubmitSalePage() {
   const user = useAppStore((s) => s.user);
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
-  const storeLabel = user?.store ?? "My Store";
+  const hasStores = user?.hasStores ?? true;
+  const locationLabel = hasStores
+    ? (user?.store ?? "My Store")
+    : (user?.organizationName ?? "Organization");
 
   const { data, isLoading } = useInventory({ limit: 100 });
   const createSale = useCreateSale();
@@ -116,7 +119,7 @@ export default function SubmitSalePage() {
 
   return (
     <div className="submit-sale-page mx-auto w-full max-w-3xl">
-      <PageHeader title="Submit Sale" desc={storeLabel} />
+      <PageHeader title="Submit Sale" desc={locationLabel} />
 
       {done && (
         <div
@@ -200,7 +203,7 @@ export default function SubmitSalePage() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="readout py-2">
               <Store size={15} />
-              {storeLabel}
+              {locationLabel}
             </div>
             <div className="readout py-2">
               <User size={15} />
