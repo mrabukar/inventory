@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { createOrganization } from "@/service/organizations/organizations";
+import { uploadOrganizationLogo } from "@/service/organizations/logo";
 import { useAppStore } from "@/store/app";
 
 export default function NewOrganizationPage() {
@@ -15,9 +16,17 @@ export default function NewOrganizationPage() {
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const [name, setName] = useState("");
   const [hasStores, setHasStores] = useState(true);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const mutation = useMutation({
-    mutationFn: createOrganization,
+    mutationFn: async () => {
+      const org = await createOrganization({ name: name.trim(), hasStores });
+      if (logoFile) {
+        await uploadOrganizationLogo(org.id, logoFile);
+      }
+      return org;
+    },
     onSuccess: (org) => {
       addToast({ title: "Organization created" });
       router.push(`/super-admin/organizations/${org.id}`);
@@ -39,7 +48,7 @@ export default function NewOrganizationPage() {
         onSubmit={(e) => {
           e.preventDefault();
           if (!name.trim()) return;
-          mutation.mutate({ name: name.trim(), hasStores });
+          mutation.mutate();
         }}
       >
         <div className="grid gap-2">
@@ -59,6 +68,29 @@ export default function NewOrganizationPage() {
           />
           This organization uses stores and branch managers
         </label>
+
+        <div className="grid gap-2">
+          <label className="text-sm font-medium">Report logo (optional)</label>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/png,image/jpeg"
+              className="hidden"
+              onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => logoInputRef.current?.click()}
+            >
+              {logoFile ? "Change logo" : "Choose logo"}
+            </Button>
+            {logoFile ? (
+              <span className="text-sm text-muted-foreground">{logoFile.name}</span>
+            ) : null}
+          </div>
+        </div>
 
         <Button type="submit" disabled={mutation.isPending}>
           {mutation.isPending ? "Creating…" : "Create organization"}
