@@ -3,6 +3,8 @@ export interface Organization {
   name: string;
   hasStores: boolean;
   isActive: boolean;
+  logoKey?: string | null;
+  logoUpdatedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
