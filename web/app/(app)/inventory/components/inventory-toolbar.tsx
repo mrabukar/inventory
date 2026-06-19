@@ -20,6 +20,7 @@ interface InventoryToolbarProps {
   storeId?: string;
   onStoreIdChange: (value: string | undefined) => void;
   storeItems: ComboboxItem[];
+  showStoreFilter?: boolean;
   categoryId?: string;
   onCategoryIdChange: (value: string | undefined) => void;
   categoryItems: ComboboxItem[];
@@ -35,6 +36,7 @@ export function InventoryToolbar({
   storeId,
   onStoreIdChange,
   storeItems,
+  showStoreFilter = true,
   categoryId,
   onCategoryIdChange,
   categoryItems,
@@ -50,16 +52,18 @@ export function InventoryToolbar({
         value={search}
         onChange={onSearchChange}
       />
-      <Combobox
-        value={storeId}
-        onValueChange={onStoreIdChange}
-        items={storeItems}
-        placeholder="All stores"
-        searchPlaceholder="Search stores…"
-        emptyText="No stores found."
-        clearOption={{ label: "All stores" }}
-        className="min-w-[160px]"
-      />
+      {showStoreFilter ? (
+        <Combobox
+          value={storeId}
+          onValueChange={onStoreIdChange}
+          items={storeItems}
+          placeholder="All stores"
+          searchPlaceholder="Search stores…"
+          emptyText="No stores found."
+          clearOption={{ label: "All stores" }}
+          className="min-w-[160px]"
+        />
+      ) : null}
       <Combobox
         value={categoryId}
         onValueChange={onCategoryIdChange}
