@@ -11,6 +11,10 @@ import {
   Post,
 } from "@nestjs/common";
 import { UserRole } from "@prisma/client";
+import {
+  CurrentUser,
+  type CurrentUserPayload,
+} from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
 import { CreateExpenseCategoryDto } from "./dto/create-expense-category.dto";
 import { UpdateExpenseCategoryDto } from "./dto/update-expense-category.dto";
@@ -35,8 +39,11 @@ export class ExpenseCategoriesController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() dto: CreateExpenseCategoryDto) {
-    return this.expenseCategoriesService.create(dto);
+  create(
+    @Body() dto: CreateExpenseCategoryDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.expenseCategoriesService.create(dto, user);
   }
 
   @Patch(":id")
