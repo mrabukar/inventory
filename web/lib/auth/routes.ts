@@ -1,4 +1,6 @@
 /** Routes that require an authenticated session (under app/(app)). */
+import type { Role } from "@/lib/types";
+
 export const PROTECTED_ROUTE_PREFIXES = [
   "/dashboard",
   "/products",
@@ -17,6 +19,8 @@ export const PROTECTED_ROUTE_PREFIXES = [
   "/sales-history",
 ] as const;
 
+export const SUPER_ADMIN_ROUTE_PREFIXES = ["/super-admin"] as const;
+
 /** Admin-only routes — branch managers must not access these. */
 export const ADMIN_ONLY_ROUTE_PREFIXES = [
   "/products",
@@ -32,7 +36,7 @@ export const ADMIN_ONLY_ROUTE_PREFIXES = [
   "/audit",
 ] as const;
 
-/** Manager-only routes — admins must not access these. */
+/** Manager-only routes — admins must not access these (unless hasStores is false). */
 export const MANAGER_ONLY_ROUTE_PREFIXES = [
   "/submit-sale",
   "/my-stock",
@@ -45,24 +49,55 @@ function matchesPrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
 
+export function isSuperAdminPath(pathname: string): boolean {
+  return SUPER_ADMIN_ROUTE_PREFIXES.some((prefix) =>
+    matchesPrefix(pathname, prefix),
+  );
+}
+
 export function isProtectedPath(pathname: string): boolean {
-  return PROTECTED_ROUTE_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix));
+  return (
+    PROTECTED_ROUTE_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix)) ||
+    isSuperAdminPath(pathname)
+  );
 }
 
 export function isAdminOnlyPath(pathname: string): boolean {
-  return ADMIN_ONLY_ROUTE_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix));
+  return ADMIN_ONLY_ROUTE_PREFIXES.some((prefix) =>
+    matchesPrefix(pathname, prefix),
+  );
 }
 
 export function isManagerOnlyPath(pathname: string): boolean {
-  return MANAGER_ONLY_ROUTE_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix));
+  return MANAGER_ONLY_ROUTE_PREFIXES.some((prefix) =>
+    matchesPrefix(pathname, prefix),
+  );
 }
 
 export function isRouteAllowedForRole(
-  role: "admin" | "manager",
+  role: Role,
   pathname: string,
+  options?: { hasStores?: boolean | null },
 ): boolean {
-  if (role === "admin" && isManagerOnlyPath(pathname)) return false;
-  if (role === "manager" && isAdminOnlyPath(pathname)) return false;
+  if (role === "super_admin") {
+    return isSuperAdminPath(pathname);
+  }
+
+  if (isSuperAdminPath(pathname)) {
+    return false;
+  }
+
+  if (role === "admin" && isManagerOnlyPath(pathname)) {
+    if (pathname === "/submit-sale" && options?.hasStores === false) {
+      return true;
+    }
+    return false;
+  }
+
+  if (role === "manager" && isAdminOnlyPath(pathname)) {
+    return false;
+  }
+
   return true;
 }
 
