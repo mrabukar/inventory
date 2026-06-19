@@ -2,6 +2,12 @@ import { ForbiddenException } from "@nestjs/common";
 import { UserRole } from "@prisma/client";
 import type { CurrentUserPayload } from "../decorators/current-user.decorator";
 
+function isAdminLike(user: CurrentUserPayload): boolean {
+  return (
+    user.role === UserRole.admin || user.role === UserRole.super_admin
+  );
+}
+
 export function assertBranchManagerHasStore(user: CurrentUserPayload): string {
   if (user.role !== UserRole.branch_manager) {
     throw new ForbiddenException(
@@ -21,7 +27,7 @@ export function assertStoreAccess(
   storeId: string,
   user: CurrentUserPayload,
 ): void {
-  if (user.role === UserRole.admin) {
+  if (isAdminLike(user)) {
     return;
   }
 
