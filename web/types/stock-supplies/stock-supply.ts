@@ -55,7 +55,7 @@ export type StockSupplyListResponse = PaginatedResponse<StockSupply>;
 
 export interface CreateStockSupplyInput {
   productId: string;
-  storeId: string;
+  storeId?: string;
   quantity: number;
   unitPurchasePrice?: number;
   note?: string;
@@ -63,7 +63,7 @@ export interface CreateStockSupplyInput {
 
 export interface CreateStockCorrectionInput {
   productId: string;
-  storeId: string;
+  storeId?: string;
   quantity: number;
   unitPurchasePrice?: number;
   note: string;
