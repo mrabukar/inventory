@@ -2,12 +2,16 @@ import { authClient } from "@/lib/auth/client";
 import type { CreateUserInput, User } from "@/types/users/user";
 import { updateUser } from "./update-user";
 
-export async function createUser(input: CreateUserInput): Promise<User> {
+export async function createUser(
+  input: CreateUserInput,
+  organizationId?: string | null,
+): Promise<User> {
   const result = await authClient.signUp.email({
     email: input.email.trim().toLowerCase(),
     password: input.password,
     name: input.name.trim(),
     role: input.role,
+    ...(organizationId ? { organizationId } : {}),
     ...(input.role === "branch_manager" && input.storeId
       ? { storeId: input.storeId }
       : {}),
