@@ -16,6 +16,7 @@ import { useInventory } from "@/hooks/inventory/use-inventory";
 import { useStores } from "@/hooks/stores/list-stores";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { listInventory } from "@/service/inventory/list-inventory";
+import { useAppStore } from "@/store/app";
 import type { Inventory, InventoryListScope } from "@/types/inventory/inventory";
 
 function scopeForStatus(status: InventoryStatusFilter): InventoryListScope {
@@ -25,6 +26,7 @@ function scopeForStatus(status: InventoryStatusFilter): InventoryListScope {
 }
 
 export default function InventoryPage() {
+  const hasStores = useAppStore((s) => s.user?.hasStores ?? true);
   const [view, setView] = useState<InventoryView>("table");
   const [status, setStatus] = useState<InventoryStatusFilter>("All");
   const [pageIndex, setPageIndex] = useState(0);
@@ -105,7 +107,14 @@ export default function InventoryPage() {
 
   return (
     <>
-      <PageHeader title="Inventory" desc="Live stock levels per store" />
+      <PageHeader
+        title="Inventory"
+        desc={
+          hasStores
+            ? "Live stock levels per store"
+            : "Live organization-wide stock levels"
+        }
+      />
 
       {isError && (
         <div className="alert-error" style={{ marginBottom: 16 }}>
@@ -125,6 +134,7 @@ export default function InventoryPage() {
           resetPage();
         }}
         storeItems={storeItems}
+        showStoreFilter={hasStores}
         categoryId={categoryId}
         onCategoryIdChange={(value) => {
           setCategoryId(value);
@@ -146,6 +156,7 @@ export default function InventoryPage() {
           rowCount={rowCount}
           pageIndex={pageIndex}
           pageSize={pageSize}
+          hideStoreColumn={!hasStores}
           onPaginationChange={({ pageIndex: nextPage, pageSize: nextSize }) => {
             setPageIndex(nextPage);
             setPageSize(nextSize);
@@ -155,7 +166,7 @@ export default function InventoryPage() {
         />
       ) : (
         <>
-          <InventoryGrid rows={rows} isLoading={isLoading} />
+          <InventoryGrid rows={rows} isLoading={isLoading} hideStore={!hasStores} />
           <div
             className="table-wrap"
             style={{ marginTop: rows.length ? 16 : 0 }}
