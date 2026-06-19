@@ -2,7 +2,7 @@
 
 This document explains what the Reports module does, how metrics are calculated, how dates and money are handled, and how to use each endpoint. Use it when wiring the frontend, testing in Postman, or onboarding.
 
-_Last updated: 2026-06-07_
+_Last updated: 2026-06-20_
 
 ---
 
@@ -24,6 +24,7 @@ _Last updated: 2026-06-07_
 14. [What Reports Does Not Do](#14-what-reports-does-not-do)
 15. [Related Files](#15-related-files)
 16. [Frontend Mapping](#16-frontend-mapping)
+17. [Report Export (Excel & PDF)](#17-report-export-excel--pdf)
 
 ---
 
@@ -33,8 +34,8 @@ The **Reports module** is a **read-only analytics layer**. It:
 
 - **Reads** data already stored by Sales, Expenses, Inventory, and Stock Supply
 - **Aggregates** that data into KPIs, chart series, and table rows
-- **Does not** create, update, or delete any records
-- **Does not** write audit logs
+- **Does not** create, update, or delete operational records (sales, products, etc.)
+- **Does** write an audit log entry when a user downloads an Excel or PDF export
 
 Think of it as the **accountant’s calculator** sitting on top of your operational data — not the place where sales or expenses are recorded.
 
@@ -42,8 +43,8 @@ Think of it as the **accountant’s calculator** sitting on top of your operatio
 
 | Audience | Access |
 |----------|--------|
-| **Admin** | Company-wide dashboards, financial summary, optional store/category filters |
-| **Branch manager** | Own-store mini-dashboard only (automatically scoped) |
+| **Admin** | Company-wide dashboards, financial summary, stock report, optional store/category filters, exports |
+| **Branch manager** | Own-store dashboard, store-scoped financial/stock exports (store forced from session) |
 
 ---
 
@@ -89,9 +90,11 @@ Registered in `app.module.ts` as `ReportsModule`. Global API prefix: `/api`.
 |--------|------|------|---------|
 | `GET` | `/api/reports/admin-dashboard` | Admin | Company-wide dashboard data |
 | `GET` | `/api/reports/manager-dashboard` | Branch manager | Store-scoped mini-dashboard |
-| `GET` | `/api/reports/financial-summary` | Admin | Full P&L breakdown for a period |
+| `GET` | `/api/reports/financial-summary` | Admin, branch manager | Full P&L breakdown for a period |
+| `GET` | `/api/reports/financial-summary/export` | Admin, branch manager | Download financial summary as Excel or PDF |
 | `GET` | `/api/reports/product-distribution` | Admin | Units sold by product within one category (donut chart) |
-| `GET` | `/api/reports/stock-report` | Admin | Purchase, in-stock, and sales units by product |
+| `GET` | `/api/reports/stock-report` | Admin, branch manager | Purchase, in-stock, and sales units by product |
+| `GET` | `/api/reports/stock-report/export` | Admin, branch manager | Download stock report as Excel or PDF |
 
 All endpoints require an authenticated session (Better Auth cookie). Unauthenticated or wrong-role requests are rejected by the global auth/roles guards.
 
@@ -552,14 +555,83 @@ These always reflect **current** state:
 
 ## 14. What Reports Does Not Do
 
-| Out of scope (v1) | Alternative |
-|-------------------|-------------|
-| Create / edit / delete data | Use Sales, Expenses, Stock Supply modules |
-| PDF / Excel export | Future frontend or dedicated export endpoint |
-| Tabular “Sales Report”, “Stock Report”, “Profit Report” pages | Use existing list endpoints (`GET /sales`, `GET /inventory`, etc.) or future report endpoints |
-| Audit log writes | Reports is read-only |
-| Manager access to financial summary | Admin only by design |
+| Out of scope | Alternative |
+|--------------|-------------|
+| Create / edit / delete operational data | Use Sales, Expenses, Stock Supply modules |
+| Store generated export files | Exports are generated on demand and streamed to the browser |
+| Manager access to admin dashboard | Manager uses `/dashboard` (store-scoped) |
 | Trend % badges on stat cards | Frontend can compute vs previous period later |
+
+---
+
+## 17. Report Export (Excel & PDF)
+
+### Endpoints
+
+| Method | Path | Format param |
+|--------|------|----------------|
+| `GET` | `/api/reports/financial-summary/export` | `format=xlsx` or `format=pdf` |
+| `GET` | `/api/reports/stock-report/export` | `format=xlsx` or `format=pdf` |
+
+Uses the same query parameters as the JSON report (`fromDate`, `toDate`, `storeId`, `categoryId` on stock) plus:
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `format` | Yes | `xlsx` or `pdf` |
+| `timezone` | No | IANA timezone for “Generated at” (browser sends user's local zone) |
+
+### Access rules
+
+- **Admin** — org-wide data; optional `storeId` / `categoryId` (stock) filters
+- **Branch manager** — `storeId` is **forced** from the user's assigned store (query param ignored)
+
+### Response
+
+- `Content-Type`: Excel MIME or `application/pdf`
+- `Content-Disposition: attachment; filename="financial-summary_YYYY-MM-DD_YYYY-MM-DD.xlsx"` (or `.pdf`)
+
+### File contents
+
+**Financial summary**
+
+| Excel sheets | PDF sections |
+|--------------|--------------|
+| Summary, P&L, Monthly, Expenses | Summary, P&L, Monthly, Expenses by category (all landscape) |
+
+Branded PDF header (org logo from R2 when configured) repeats on every page.
+
+**Stock report**
+
+| Excel sheets | PDF sections |
+|--------------|--------------|
+| Summary, By Product | Summary, By Product (all landscape) |
+
+### Audit log
+
+Each successful export creates:
+
+- `action`: `REPORT_EXPORTED`
+- `entityType`: `report`
+- `entityId`: `financial-summary` or `stock-report`
+- `newValue`: `{ report, format, fromDate, toDate, storeId, categoryId, timezone, filename }`
+
+Visible in **Administration → Audit Log**.
+
+### Implementation
+
+```
+api/src/modules/reports/export/
+├── report-export.service.ts      # Orchestration
+├── financial-export.builder.ts   # Excel + PDF layout
+├── stock-export.builder.ts
+├── excel-export.util.ts          # Shared Excel styling
+├── pdf-export.util.ts            # Shared PDF header/footer
+└── report-export-audit.util.ts   # Audit log write
+```
+
+Dependencies: **ExcelJS** (Excel), **pdfmake** (PDF, no Chromium required on VPS).
+
+See also [image-upload.md](./image-upload.md) for organization logos embedded in PDF headers.
 
 ---
 
@@ -569,6 +641,7 @@ These always reflect **current** state:
 |------|------|
 | `api/src/modules/reports/reports.controller.ts` | Route definitions |
 | `api/src/modules/reports/reports.service.ts` | All aggregation queries |
+| `api/src/modules/reports/export/` | Excel/PDF export builders and audit logging |
 | `api/src/modules/reports/dto/product-distribution-query.dto.ts` | Product distribution filters |
 | `api/src/common/utils/app-timezone.util.ts` | Calendar dates, timezone, report range |
 | `api/src/common/utils/money.util.ts` | Decimal-safe money serialization |
@@ -607,6 +680,15 @@ These always reflect **current** state:
 | Stacked P&L bar | `breakdown` |
 | Charts | `charts.revenueCogsExpenses`, `charts.netProfitTrend` |
 | Expense list by category | `expenseByCategory` |
+| Export menu | `GET /financial-summary/export?format=xlsx\|pdf` |
+
+### Stock report (`/stock-report`)
+
+| UI element | API source |
+|------------|------------|
+| Product table | `products`, `totals` |
+| Filters | `fromDate`, `toDate`, `storeId`, `categoryId` |
+| Export menu | `GET /stock-report/export?format=xlsx\|pdf` |
 
 ### Manager dashboard (`/dashboard`)
 
@@ -618,6 +700,7 @@ These always reflect **current** state:
 | Stock by category donut | `charts.stockByCategory` |
 | Recent sales table | `recentSales` |
 | Low / out-of-stock tables | `GET /inventory/low-stock`, `GET /inventory/out-of-stock` |
+| Export menus | Financial + stock exports (last 6 months, store-scoped) |
 
 ### UX notes
 
@@ -633,7 +716,8 @@ These always reflect **current** state:
 Reports = read-only analytics
 Dates   = saleDate / expenseDate (calendar, Mogadishu)
 Money   = Decimal in DB → 2 dp in JSON
-Admin   = /admin-dashboard + /financial-summary + /product-distribution
-Manager = /manager-dashboard (own store only)
+Admin   = /admin-dashboard + /financial-summary + /stock-report + /product-distribution
+Manager = /manager-dashboard + store-scoped exports
+Export  = Excel (ExcelJS) + PDF (pdfmake), audit log REPORT_EXPORTED
 Live    = stock value, balance, low-stock (not date-filtered)
 ```
