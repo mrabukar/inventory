@@ -6,6 +6,9 @@ import {
 } from "@nestjs/common";
 import { ExpenseCategory } from "@prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
+import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
+import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
+import { withOrganizationId } from "../../common/utils/with-organization-id.util";
 import { CreateExpenseCategoryDto } from "./dto/create-expense-category.dto";
 import { UpdateExpenseCategoryDto } from "./dto/update-expense-category.dto";
 
@@ -31,10 +34,16 @@ export class ExpenseCategoriesService {
     return category;
   }
 
-  async create(dto: CreateExpenseCategoryDto): Promise<ExpenseCategory> {
-    await this.assertUniqueName(dto.name);
+  async create(
+    dto: CreateExpenseCategoryDto,
+    user: CurrentUserPayload,
+  ): Promise<ExpenseCategory> {
+    const organizationId = requireOrganizationId(user);
+    await this.assertUniqueName(dto.name, organizationId);
 
-    return this.prisma.expenseCategory.create({ data: dto });
+    return this.prisma.expenseCategory.create({
+      data: withOrganizationId(dto, organizationId),
+    });
   }
 
   async update(
@@ -48,7 +57,7 @@ export class ExpenseCategoriesService {
     const existing = await this.findOne(id);
 
     if (dto.name && dto.name !== existing.name) {
-      await this.assertUniqueName(dto.name);
+      await this.assertUniqueName(dto.name, existing.organizationId, id);
     }
 
     return this.prisma.expenseCategory.update({
@@ -73,12 +82,16 @@ export class ExpenseCategoriesService {
     await this.prisma.expenseCategory.delete({ where: { id } });
   }
 
-  private async assertUniqueName(name: string): Promise<void> {
-    const existing = await this.prisma.expenseCategory.findUnique({
-      where: { name },
+  private async assertUniqueName(
+    name: string,
+    organizationId: string,
+    excludeId?: number,
+  ): Promise<void> {
+    const existing = await this.prisma.expenseCategory.findFirst({
+      where: { name, organizationId },
     });
 
-    if (existing) {
+    if (existing && existing.id !== excludeId) {
       throw new ConflictException(
         `An expense category named "${name}" already exists`,
       );
