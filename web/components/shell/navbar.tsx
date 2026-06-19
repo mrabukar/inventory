@@ -31,8 +31,9 @@ export function Navbar({ title, collapsed, onToggle }: Props) {
 
   const handleLogout = () => {
     setOpen(false);
-    signOut.mutate();
-    router.replace("/login");
+    void signOut.mutateAsync().then(() => {
+      router.replace("/login");
+    });
   };
 
   const ini = user ? initials(user.name) : "?";
