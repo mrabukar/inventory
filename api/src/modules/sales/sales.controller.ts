@@ -41,13 +41,13 @@ export class SalesController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Roles(UserRole.branch_manager)
+  @Roles(UserRole.branch_manager, UserRole.admin)
   create(@Body() dto: CreateSaleDto, @CurrentUser() user: CurrentUserPayload) {
     return this.salesService.create(dto, user);
   }
 
   @Patch(":id/correct")
-  @Roles(UserRole.branch_manager)
+  @Roles(UserRole.branch_manager, UserRole.admin)
   correct(
     @Param("id") id: string,
     @Body() dto: CorrectSaleDto,
