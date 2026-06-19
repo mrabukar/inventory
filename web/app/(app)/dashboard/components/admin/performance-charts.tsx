@@ -3,7 +3,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LineArea } from "@/components/charts/line-area";
 import { HBars } from "@/components/charts/h-bars";
 import { formatProductLabel } from "@/lib/products/format";
-import { fmtK } from "@/lib/utils";
+import { fmt } from "@/lib/utils";
 import type { AdminDashboardCharts } from "@/types/reports/admin-dashboard";
 
 interface Props {
@@ -49,7 +49,7 @@ export function AdminPerformanceCharts({ charts }: Props) {
             valueKey="revenue"
             labelKey="name"
             color="var(--brand-indigo)"
-            format={fmtK}
+            format={fmt}
           />
         ) : (
           <EmptyState title="No store rankings" sub="Store rankings appear when viewing all stores." />
