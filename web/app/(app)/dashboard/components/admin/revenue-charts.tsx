@@ -3,7 +3,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { GroupedBar } from "@/components/charts/grouped-bar";
 import { Donut } from "@/components/charts/donut";
 import { DONUT_COLORS } from "../donut-colors";
-import { fmtK } from "@/lib/utils";
+import { fmt } from "@/lib/utils";
 import type { AdminDashboardCharts } from "@/types/reports/admin-dashboard";
 
 interface Props {
@@ -37,7 +37,7 @@ export function AdminRevenueCharts({ charts }: Props) {
       </Card>
       <Card title="Expense Breakdown" pad>
         {expenseDonut.length > 0 ? (
-          <Donut data={expenseDonut} centerLabel="Total" centerValue={fmtK(expenseTotal)} />
+          <Donut data={expenseDonut} centerLabel="Total" centerValue={fmt(expenseTotal)} />
         ) : (
           <EmptyState title="No expenses" sub="No expenses recorded in the selected period." />
         )}
