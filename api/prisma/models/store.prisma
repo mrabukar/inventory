@@ -1,10 +1,14 @@
 model Store {
-  id        String   @id @default(cuid())
-  name      String
-  address   String
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String       @id @default(cuid())
+  name           String
+  address        String
+  isActive       Boolean      @default(true)
+  /// Hidden system store for org-level inventory when Organization.hasStores is false.
+  isOrgWarehouse Boolean      @default(false)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   users         User[]
   inventory     Inventory[]
