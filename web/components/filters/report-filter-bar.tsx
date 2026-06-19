@@ -9,18 +9,24 @@ interface ReportFilterBarProps {
   filters: ReportFilters;
   showCategoryFilter?: boolean;
   showStoreFilter?: boolean;
+  disabled?: boolean;
 }
 
 export function ReportFilterBar({
   filters,
   showCategoryFilter = false,
   showStoreFilter = true,
+  disabled = false,
 }: ReportFilterBarProps) {
   return (
     <div style={{ display: "flex", gap: 10 }}>
-      <DateRangeFilter filters={filters} />
-      {showStoreFilter ? <StoreFilter filters={filters} /> : null}
-      {showCategoryFilter ? <CategoryFilter filters={filters} /> : null}
+      <DateRangeFilter filters={filters} disabled={disabled} />
+      {showStoreFilter ? (
+        <StoreFilter filters={filters} disabled={disabled} />
+      ) : null}
+      {showCategoryFilter ? (
+        <CategoryFilter filters={filters} disabled={disabled} />
+      ) : null}
     </div>
   );
 }
