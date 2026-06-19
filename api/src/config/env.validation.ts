@@ -23,4 +23,23 @@ export const envValidationSchema = Joi.object({
   }),
   ALLOW_SIGNUP: Joi.string().valid("true", "false").optional(),
   APP_TIMEZONE: Joi.string().default("Africa/Mogadishu"),
+  R2_ACCOUNT_ID: Joi.string().optional(),
+  R2_ACCESS_KEY_ID: Joi.string().optional(),
+  R2_SECRET_ACCESS_KEY: Joi.string().optional(),
+  R2_BUCKET: Joi.string().optional(),
+  R2_ENDPOINT: Joi.string()
+    .uri()
+    .optional()
+    .custom((value, helpers) => {
+      if (!value) return value;
+      const pathname = new URL(value).pathname.replace(/\/$/, "");
+      if (pathname) {
+        return helpers.message({
+          custom:
+            "R2_ENDPOINT must be the account S3 API URL only (no bucket path). Example: https://<account_id>.r2.cloudflarestorage.com",
+        });
+      }
+      return value;
+    }),
+  STORAGE_LOCAL_PATH: Joi.string().optional(),
 });
