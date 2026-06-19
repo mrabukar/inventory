@@ -107,6 +107,7 @@ function buildAdminNav(hasStores: boolean): AdminNavEntry[] {
       children: [
         { href: "/users", label: "Users", icon: Users },
         { href: "/audit", label: "Audit Log", icon: ClipboardList },
+        { href: "/settings/organization", label: "Organization", icon: Building2 },
       ],
     },
     { href: "/financial", label: "Financial Summary", icon: TrendingUp },
