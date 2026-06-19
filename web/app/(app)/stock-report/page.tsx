@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { XCircle } from "lucide-react";
 
 import { StockReportLoadingSkeleton } from "./components/loading-skeleton";
 import { StockReportTable } from "./components/stock-report-table";
 import { ReportFilterBar } from "@/components/filters/report-filter-bar";
+import { ReportExportMenu } from "@/components/reports/report-export-menu";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useReportFilters } from "@/hooks/filters/use-report-filters";
@@ -14,6 +16,7 @@ import { useAppStore } from "@/store/app";
 export default function StockReportPage() {
   const hasStores = useAppStore((s) => s.user?.hasStores ?? true);
   const filters = useReportFilters();
+  const [exportBusy, setExportBusy] = useState(false);
   const { data, isPending, isFetching, isError, error } = useStockReport(
     filters.query,
   );
@@ -30,11 +33,20 @@ export default function StockReportPage() {
             : "Organization-wide purchase, on-hand stock, and sales units by product."
         }
         action={
-          <ReportFilterBar
-            filters={filters}
-            showCategoryFilter
-            showStoreFilter={hasStores}
-          />
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <ReportFilterBar
+              filters={filters}
+              showCategoryFilter
+              showStoreFilter={hasStores}
+              disabled={exportBusy}
+            />
+            <ReportExportMenu
+              report="stock-report"
+              params={filters.query}
+              disabled={exportBusy}
+              onBusyChange={setExportBusy}
+            />
+          </div>
         }
       />
 
