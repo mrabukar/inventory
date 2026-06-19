@@ -56,6 +56,8 @@ export default function UsersPage() {
     [pageIndex, pageSize, debouncedSearch, role, status],
   );
 
+  const hasStores = sessionUser?.hasStores ?? true;
+
   const { data: storesData } = useStores({ limit: 100 });
   const { data, isPending, isFetching, isError, error } = useUsers(listQuery);
 
@@ -267,6 +269,7 @@ export default function UsersPage() {
           mode={modal.mode}
           user={modal.user}
           storeItems={storeItems}
+          showStoreField={hasStores}
           onClose={() => setModal(null)}
           onSave={(form) => void saveUser(form)}
           isSaving={isSaving}
