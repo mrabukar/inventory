@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { authClient } from "@/lib/auth/client";
+import { clearTenantQueries } from "@/lib/auth/query-cache";
 import { useAppStore } from "@/store/app";
 import { fetchCurrentUser, SESSION_QUERY_KEY } from "./session";
 
@@ -10,6 +11,9 @@ export function useSignIn() {
   const setUser = useAppStore((s) => s.setUser);
 
   return useMutation({
+    onMutate: () => {
+      clearTenantQueries(queryClient);
+    },
     mutationFn: async ({
       email,
       password,
@@ -31,7 +35,7 @@ export function useSignIn() {
 
       const user = await fetchCurrentUser();
       setUser(user);
-      await queryClient.setQueryData(SESSION_QUERY_KEY, user);
+      queryClient.setQueryData(SESSION_QUERY_KEY, user);
       return user;
     },
   });
