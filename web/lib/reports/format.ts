@@ -33,3 +33,8 @@ export function formatSaleDate(saleDate: string): string {
 export function toNumber(value: number | string): number {
   return typeof value === "number" ? value : Number(value);
 }
+
+/** Preserve decimal strings from the API when seeding price inputs. */
+export function formatPriceInput(value: number | string): string {
+  return typeof value === "string" ? value : String(value);
+}
