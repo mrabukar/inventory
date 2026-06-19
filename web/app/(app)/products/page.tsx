@@ -33,12 +33,12 @@ interface SheetState {
   row?: Product;
 }
 
-function productMargin(product: Product): number {
-  const purchase = toNumber(product.purchasePrice);
-  const selling = toNumber(product.sellingPrice);
-  if (purchase <= 0) return 0;
-  return Math.round(((selling - purchase) / purchase) * 100);
-}
+// function productMargin(product: Product): number {
+//   const purchase = toNumber(product.purchasePrice);
+//   const selling = toNumber(product.sellingPrice);
+//   if (purchase <= 0) return 0;
+//   return Math.round(((selling - purchase) / purchase) * 100);
+// }
 
 export default function ProductsPage() {
   const addToast = useAppStore((s) => s.addToast);
@@ -149,21 +149,21 @@ export default function ProductsPage() {
           </span>
         ),
       },
-      {
-        id: "margin",
-        accessorFn: (row) => productMargin(row),
-        meta: {
-          label: "Margin",
-          align: "center",
-          exportValue: (row: Product) => `${productMargin(row)}%`,
-        },
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Margin" />
-        ),
-        cell: ({ row }) => (
-          <span className="num t-emerald">{productMargin(row.original)}%</span>
-        ),
-      },
+      // {
+      //   id: "margin",
+      //   accessorFn: (row) => productMargin(row),
+      //   meta: {
+      //     label: "Margin",
+      //     align: "center",
+      //     exportValue: (row: Product) => `${productMargin(row)}%`,
+      //   },
+      //   header: ({ column }) => (
+      //     <DataTableColumnHeader column={column} title="Margin" />
+      //   ),
+      //   cell: ({ row }) => (
+      //     <span className="num t-emerald">{productMargin(row.original)}%</span>
+      //   ),
+      // },
       {
         accessorKey: "isActive",
         meta: {
