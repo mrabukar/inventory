@@ -1,13 +1,15 @@
 model Inventory {
-  id                String   @id @default(cuid())
+  id                String       @id @default(cuid())
   productId         String
-  product           Product  @relation(fields: [productId], references: [id])
+  product           Product      @relation(fields: [productId], references: [id])
   storeId           String
-  store             Store    @relation(fields: [storeId], references: [id])
-  quantity          Int      @default(0)
-  lowStockThreshold Int      @default(5)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  store             Store        @relation(fields: [storeId], references: [id])
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  quantity          Int          @default(0)
+  lowStockThreshold Int          @default(5)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   @@unique([productId, storeId])
   @@index([storeId])
@@ -20,22 +22,24 @@ enum SaleStatus {
 }
 
 model Sale {
-  id                String     @id @default(cuid())
+  id                String       @id @default(cuid())
   productId         String
-  product           Product    @relation(fields: [productId], references: [id])
+  product           Product      @relation(fields: [productId], references: [id])
   storeId           String
-  store             Store      @relation(fields: [storeId], references: [id])
+  store             Store        @relation(fields: [storeId], references: [id])
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id])
   soldById          String
-  soldBy            User       @relation("SalesSoldBy", fields: [soldById], references: [id])
+  soldBy            User         @relation("SalesSoldBy", fields: [soldById], references: [id])
   quantitySold      Int
-  unitPrice         Decimal    @db.Decimal(10, 2)
-  unitPurchasePrice Decimal    @db.Decimal(10, 2)
-  totalAmount       Decimal    @db.Decimal(10, 2)
-  saleDate          DateTime   @db.Date
+  unitPrice         Decimal      @db.Decimal(10, 2)
+  unitPurchasePrice Decimal      @db.Decimal(10, 2)
+  totalAmount       Decimal      @db.Decimal(10, 2)
+  saleDate          DateTime     @db.Date
   note              String?
-  status            SaleStatus @default(active)
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
+  status            SaleStatus   @default(active)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   corrections SaleCorrection[]
 
@@ -47,15 +51,17 @@ model Sale {
 }
 
 model SaleCorrection {
-  id                String   @id @default(cuid())
+  id                String       @id @default(cuid())
   saleId            String
-  sale              Sale     @relation(fields: [saleId], references: [id])
+  sale              Sale         @relation(fields: [saleId], references: [id])
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id])
   originalQuantity  Int
   correctedQuantity Int
   reason            String
   correctedById     String
-  correctedBy       User     @relation("SaleCorrections", fields: [correctedById], references: [id])
-  createdAt         DateTime @default(now())
+  correctedBy       User         @relation("SaleCorrections", fields: [correctedById], references: [id])
+  createdAt         DateTime     @default(now())
 
   @@index([saleId])
   @@map("sale_correction")
@@ -67,6 +73,8 @@ model StockSupply {
   product           Product         @relation(fields: [productId], references: [id])
   storeId           String
   store             Store           @relation(fields: [storeId], references: [id])
+  organizationId    String
+  organization      Organization    @relation(fields: [organizationId], references: [id])
   quantity          Int
   unitPurchasePrice Decimal         @db.Decimal(10, 2)
   type              StockSupplyType @default(supply)
