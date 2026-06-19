@@ -1,7 +1,9 @@
 "use client";
 
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useContext, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/hooks/auth/session";
+import { clearTenantQueries } from "@/lib/auth/query-cache";
 import { useAppStore } from "@/store/app";
 
 interface AuthContextValue {
@@ -20,10 +22,20 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
+function tenantCacheKey(user: {
+  id: string;
+  organizationId: string | null;
+} | null): string | null {
+  if (!user) return null;
+  return `${user.id}:${user.organizationId ?? "platform"}`;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const { user, isLoading, isFetched, isAuthenticated } = useSession();
   const setUser = useAppStore((s) => s.setUser);
   const clearUser = useAppStore((s) => s.clearUser);
+  const tenantCacheKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isFetched) return;
@@ -33,6 +45,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearUser();
     }
   }, [user, isFetched, setUser, clearUser]);
+
+  useEffect(() => {
+    if (!isFetched) return;
+
+    const nextKey = tenantCacheKey(user);
+    const prevKey = tenantCacheKeyRef.current;
+
+    if (prevKey !== null && nextKey !== null && prevKey !== nextKey) {
+      clearTenantQueries(queryClient);
+    }
+
+    tenantCacheKeyRef.current = nextKey;
+  }, [user, isFetched, queryClient]);
 
   return (
     <AuthContext.Provider value={{ isLoading, isFetched, isAuthenticated }}>
