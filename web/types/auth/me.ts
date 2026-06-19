@@ -1,4 +1,4 @@
-export type ApiRole = "admin" | "branch_manager";
+export type ApiRole = "super_admin" | "admin" | "branch_manager";
 
 export interface MeStore {
   id: string;
@@ -7,14 +7,22 @@ export interface MeStore {
   isActive: boolean;
 }
 
+export interface MeOrganization {
+  id: string;
+  name: string;
+  hasStores: boolean;
+}
+
 export interface ApiUser {
   id: string;
   email: string;
   name: string;
   role: ApiRole;
   storeId: string | null;
+  organizationId?: string | null;
   isActive: boolean;
   store?: MeStore | null;
+  organization?: MeOrganization | null;
 }
 
 export interface MeResponse {
