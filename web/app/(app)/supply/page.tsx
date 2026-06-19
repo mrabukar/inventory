@@ -53,6 +53,7 @@ interface FixFormState {
 export default function SupplyPage() {
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
+  const hasStores = useAppStore((s) => s.user?.hasStores ?? true);
   const defaultRange = useMemo(() => getCurrentMonthRange(), []);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(20);
@@ -214,19 +215,21 @@ export default function SupplyPage() {
           resetPage();
         }}
       />
-      <Combobox
-        value={storeId}
-        onValueChange={(value) => {
-          setStoreId(value);
-          resetPage();
-        }}
-        items={storeItems}
-        placeholder="All stores"
-        searchPlaceholder="Search stores…"
-        emptyText="No stores found."
-        clearOption={{ label: "All stores" }}
-        className="min-w-[160px]"
-      />
+      {hasStores ? (
+        <Combobox
+          value={storeId}
+          onValueChange={(value) => {
+            setStoreId(value);
+            resetPage();
+          }}
+          items={storeItems}
+          placeholder="All stores"
+          searchPlaceholder="Search stores…"
+          emptyText="No stores found."
+          clearOption={{ label: "All stores" }}
+          className="min-w-[160px]"
+        />
+      ) : null}
       <Combobox
         value={categoryId}
         onValueChange={(value) => {
@@ -260,7 +263,11 @@ export default function SupplyPage() {
     <>
       <PageHeader
         title="Stock Supply"
-        desc="Inbound stock to each store"
+        desc={
+          hasStores
+            ? "Inbound stock to each store"
+            : "Inbound stock to organization inventory"
+        }
         action={
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Button variant="outline" onClick={() => setFixChooser({})}>
@@ -319,6 +326,7 @@ export default function SupplyPage() {
         key={showCreate ? "open" : "closed"}
         open={showCreate}
         storeItems={storeItems}
+        hideStoreField={!hasStores}
         onClose={() => setShowCreate(false)}
         onSave={(form) => void handleCreateSupply(form)}
         isSaving={createSupply.isPending}
@@ -353,6 +361,7 @@ export default function SupplyPage() {
           mode={fixForm.mode}
           supply={fixForm.supply}
           storeItems={storeItems}
+          hideStoreField={!hasStores}
           onClose={() => setFixForm(null)}
           onSave={(form) => void handleFix(form)}
           isSaving={
