@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Sheet } from "@/components/ui/sheet";
-import { toNumber } from "@/lib/reports/format";
+import { formatPriceInput } from "@/lib/reports/format";
 import type { Product } from "@/types/products/product";
 
 export interface ProductFormValues {
@@ -37,8 +37,8 @@ export function ProductSheet({
     categoryId: String(initial?.categoryId ?? categories[0]?.id ?? ""),
     model: initial?.model ?? "",
     description: initial?.description ?? "",
-    purchasePrice: initial ? String(toNumber(initial.purchasePrice)) : "",
-    sellingPrice: initial ? String(toNumber(initial.sellingPrice)) : "",
+    purchasePrice: initial ? formatPriceInput(initial.purchasePrice) : "",
+    sellingPrice: initial ? formatPriceInput(initial.sellingPrice) : "",
   });
   const [err, setErr] = useState<Partial<ProductFormValues>>({});
   const set = (key: keyof ProductFormValues, value: string) =>
