@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Collapsible } from "radix-ui";
 import {
+  Building2,
   ChevronDown,
   FileBarChart2,
   LayoutDashboard,
@@ -49,19 +50,31 @@ interface NavGroupItem {
 
 type AdminNavEntry = NavLinkItem | NavGroupItem;
 
-const ADMIN_NAV: AdminNavEntry[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+const SUPER_ADMIN_NAV: NavLinkItem[] = [
+  { href: "/super-admin", label: "Platform", icon: LayoutDashboard },
   {
-    type: "group",
-    label: "Purchase",
-    icon: ShoppingBag,
-    children: [
-      { href: "/products", label: "Products", icon: Package },
-      { href: "/categories", label: "Categories", icon: Tag },
-      { href: "/supply", label: "Stock Supply", icon: Truck },
-    ],
+    href: "/super-admin/organizations",
+    label: "Organizations",
+    icon: Building2,
   },
-  {
+];
+
+function buildAdminNav(hasStores: boolean): AdminNavEntry[] {
+  const nav: AdminNavEntry[] = [
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    {
+      type: "group",
+      label: "Purchase",
+      icon: ShoppingBag,
+      children: [
+        { href: "/products", label: "Products", icon: Package },
+        { href: "/categories", label: "Categories", icon: Tag },
+        { href: "/supply", label: "Stock Supply", icon: Truck },
+      ],
+    },
+  ];
+
+  nav.push({
     type: "group",
     label: "Stock",
     icon: Boxes,
@@ -69,21 +82,38 @@ const ADMIN_NAV: AdminNavEntry[] = [
       { href: "/inventory", label: "Inventory", icon: Layers },
       { href: "/stock-report", label: "Stock Report", icon: FileBarChart2 },
     ],
-  },
-  { href: "/sales", label: "Sales", icon: ShoppingCart },
-  { href: "/expenses", label: "Expenses", icon: CreditCard },
-  { href: "/stores", label: "Stores", icon: Store },
-  {
-    type: "group",
-    label: "Administration",
-    icon: ShieldCheck,
-    children: [
-      { href: "/users", label: "Users", icon: Users },
-      { href: "/audit", label: "Audit Log", icon: ClipboardList },
-    ],
-  },
-  { href: "/financial", label: "Financial Summary", icon: TrendingUp },
-];
+  });
+
+  nav.push(
+    { href: "/sales", label: "Sales", icon: ShoppingCart },
+    { href: "/expenses", label: "Expenses", icon: CreditCard },
+  );
+
+  if (hasStores) {
+    nav.push({ href: "/stores", label: "Stores", icon: Store });
+  } else {
+    nav.push({
+      href: "/submit-sale",
+      label: "Submit Sale",
+      icon: PlusCircle,
+    });
+  }
+
+  nav.push(
+    {
+      type: "group",
+      label: "Administration",
+      icon: ShieldCheck,
+      children: [
+        { href: "/users", label: "Users", icon: Users },
+        { href: "/audit", label: "Audit Log", icon: ClipboardList },
+      ],
+    },
+    { href: "/financial", label: "Financial Summary", icon: TrendingUp },
+  );
+
+  return nav;
+}
 
 const MANAGER_NAV: NavLinkItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -268,10 +298,12 @@ interface Props {
   role: Role;
   collapsed: boolean;
   storeName?: string | null;
+  hasStores?: boolean | null;
 }
 
-export function Sidebar({ role, collapsed, storeName }: Props) {
+export function Sidebar({ role, collapsed, storeName, hasStores = true }: Props) {
   const pathname = usePathname();
+  const adminNav = buildAdminNav(hasStores !== false);
 
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
@@ -283,29 +315,37 @@ export function Sidebar({ role, collapsed, storeName }: Props) {
       <nav className="sb-nav">
         {!collapsed && (
           <div className="sb-section">
-            {role === "admin" ? "Operations" : "My Store"}
+            {role === "super_admin"
+              ? "Platform"
+              : role === "admin"
+                ? "Operations"
+                : "My Store"}
           </div>
         )}
-        {role === "admin"
-          ? ADMIN_NAV.map((entry) =>
-              isNavGroup(entry) ? (
-                <SidebarNavGroup
-                  key={entry.label}
-                  group={entry}
-                  pathname={pathname}
-                  collapsed={collapsed}
-                />
-              ) : (
-                <SidebarNavLink
-                  key={entry.href}
-                  item={entry}
-                  pathname={pathname}
-                />
-              ),
-            )
-          : MANAGER_NAV.map((item) => (
+        {role === "super_admin"
+          ? SUPER_ADMIN_NAV.map((item) => (
               <SidebarNavLink key={item.href} item={item} pathname={pathname} />
-            ))}
+            ))
+          : role === "admin"
+            ? adminNav.map((entry) =>
+                isNavGroup(entry) ? (
+                  <SidebarNavGroup
+                    key={entry.label}
+                    group={entry}
+                    pathname={pathname}
+                    collapsed={collapsed}
+                  />
+                ) : (
+                  <SidebarNavLink
+                    key={entry.href}
+                    item={entry}
+                    pathname={pathname}
+                  />
+                ),
+              )
+            : MANAGER_NAV.map((item) => (
+                <SidebarNavLink key={item.href} item={item} pathname={pathname} />
+              ))}
       </nav>
 
       {/* <div className="sb-foot">
