@@ -19,7 +19,8 @@ export type AuditAction =
   | "STORE_CREATED"
   | "STORE_UPDATED"
   | "STORE_DEACTIVATED"
-  | "STORE_REACTIVATED";
+  | "STORE_REACTIVATED"
+  | "REPORT_EXPORTED";
 
 export type AuditJsonValue = Record<string, unknown> | unknown[] | string | number | boolean | null;
 
@@ -69,6 +70,7 @@ const ENTITY_LABELS: Record<string, string> = {
   inventory: "inventory",
   store: "store",
   user: "user",
+  report: "report",
 };
 
 const ACTION_COLORS: Record<AuditAction, string> = {
@@ -91,6 +93,7 @@ const ACTION_COLORS: Record<AuditAction, string> = {
   STORE_UPDATED: "indigo",
   STORE_DEACTIVATED: "indigo",
   STORE_REACTIVATED: "indigo",
+  REPORT_EXPORTED: "teal",
 };
 
 const ACTION_LABELS: Record<AuditAction, string> = {
@@ -113,6 +116,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   STORE_UPDATED: "Store updated",
   STORE_DEACTIVATED: "Store deactivated",
   STORE_REACTIVATED: "Store reactivated",
+  REPORT_EXPORTED: "Report exported",
 };
 
 export const AUDIT_ACTION_ITEMS = (Object.keys(ACTION_LABELS) as AuditAction[]).map(
@@ -290,6 +294,16 @@ export function formatAuditSummary(log: AuditLog): string {
     case "STORE_REACTIVATED": {
       const name = readString(newRecord?.name) ?? readString(oldRecord?.name);
       return name ? `Reactivated store ${name}` : "Store reactivated";
+    }
+    case "REPORT_EXPORTED": {
+      const report = readString(newRecord?.report) ?? log.entityId;
+      const format = readString(newRecord?.format);
+      const fromDate = readString(newRecord?.fromDate);
+      const toDate = readString(newRecord?.toDate);
+      const formatPart = format ? ` (${format.toUpperCase()})` : "";
+      const periodPart =
+        fromDate && toDate ? ` · ${fromDate} to ${toDate}` : "";
+      return `Exported ${report?.replace(/-/g, " ") ?? "report"}${formatPart}${periodPart}`;
     }
     default:
       return `${log.action} on ${log.entityType}`;
