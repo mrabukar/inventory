@@ -3,8 +3,7 @@ import { hashPassword } from "better-auth/crypto";
 
 const SUPER_ADMIN_EMAIL =
   process.env.SUPER_ADMIN_EMAIL ?? "superadmin@platform.local";
-const SUPER_ADMIN_PASSWORD =
-  process.env.SUPER_ADMIN_PASSWORD ?? "SuperAdmin1!";
+const SUPER_ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD ?? "SuperAdmin1!";
 const SUPER_ADMIN_NAME = process.env.SUPER_ADMIN_NAME ?? "Platform Super Admin";
 
 async function main(): Promise<void> {
@@ -26,7 +25,9 @@ async function main(): Promise<void> {
             storeId: null,
           },
         });
-        console.log(`Updated existing user to super_admin: ${SUPER_ADMIN_EMAIL}`);
+        console.log(
+          `Updated existing user to super_admin: ${SUPER_ADMIN_EMAIL}`,
+        );
       } else {
         console.log(`Super admin already exists: ${SUPER_ADMIN_EMAIL}`);
       }
