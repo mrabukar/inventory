@@ -24,6 +24,7 @@ interface UserModalProps {
   mode: "add" | "edit";
   user?: User;
   storeItems: { value: string; label: string }[];
+  showStoreField?: boolean;
   onClose: () => void;
   onSave: (data: UserFormValues) => void;
   isSaving: boolean;
@@ -82,6 +83,7 @@ export function UserModal({
   mode,
   user,
   storeItems,
+  showStoreField = true,
   onClose,
   onSave,
   isSaving,
@@ -92,10 +94,15 @@ export function UserModal({
     {},
   );
 
-  const roleItems = useMemo(
-    () => ROLE_ITEMS.map((item) => ({ value: item.value, label: item.label })),
-    [],
-  );
+  const roleItems = useMemo(() => {
+    const items = ROLE_ITEMS.map((item) => ({
+      value: item.value,
+      label: item.label,
+    }));
+    return showStoreField
+      ? items
+      : items.filter((item) => item.value !== "branch_manager");
+  }, [showStoreField]);
 
   const set = (key: keyof UserFormValues, value: string) =>
     setForm((state) => ({ ...state, [key]: value }));
@@ -127,7 +134,7 @@ export function UserModal({
         next.password = STRONG_PASSWORD_MESSAGE;
     }
 
-    if (form.role === "branch_manager" && !form.storeId) {
+    if (showStoreField && form.role === "branch_manager" && !form.storeId) {
       next.storeId = "Store is required for branch managers";
     }
 
@@ -218,7 +225,7 @@ export function UserModal({
               />
             </FormField>
 
-            {form.role === "branch_manager" ? (
+            {showStoreField && form.role === "branch_manager" ? (
               <FormField label="Store" required error={err.storeId}>
                 <Combobox
                   value={form.storeId || undefined}
