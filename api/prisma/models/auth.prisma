@@ -1,21 +1,24 @@
 enum UserRole {
+  super_admin
   admin
   branch_manager
 }
 
 model User {
-  id            String   @id
-  name          String   @default("")
-  email         String
-  emailVerified Boolean  @default(false)
-  image         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  role          UserRole
-  isActive      Boolean  @default(true)
-  phone     String?
-  storeId       String?
-  store         Store?   @relation(fields: [storeId], references: [id])
+  id             String        @id
+  name           String        @default("")
+  email          String
+  emailVerified  Boolean       @default(false)
+  image          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  role           UserRole
+  isActive       Boolean       @default(true)
+  phone          String?
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  storeId        String?
+  store          Store?        @relation(fields: [storeId], references: [id])
 
   sessions        Session[]
   accounts        Account[]
