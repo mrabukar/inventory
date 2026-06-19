@@ -1,6 +1,7 @@
 import {
   CallHandler,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   NestInterceptor,
 } from "@nestjs/common";
@@ -14,7 +15,9 @@ interface SessionRequest {
   session?: { user?: Record<string, unknown> };
 }
 
-function resolveOrganizationId(request: SessionRequest): string | null | undefined {
+function resolveOrganizationId(
+  request: SessionRequest,
+): string | null | undefined {
   const user = request.user ?? request.session?.user;
   if (!user) {
     return undefined;
@@ -26,7 +29,15 @@ function resolveOrganizationId(request: SessionRequest): string | null | undefin
   }
 
   const organizationId = user.organizationId;
-  return typeof organizationId === "string" ? organizationId : undefined;
+  if (typeof organizationId === "string" && organizationId.trim()) {
+    return organizationId.trim();
+  }
+
+  if (role === UserRole.admin || role === UserRole.branch_manager) {
+    throw new ForbiddenException("Organization context is required");
+  }
+
+  return undefined;
 }
 
 @Injectable()
