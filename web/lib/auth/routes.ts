@@ -17,6 +17,7 @@ export const PROTECTED_ROUTE_PREFIXES = [
   "/submit-sale",
   "/my-stock",
   "/sales-history",
+  "/settings/organization",
 ] as const;
 
 export const SUPER_ADMIN_ROUTE_PREFIXES = ["/super-admin"] as const;
@@ -34,6 +35,7 @@ export const ADMIN_ONLY_ROUTE_PREFIXES = [
   "/stores",
   "/users",
   "/audit",
+  "/settings/organization",
 ] as const;
 
 /** Manager-only routes — admins must not access these (unless hasStores is false). */
