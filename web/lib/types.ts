@@ -1,4 +1,4 @@
-export type Role = "admin" | "manager";
+export type Role = "super_admin" | "admin" | "manager";
 
 export interface Toast {
   id: number;
@@ -16,4 +16,7 @@ export interface AppUser {
   role: Role;
   storeId: string | null;
   store: string | null;
+  organizationId: string | null;
+  organizationName: string | null;
+  hasStores: boolean | null;
 }
