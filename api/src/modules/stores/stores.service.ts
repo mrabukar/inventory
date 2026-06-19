@@ -7,6 +7,12 @@ import {
 } from "@nestjs/common";
 import { AuditAction, Prisma, Store, UserRole } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
+import {
+  ORG_WAREHOUSE_STORE_ADDRESS,
+  ORG_WAREHOUSE_STORE_NAME,
+} from "../../common/utils/org-warehouse.constants";
+import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
+import { withOrganizationId } from "../../common/utils/with-organization-id.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CreateStoreDto } from "./dto/create-store.dto";
 import { StoreQueryDto } from "./dto/store-query.dto";
@@ -27,6 +33,7 @@ export class StoresService {
 
     const where: Prisma.StoreWhereInput = {
       isActive: true,
+      isOrgWarehouse: false,
       ...(search
         ? { name: { contains: search, mode: "insensitive" } }
         : undefined),
@@ -66,13 +73,28 @@ export class StoresService {
   }
 
   async create(dto: CreateStoreDto, user: CurrentUserPayload): Promise<Store> {
+    const organizationId = requireOrganizationId(user);
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { hasStores: true },
+    });
+
+    if (!org?.hasStores) {
+      throw new BadRequestException(
+        "This organization does not use stores. Stock is tracked at organization level.",
+      );
+    }
+
     await this.assertUniqueName(dto.name);
 
-    const store = await this.prisma.store.create({ data: dto });
+    const store = await this.prisma.store.create({
+      data: withOrganizationId(dto, organizationId),
+    });
 
     await this.prisma.auditLog.create({
       data: {
         userId: user.id,
+        organizationId,
         action: "STORE_CREATED",
         entityType: "store",
         entityId: store.id,
@@ -107,6 +129,7 @@ export class StoresService {
     await this.prisma.auditLog.create({
       data: {
         userId: user.id,
+        organizationId: requireOrganizationId(user),
         action: "STORE_UPDATED",
         entityType: "store",
         entityId: store.id,
@@ -120,6 +143,12 @@ export class StoresService {
 
   async deactivate(id: string, user: CurrentUserPayload): Promise<void> {
     const existing = await this.findOne(id);
+
+    if (existing.isOrgWarehouse) {
+      throw new BadRequestException(
+        "The organization stock location cannot be deactivated",
+      );
+    }
 
     const assignedManagers = await this.prisma.user.findMany({
       where: {
@@ -156,6 +185,7 @@ export class StoresService {
     await this.prisma.auditLog.create({
       data: {
         userId: user.id,
+        organizationId: requireOrganizationId(user),
         action: "STORE_DEACTIVATED",
         entityType: "store",
         entityId: id,
@@ -184,6 +214,7 @@ export class StoresService {
     await this.prisma.auditLog.create({
       data: {
         userId: user.id,
+        organizationId: requireOrganizationId(user),
         action: "STORE_REACTIVATED",
         entityType: "store",
         entityId: id,
@@ -210,5 +241,26 @@ export class StoresService {
     if (existing) {
       throw new ConflictException(`A store named "${name}" already exists`);
     }
+  }
+
+  /** Hidden store used for org-level inventory when hasStores is false. */
+  async ensureOrgWarehouse(organizationId: string): Promise<Store> {
+    const existing = await this.prisma.store.findFirst({
+      where: { organizationId, isOrgWarehouse: true },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    return this.prisma.store.create({
+      data: {
+        organizationId,
+        name: ORG_WAREHOUSE_STORE_NAME,
+        address: ORG_WAREHOUSE_STORE_ADDRESS,
+        isOrgWarehouse: true,
+        isActive: true,
+      },
+    });
   }
 }
