@@ -23,6 +23,7 @@ interface SupplyFixModalProps {
   mode: SupplyFixMode;
   supply?: StockSupply;
   storeItems: { value: string; label: string }[];
+  hideStoreField?: boolean;
   onClose: () => void;
   onSave: (data: CreateStockCorrectionInput) => void;
   isSaving: boolean;
@@ -95,6 +96,7 @@ export function SupplyFixModal({
   mode,
   supply: initialSupply,
   storeItems,
+  hideStoreField = false,
   onClose,
   onSave,
   isSaving,
@@ -117,7 +119,8 @@ export function SupplyFixModal({
     queryKey: stockSuppliesQueryKey({ page: 1, limit: 100, storeId }),
     queryFn: () =>
       listStockSupplies({ page: 1, limit: 100, storeId: storeId || undefined }),
-    enabled: open && !fromDetail && Boolean(storeId),
+    enabled:
+      open && !fromDetail && (hideStoreField || Boolean(storeId)),
   });
 
   const storeSupplies = useMemo(
@@ -161,7 +164,7 @@ export function SupplyFixModal({
 
       onSave({
         productId: initialSupply.productId,
-        storeId: initialSupply.storeId,
+        ...(hideStoreField ? {} : { storeId: initialSupply.storeId }),
         quantity: Number(quantity),
         note: note.trim(),
         correctsSupplyId: initialSupply.id,
@@ -169,7 +172,7 @@ export function SupplyFixModal({
       return;
     }
 
-    if (!storeId) next.storeId = "Select a store";
+    if (!hideStoreField && !storeId) next.storeId = "Select a store";
     if (!productId) next.productId = "Select a product";
     if (!quantity || +quantity <= 0)
       next.quantity = "Enter how many units to adjust";
@@ -179,7 +182,7 @@ export function SupplyFixModal({
 
     onSave({
       productId,
-      storeId,
+      ...(hideStoreField ? {} : { storeId }),
       quantity: Number(quantity),
       note: note.trim(),
       correctsSupplyId: selectedProductMeta?.supplyId,
@@ -221,18 +224,20 @@ export function SupplyFixModal({
               </div>
             ) : (
               <>
-                <FormField label="Store" required error={err.storeId}>
-                  <Combobox
-                    value={storeId || undefined}
-                    onValueChange={handleStoreChange}
-                    items={storeItems}
-                    placeholder="Select store"
-                    searchPlaceholder="Search stores…"
-                    emptyText="No stores found."
-                    className="w-full"
-                    popoverClassName="z-[200]"
-                  />
-                </FormField>
+                {!hideStoreField ? (
+                  <FormField label="Store" required error={err.storeId}>
+                    <Combobox
+                      value={storeId || undefined}
+                      onValueChange={handleStoreChange}
+                      items={storeItems}
+                      placeholder="Select store"
+                      searchPlaceholder="Search stores…"
+                      emptyText="No stores found."
+                      className="w-full"
+                      popoverClassName="z-[200]"
+                    />
+                  </FormField>
+                ) : null}
 
                 <FormField label="Product" required error={err.productId}>
                   <Combobox
@@ -243,7 +248,7 @@ export function SupplyFixModal({
                     }}
                     items={productItems}
                     placeholder={
-                      !storeId
+                      !hideStoreField && !storeId
                         ? "Select a store first"
                         : isLoadingProducts
                           ? "Loading products…"
@@ -251,11 +256,11 @@ export function SupplyFixModal({
                     }
                     searchPlaceholder="Search products…"
                     emptyText={
-                      storeId
-                        ? "No supplied products at this store."
+                      hideStoreField || storeId
+                        ? "No supplied products found."
                         : "Select a store first."
                     }
-                    disabled={!storeId || isLoadingProducts}
+                    disabled={(!hideStoreField && !storeId) || isLoadingProducts}
                     className="w-full"
                     popoverClassName="z-[200]"
                   />
