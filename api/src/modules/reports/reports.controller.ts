@@ -15,8 +15,11 @@ export class ReportsController {
 
   @Get("admin-dashboard")
   @Roles(UserRole.admin)
-  getAdminDashboard(@Query() query: ReportQueryDto) {
-    return this.reportsService.getAdminDashboard(query);
+  getAdminDashboard(
+    @Query() query: ReportQueryDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.reportsService.getAdminDashboard(query, user);
   }
 
   @Get("manager-dashboard")
@@ -27,19 +30,28 @@ export class ReportsController {
 
   @Get("financial-summary")
   @Roles(UserRole.admin)
-  getFinancialSummary(@Query() query: ReportQueryDto) {
-    return this.reportsService.getFinancialSummary(query);
+  getFinancialSummary(
+    @Query() query: ReportQueryDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.reportsService.getFinancialSummary(query, user);
   }
 
   @Get("product-distribution")
   @Roles(UserRole.admin)
-  getProductDistribution(@Query() query: ProductDistributionQueryDto) {
-    return this.reportsService.getProductDistribution(query);
+  getProductDistribution(
+    @Query() query: ProductDistributionQueryDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.reportsService.getProductDistribution(query, user);
   }
 
   @Get("stock-report")
   @Roles(UserRole.admin)
-  getStockReport(@Query() query: ReportQueryDto) {
-    return this.reportsService.getStockReport(query);
+  getStockReport(
+    @Query() query: ReportQueryDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.reportsService.getStockReport(query, user);
   }
 }
