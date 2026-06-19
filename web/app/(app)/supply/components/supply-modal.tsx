@@ -23,6 +23,7 @@ interface SupplyFormValues {
 interface SupplyModalProps {
   open: boolean;
   storeItems: { value: string; label: string }[];
+  hideStoreField?: boolean;
   onClose: () => void;
   onSave: (data: CreateStockSupplyInput) => void;
   isSaving: boolean;
@@ -62,6 +63,7 @@ const inputClassName =
 export function SupplyModal({
   open,
   storeItems,
+  hideStoreField = false,
   onClose,
   onSave,
   isSaving,
@@ -106,7 +108,7 @@ export function SupplyModal({
 
   const save = () => {
     const next: Partial<SupplyFormValues> = {};
-    if (!form.storeId) next.storeId = "Store is required";
+    if (!hideStoreField && !form.storeId) next.storeId = "Store is required";
     if (!form.productId) next.productId = "Product is required";
     if (!form.quantity || +form.quantity <= 0)
       next.quantity = "Enter a positive quantity";
@@ -116,7 +118,7 @@ export function SupplyModal({
     if (Object.keys(next).length) return;
 
     onSave({
-      storeId: form.storeId,
+      ...(hideStoreField ? {} : { storeId: form.storeId }),
       productId: form.productId,
       quantity: Number(form.quantity),
       unitPurchasePrice: Number(form.unitPurchasePrice),
@@ -145,24 +147,27 @@ export function SupplyModal({
               New Supply
             </Dialog.Title>
             <Dialog.Description className="text-sm text-muted-foreground">
-              Send stock to a store. Unit cost defaults to the product purchase
-              price.
+              {hideStoreField
+                ? "Add stock to your organization inventory. Unit cost defaults to the product purchase price."
+                : "Send stock to a store. Unit cost defaults to the product purchase price."}
             </Dialog.Description>
           </div>
 
           <div className="grid gap-4 py-2">
-            <FormField label="Store" required error={err.storeId}>
-              <Combobox
-                value={form.storeId || undefined}
-                onValueChange={(value) => set("storeId", value ?? "")}
-                items={storeItems}
-                placeholder="Select store"
-                searchPlaceholder="Search stores…"
-                emptyText="No stores found."
-                className="w-full"
-                popoverClassName="z-[200]"
-              />
-            </FormField>
+            {!hideStoreField ? (
+              <FormField label="Store" required error={err.storeId}>
+                <Combobox
+                  value={form.storeId || undefined}
+                  onValueChange={(value) => set("storeId", value ?? "")}
+                  items={storeItems}
+                  placeholder="Select store"
+                  searchPlaceholder="Search stores…"
+                  emptyText="No stores found."
+                  className="w-full"
+                  popoverClassName="z-[200]"
+                />
+              </FormField>
+            ) : null}
 
             <FormField label="Product" required error={err.productId}>
               <Combobox
