@@ -8,16 +8,18 @@ import { StoreFilter } from "./store-filter";
 interface ReportFilterBarProps {
   filters: ReportFilters;
   showCategoryFilter?: boolean;
+  showStoreFilter?: boolean;
 }
 
 export function ReportFilterBar({
   filters,
   showCategoryFilter = false,
+  showStoreFilter = true,
 }: ReportFilterBarProps) {
   return (
     <div style={{ display: "flex", gap: 10 }}>
       <DateRangeFilter filters={filters} />
-      <StoreFilter filters={filters} />
+      {showStoreFilter ? <StoreFilter filters={filters} /> : null}
       {showCategoryFilter ? <CategoryFilter filters={filters} /> : null}
     </div>
   );
