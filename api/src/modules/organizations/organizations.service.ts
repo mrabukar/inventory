@@ -1,0 +1,175 @@
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import { AuditAction, Organization, Prisma } from "@prisma/client";
+import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
+import { PrismaService } from "../../prisma/prisma.service";
+import { StoresService } from "../stores/stores.service";
+import { PaginatedResult } from "../stores/stores.service";
+import { CreateOrganizationDto } from "./dto/create-organization.dto";
+import { OrganizationQueryDto } from "./dto/organization-query.dto";
+import { UpdateOrganizationDto } from "./dto/update-organization.dto";
+
+export type OrganizationWithUsers = Organization & {
+  users: Array<{
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    isActive: boolean;
+  }>;
+  _count: { users: number; stores: number };
+};
+
+@Injectable()
+export class OrganizationsService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storesService: StoresService,
+  ) {}
+
+  async findAll(
+    query: OrganizationQueryDto,
+  ): Promise<PaginatedResult<Organization>> {
+    const { page, limit, search } = query;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.OrganizationWhereInput = search
+      ? { name: { contains: search, mode: "insensitive" } }
+      : {};
+
+    const [data, total] = await Promise.all([
+      this.prisma.organization.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+      }),
+      this.prisma.organization.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async findOne(id: string): Promise<OrganizationWithUsers> {
+    const organization = await this.prisma.organization.findUnique({
+      where: { id },
+      include: {
+        users: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            isActive: true,
+          },
+          orderBy: { createdAt: "desc" },
+        },
+        _count: { select: { users: true, stores: true } },
+      },
+    });
+
+    if (!organization) {
+      throw new NotFoundException(`Organization with id "${id}" not found`);
+    }
+
+    return organization;
+  }
+
+  async create(
+    dto: CreateOrganizationDto,
+    actor: CurrentUserPayload,
+  ): Promise<Organization> {
+    const organization = await this.prisma.organization.create({
+      data: {
+        name: dto.name.trim(),
+        hasStores: dto.hasStores ?? true,
+      },
+    });
+
+    if (!organization.hasStores) {
+      await this.storesService.ensureOrgWarehouse(organization.id);
+    }
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actor.id,
+        organizationId: organization.id,
+        action: AuditAction.ORGANIZATION_CREATED,
+        entityType: "organization",
+        entityId: organization.id,
+        oldValue: Prisma.JsonNull,
+        newValue: organization,
+      },
+    });
+
+    return organization;
+  }
+
+  async update(
+    id: string,
+    dto: UpdateOrganizationDto,
+    actor: CurrentUserPayload,
+  ): Promise<Organization> {
+    if (Object.keys(dto).length === 0) {
+      throw new BadRequestException("At least one field must be provided");
+    }
+
+    const existing = await this.findOne(id);
+
+    const organization = await this.prisma.organization.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name.trim() } : undefined),
+        ...(dto.hasStores !== undefined ? { hasStores: dto.hasStores } : undefined),
+        ...(dto.isActive !== undefined ? { isActive: dto.isActive } : undefined),
+      },
+    });
+
+    if (dto.hasStores === false) {
+      await this.storesService.ensureOrgWarehouse(organization.id);
+    }
+
+    let action: AuditAction = AuditAction.ORGANIZATION_UPDATED;
+    if (dto.isActive === false && existing.isActive) {
+      action = AuditAction.ORGANIZATION_DEACTIVATED;
+    } else if (dto.isActive === true && !existing.isActive) {
+      action = AuditAction.ORGANIZATION_REACTIVATED;
+    }
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actor.id,
+        organizationId: organization.id,
+        action,
+        entityType: "organization",
+        entityId: organization.id,
+        oldValue: existing,
+        newValue: organization,
+      },
+    });
+
+    return organization;
+  }
+
+  async getPlatformStats(): Promise<{ organizationCount: number; userCount: number }> {
+    const [organizationCount, userCount] = await Promise.all([
+      this.prisma.organization.count(),
+      this.prisma.user.count({
+        where: { role: { not: "super_admin" } },
+      }),
+    ]);
+
+    return { organizationCount, userCount };
+  }
+}
