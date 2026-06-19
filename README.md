@@ -105,6 +105,13 @@ Regenerate auth Prisma models after config changes:
 npx better-auth generate --config src/modules/auth/auth.config.ts --output prisma/models/auth.prisma --yes
 ```
 
+### Object storage (Cloudflare R2)
+
+Image uploads (architecture + how to add new types): [api/docs/image-upload.md](api/docs/image-upload.md)  
+Cloudflare R2 setup for production: [api/docs/r2-object-storage.md](api/docs/r2-object-storage.md)
+
+Set `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, and `R2_ENDPOINT` in `api/.env`. Without them, logos are stored locally under `api/uploads/` (dev only).
+
 ### Useful commands
 
 | Command                | Description                |
