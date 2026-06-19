@@ -60,6 +60,11 @@ export function createAuth(prisma: PrismaClient) {
           input: true,
           required: false,
         },
+        organizationId: {
+          type: "string",
+          input: true,
+          required: false,
+        },
         name: {
           type: "string",
           input: true,
