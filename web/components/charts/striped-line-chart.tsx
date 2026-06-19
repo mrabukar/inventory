@@ -39,9 +39,11 @@ function formatAxisDate(ymd: string): string {
 }
 
 function formatTickValue(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  if (!Number.isFinite(value)) return "0";
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
 }
 
 function niceStep(max: number, targetTicks = 5): number {
@@ -113,7 +115,7 @@ export function StripedLineChart({
 
   const step = labelStep(pointCount);
   const tooltipLeft = hoverIndex != null ? (x(hoverIndex) / W) * 100 : 0;
-  const formatValue = (value: number) => value.toLocaleString();
+  const formatValue = formatTickValue;
   const axisBottom = pad.t + ih;
 
   const handlePlotMove = (event: MouseEvent<SVGRectElement>) => {
