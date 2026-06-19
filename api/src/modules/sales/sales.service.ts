@@ -11,10 +11,11 @@ import {
 } from "../../common/utils/app-timezone.util";
 import { MUTATION_TRANSACTION_OPTIONS } from "../../common/constants/prisma-transaction.constants";
 import { lockInventoryForMutation } from "../../common/utils/inventory-lock.util";
+import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
+import { withOrganizationId } from "../../common/utils/with-organization-id.util";
+import { TenantStoreResolver } from "../../common/tenant/tenant-store-resolver.service";
 import {
-  requireActiveManagerStore,
   assertStoreAccess,
-  resolveStoreFilter,
 } from "../../common/utils/store-scope.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ProductsService } from "../products/products.service";
@@ -40,6 +41,7 @@ export class SalesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly productsService: ProductsService,
+    private readonly tenantStoreResolver: TenantStoreResolver,
   ) {}
 
   async findAll(
@@ -52,7 +54,10 @@ export class SalesService {
     if (queryStoreId) {
       assertStoreAccess(queryStoreId, user);
     }
-    const storeId = resolveStoreFilter(user, query.storeId);
+    const storeId = await this.tenantStoreResolver.resolveStoreFilter(
+      user,
+      query.storeId,
+    );
     const searchTerm =
       typeof query.search === "string" ? query.search.trim() : "";
     const fromDate =
@@ -133,8 +138,9 @@ export class SalesService {
     dto: CreateSaleDto,
     user: CurrentUserPayload,
   ): Promise<SaleWithDetails> {
-    const storeId = await requireActiveManagerStore(user, (id) =>
-      this.findManagerStore(id),
+    const storeId = await this.tenantStoreResolver.resolveSaleStoreId(
+      user,
+      (id: string) => this.findManagerStore(id),
     );
     const product = await this.productsService.findOne(dto.productId);
     const saleDate = parseAndValidateSaleDate(dto.saleDate);
@@ -143,9 +149,12 @@ export class SalesService {
     const unitPurchasePrice = Number(product.purchasePrice);
     const totalAmount = unitPrice * dto.quantitySold;
 
+    const organizationId = requireOrganizationId(user);
+
     const saleId = await this.prisma.$transaction(async (tx) => {
       const inventory = await lockInventoryForMutation(
         tx,
+        organizationId,
         dto.productId,
         storeId,
       );
@@ -163,18 +172,21 @@ export class SalesService {
       }
 
       const sale = await tx.sale.create({
-        data: {
-          productId: dto.productId,
-          storeId,
-          soldById: user.id,
-          quantitySold: dto.quantitySold,
-          unitPrice,
-          unitPurchasePrice,
-          totalAmount,
-          saleDate,
-          note: dto.note,
-          status: "active",
-        },
+        data: withOrganizationId(
+          {
+            productId: dto.productId,
+            storeId,
+            soldById: user.id,
+            quantitySold: dto.quantitySold,
+            unitPrice,
+            unitPurchasePrice,
+            totalAmount,
+            saleDate,
+            note: dto.note,
+            status: "active",
+          },
+          organizationId,
+        ),
       });
 
       const previousQty = inventory.quantity;
@@ -188,6 +200,7 @@ export class SalesService {
       await tx.auditLog.create({
         data: {
           userId: user.id,
+          organizationId,
           action: "SALE_CREATED",
           entityType: "sale",
           entityId: sale.id,
@@ -211,6 +224,7 @@ export class SalesService {
       await tx.auditLog.create({
         data: {
           userId: user.id,
+          organizationId,
           action: "INVENTORY_UPDATED",
           entityType: "inventory",
           entityId: updatedInventory.id,
@@ -237,8 +251,9 @@ export class SalesService {
     dto: CorrectSaleDto,
     user: CurrentUserPayload,
   ): Promise<SaleWithDetails> {
-    const storeId = await requireActiveManagerStore(user, (id) =>
-      this.findManagerStore(id),
+    const storeId = await this.tenantStoreResolver.resolveSaleStoreId(
+      user,
+      (id: string) => this.findManagerStore(id),
     );
 
     const existing = await this.prisma.sale.findFirst({
@@ -265,9 +280,12 @@ export class SalesService {
     const unitPrice = Number(existing.unitPrice);
     const totalAmount = unitPrice * dto.correctedQuantity;
 
+    const organizationId = requireOrganizationId(user);
+
     const saleId = await this.prisma.$transaction(async (tx) => {
       const inventory = await lockInventoryForMutation(
         tx,
+        organizationId,
         existing.productId,
         existing.storeId,
       );
@@ -303,13 +321,16 @@ export class SalesService {
       });
 
       await tx.saleCorrection.create({
-        data: {
-          saleId: id,
-          originalQuantity,
-          correctedQuantity: dto.correctedQuantity,
-          reason: dto.reason,
-          correctedById: user.id,
-        },
+        data: withOrganizationId(
+          {
+            saleId: id,
+            originalQuantity,
+            correctedQuantity: dto.correctedQuantity,
+            reason: dto.reason,
+            correctedById: user.id,
+          },
+          organizationId,
+        ),
       });
 
       const updatedInventory = await tx.inventory.update({
@@ -325,6 +346,7 @@ export class SalesService {
       await tx.auditLog.create({
         data: {
           userId: user.id,
+          organizationId,
           action: "SALE_CORRECTED",
           entityType: "sale",
           entityId: sale.id,
@@ -343,6 +365,7 @@ export class SalesService {
       await tx.auditLog.create({
         data: {
           userId: user.id,
+          organizationId,
           action: "INVENTORY_UPDATED",
           entityType: "inventory",
           entityId: updatedInventory.id,
