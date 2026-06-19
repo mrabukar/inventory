@@ -13,12 +13,13 @@ export type LockedInventoryRow = {
  */
 export async function acquireInventoryMutationLock(
   tx: Prisma.TransactionClient,
+  organizationId: string,
   productId: string,
   storeId: string,
 ): Promise<void> {
   await tx.$executeRaw`
     SELECT pg_advisory_xact_lock(
-      hashtext(${productId}),
+      hashtext(${organizationId} || ':' || ${productId}),
       hashtext(${storeId})
     )
   `;
@@ -30,13 +31,16 @@ export async function acquireInventoryMutationLock(
  */
 export async function findInventoryRowForUpdate(
   tx: Prisma.TransactionClient,
+  organizationId: string,
   productId: string,
   storeId: string,
 ): Promise<LockedInventoryRow | null> {
   const rows = await tx.$queryRaw<LockedInventoryRow[]>`
     SELECT id, "productId", "storeId", quantity
     FROM inventory
-    WHERE "productId" = ${productId} AND "storeId" = ${storeId}
+    WHERE "productId" = ${productId}
+      AND "storeId" = ${storeId}
+      AND "organizationId" = ${organizationId}
     FOR UPDATE
   `;
 
@@ -49,9 +53,10 @@ export async function findInventoryRowForUpdate(
  */
 export async function lockInventoryForMutation(
   tx: Prisma.TransactionClient,
+  organizationId: string,
   productId: string,
   storeId: string,
 ): Promise<LockedInventoryRow | null> {
-  await acquireInventoryMutationLock(tx, productId, storeId);
-  return findInventoryRowForUpdate(tx, productId, storeId);
+  await acquireInventoryMutationLock(tx, organizationId, productId, storeId);
+  return findInventoryRowForUpdate(tx, organizationId, productId, storeId);
 }
