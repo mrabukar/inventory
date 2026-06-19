@@ -11,6 +11,8 @@ export interface MeOrganization {
   id: string;
   name: string;
   hasStores: boolean;
+  logoKey?: string | null;
+  logoUpdatedAt?: string | null;
 }
 
 export interface ApiUser {
