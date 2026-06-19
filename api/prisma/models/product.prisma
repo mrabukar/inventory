@@ -1,31 +1,36 @@
 model Category {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             Int          @id @default(autoincrement())
+  name           String
+  description    String?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   products Product[]
 
+  @@unique([name, organizationId])
   @@map("category")
 }
 
 model Product {
-  id             String   @id @default(cuid())
-  name            String
-  normalizedName  String
-  model           String?
+  id             String       @id @default(cuid())
+  name           String
+  normalizedName String
+  model          String?
   normalizedModel String?
   categoryId     Int
-  category       Category @relation(fields: [categoryId], references: [id])
+  category       Category     @relation(fields: [categoryId], references: [id])
   description    String?
-  purchasePrice  Decimal  @db.Decimal(10, 2)
-  sellingPrice   Decimal  @db.Decimal(10, 2)
-  isActive       Boolean  @default(true)
+  purchasePrice  Decimal      @db.Decimal(10, 2)
+  sellingPrice   Decimal      @db.Decimal(10, 2)
+  isActive       Boolean      @default(true)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
   createdById    String
-  createdBy      User     @relation("ProductCreatedBy", fields: [createdById], references: [id])
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdBy      User         @relation("ProductCreatedBy", fields: [createdById], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   inventory     Inventory[]
   sales         Sale[]
