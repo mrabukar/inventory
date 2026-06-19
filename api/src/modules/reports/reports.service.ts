@@ -335,8 +335,10 @@ export class ReportsService {
   async getFinancialSummary(query: ReportQueryDto, user: CurrentUserPayload) {
     const organizationId = requireOrganizationId(user);
     const range = resolveReportDateRange(query.fromDate, query.toDate);
-    const storeId =
-      typeof query.storeId === "string" ? query.storeId.trim() : undefined;
+    const storeId = await this.tenantStoreResolver.resolveStoreFilter(
+      user,
+      query.storeId,
+    );
 
     const saleWhere = this.buildSaleWhere(range, storeId);
     const expenseWhere = this.buildExpenseWhere(range, storeId);
