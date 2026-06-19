@@ -6,10 +6,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { OrganizationLogoUpload } from "@/components/organization/organization-logo-upload";
 import {
   getOrganization,
   updateOrganization,
 } from "@/service/organizations/organizations";
+import {
+  deleteOrganizationLogo,
+  uploadOrganizationLogo,
+} from "@/service/organizations/logo";
 import { useCreateUser } from "@/hooks/users/use-create-user";
 import { useAppStore } from "@/store/app";
 import { isStrongPassword, STRONG_PASSWORD_MESSAGE } from "@/lib/auth/password";
@@ -54,6 +59,21 @@ export default function OrganizationDetailPage() {
       <PageHeader title={org.name} desc="Organization settings and users" />
 
       <div className="mb-8 grid gap-4 max-w-xl">
+        <OrganizationLogoUpload
+          scope="organization"
+          organizationId={org.id}
+          hasLogo={Boolean(org.logoKey)}
+          logoUpdatedAt={org.logoUpdatedAt}
+          onUploaded={() =>
+            queryClient.invalidateQueries({ queryKey: ["organizations", id] })
+          }
+          onDeleted={() =>
+            queryClient.invalidateQueries({ queryKey: ["organizations", id] })
+          }
+          uploadLogo={(file) => uploadOrganizationLogo(org.id, file)}
+          deleteLogo={() => deleteOrganizationLogo(org.id)}
+        />
+
         <label className="flex items-center gap-2 text-sm">
           <Checkbox
             checked={org.hasStores}
