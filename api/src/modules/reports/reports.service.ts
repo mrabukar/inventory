@@ -5,7 +5,11 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
-import { requireManagerStore } from "../../common/utils/store-scope.util";
+import { TenantStoreResolver } from "../../common/tenant/tenant-store-resolver.service";
+import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
+import {
+  requireManagerStore,
+} from "../../common/utils/store-scope.util";
 import {
   calendarDateDaysAgo,
   calendarDateToDbDate,
@@ -66,9 +70,13 @@ const recentSaleInclude = {
 
 @Injectable()
 export class ReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantStoreResolver: TenantStoreResolver,
+  ) {}
 
-  async getAdminDashboard(query: ReportQueryDto) {
+  async getAdminDashboard(query: ReportQueryDto, user: CurrentUserPayload) {
+    const organizationId = requireOrganizationId(user);
     const range = resolveReportDateRange(query.fromDate, query.toDate);
     const storeId =
       typeof query.storeId === "string" ? query.storeId.trim() : undefined;
@@ -95,14 +103,18 @@ export class ReportsService {
       stockByCategory,
       recentSales,
     ] = await Promise.all([
-      this.computePeriodSummary(saleWhere, expenseWhere, storeId),
-      this.computePeriodMetrics(previousSaleWhere, previousExpenseWhere),
-      this.fetchMonthlySales(saleWhere, range),
-      this.fetchMonthlyExpenses(expenseWhere, range),
+      this.computePeriodSummary(saleWhere, expenseWhere, storeId, organizationId),
+      this.computePeriodMetrics(
+        previousSaleWhere,
+        previousExpenseWhere,
+        organizationId,
+      ),
+      this.fetchMonthlySales(saleWhere, range, organizationId),
+      this.fetchMonthlyExpenses(expenseWhere, range, organizationId),
       this.fetchExpenseBreakdown(expenseWhere),
       this.fetchTopProducts(saleWhere),
       storeId ? Promise.resolve([]) : this.fetchTopStores(saleWhere),
-      this.fetchStockByCategory(storeId),
+      this.fetchStockByCategory(storeId, organizationId),
       this.fetchRecentSales(saleWhere),
     ]);
 
@@ -151,7 +163,11 @@ export class ReportsService {
     };
   }
 
-  async getProductDistribution(query: ProductDistributionQueryDto) {
+  async getProductDistribution(
+    query: ProductDistributionQueryDto,
+    user: CurrentUserPayload,
+  ) {
+    const organizationId = requireOrganizationId(user);
     const range = resolveReportDateRange(query.fromDate, query.toDate);
     const storeId =
       typeof query.storeId === "string" ? query.storeId.trim() : undefined;
@@ -179,6 +195,7 @@ export class ReportsService {
       storeId,
       categoryId,
       products,
+      organizationId,
     );
 
     return {
@@ -198,10 +215,13 @@ export class ReportsService {
     };
   }
 
-  async getStockReport(query: ReportQueryDto) {
+  async getStockReport(query: ReportQueryDto, user: CurrentUserPayload) {
+    requireOrganizationId(user);
     const range = resolveReportDateRange(query.fromDate, query.toDate);
-    const storeId =
-      typeof query.storeId === "string" ? query.storeId.trim() : undefined;
+    const storeId = await this.tenantStoreResolver.resolveStoreFilter(
+      user,
+      query.storeId,
+    );
     const categoryId = query.categoryId;
 
     const products = await this.fetchStockReportRows(
@@ -235,6 +255,7 @@ export class ReportsService {
   }
 
   async getManagerDashboard(user: CurrentUserPayload) {
+    const organizationId = requireOrganizationId(user);
     const storeId = requireManagerStore(user);
     const today = todayCalendarDate();
     const monthStart = startOfMonthCalendarDate(today);
@@ -276,10 +297,10 @@ export class ReportsService {
         toCalendar: previousMonthEnd,
       }),
       this.sumInventoryUnits(storeId),
-      this.countLowStock(storeId),
-      this.countOutOfStock(storeId),
-      this.fetchDailyRevenue(storeId, trendStart, today),
-      this.fetchStockByCategory(storeId),
+      this.countLowStock(storeId, organizationId),
+      this.countOutOfStock(storeId, organizationId),
+      this.fetchDailyRevenue(storeId, trendStart, today, organizationId),
+      this.fetchStockByCategory(storeId, organizationId),
       this.fetchRecentSales({ storeId }),
     ]);
 
@@ -311,7 +332,8 @@ export class ReportsService {
     };
   }
 
-  async getFinancialSummary(query: ReportQueryDto) {
+  async getFinancialSummary(query: ReportQueryDto, user: CurrentUserPayload) {
+    const organizationId = requireOrganizationId(user);
     const range = resolveReportDateRange(query.fromDate, query.toDate);
     const storeId =
       typeof query.storeId === "string" ? query.storeId.trim() : undefined;
@@ -326,11 +348,11 @@ export class ReportsService {
       expenseByCategory,
       stockInvestment,
     ] = await Promise.all([
-      this.computePeriodSummary(saleWhere, expenseWhere, storeId),
-      this.fetchMonthlySales(saleWhere, range),
-      this.fetchMonthlyExpenses(expenseWhere, range),
+      this.computePeriodSummary(saleWhere, expenseWhere, storeId, organizationId),
+      this.fetchMonthlySales(saleWhere, range, organizationId),
+      this.fetchMonthlyExpenses(expenseWhere, range, organizationId),
       this.fetchExpenseBreakdown(expenseWhere),
-      this.fetchStockInvestment(range, storeId),
+      this.fetchStockInvestment(range, storeId, organizationId),
     ]);
 
     const monthKeys = buildMonthSeries(range.fromCalendar, range.toCalendar);
@@ -418,13 +440,14 @@ export class ReportsService {
   private async computePeriodMetrics(
     saleWhere: Prisma.SaleWhereInput,
     expenseWhere: Prisma.ExpenseWhereInput,
+    organizationId: string,
   ) {
     const [salesAgg, cogs, expensesAgg] = await Promise.all([
       this.prisma.sale.aggregate({
         where: saleWhere,
         _sum: { totalAmount: true, quantitySold: true },
       }),
-      this.sumCogs(saleWhere),
+      this.sumCogs(saleWhere, organizationId),
       this.prisma.expense.aggregate({
         where: expenseWhere,
         _sum: { amount: true },
@@ -450,11 +473,12 @@ export class ReportsService {
   private async computePeriodSummary(
     saleWhere: Prisma.SaleWhereInput,
     expenseWhere: Prisma.ExpenseWhereInput,
-    storeId?: string,
+    storeId: string | undefined,
+    organizationId: string,
   ) {
     const [metrics, stockMetrics] = await Promise.all([
-      this.computePeriodMetrics(saleWhere, expenseWhere),
-      this.computeLiveStockMetrics(storeId),
+      this.computePeriodMetrics(saleWhere, expenseWhere, organizationId),
+      this.computeLiveStockMetrics(storeId, organizationId),
     ]);
 
     return {
@@ -466,18 +490,27 @@ export class ReportsService {
     };
   }
 
-  private async sumCogs(where: Prisma.SaleWhereInput): Promise<number> {
+  private async sumCogs(
+    where: Prisma.SaleWhereInput,
+    organizationId: string,
+  ): Promise<number> {
     const rows = await this.prisma.$queryRaw<{ cogs: unknown }[]>`
       SELECT COALESCE(SUM(s."quantitySold" * s."unitPurchasePrice"), 0)::numeric AS cogs
       FROM "sale" s
-      ${this.buildSaleSqlFilter(where)}
+      ${this.buildSaleSqlFilter(where, organizationId)}
     `;
 
     return parseRawMoney(rows[0]?.cogs);
   }
 
-  private buildSaleSqlFilter(where: Prisma.SaleWhereInput): Prisma.Sql {
-    const parts: Prisma.Sql[] = [Prisma.sql`WHERE 1=1`];
+  private buildSaleSqlFilter(
+    where: Prisma.SaleWhereInput,
+    organizationId: string,
+  ): Prisma.Sql {
+    const parts: Prisma.Sql[] = [
+      Prisma.sql`WHERE 1=1`,
+      Prisma.sql`AND s."organizationId" = ${organizationId}`,
+    ];
 
     if (where.storeId && typeof where.storeId === "string") {
       parts.push(Prisma.sql`AND s."storeId" = ${where.storeId}`);
@@ -514,6 +547,7 @@ export class ReportsService {
   private async fetchMonthlySales(
     where: Prisma.SaleWhereInput,
     range: ReportDateRange,
+    organizationId: string,
   ): Promise<Array<{ month: string; revenue: number; cogs: number }>> {
     const rows = await this.prisma.$queryRaw<MonthlyTotalsRow[]>`
       SELECT
@@ -521,10 +555,13 @@ export class ReportsService {
         COALESCE(SUM(s."totalAmount"), 0)::numeric AS revenue,
         COALESCE(SUM(s."quantitySold" * s."unitPurchasePrice"), 0)::numeric AS cogs
       FROM "sale" s
-      ${this.buildSaleSqlFilter({
-        ...where,
-        saleDate: { gte: range.fromDate, lte: range.toDate },
-      })}
+      ${this.buildSaleSqlFilter(
+        {
+          ...where,
+          saleDate: { gte: range.fromDate, lte: range.toDate },
+        },
+        organizationId,
+      )}
       GROUP BY 1
       ORDER BY 1
     `;
@@ -539,6 +576,7 @@ export class ReportsService {
   private async fetchMonthlyExpenses(
     where: Prisma.ExpenseWhereInput,
     range: ReportDateRange,
+    organizationId: string,
   ): Promise<Array<{ month: string; amount: number }>> {
     const storeId =
       typeof where.storeId === "string" ? where.storeId : undefined;
@@ -550,6 +588,7 @@ export class ReportsService {
       FROM "expense" e
       WHERE e."expenseDate" >= ${range.fromDate}
         AND e."expenseDate" <= ${range.toDate}
+        AND e."organizationId" = ${organizationId}
         ${storeId ? Prisma.sql`AND e."storeId" = ${storeId}` : Prisma.empty}
       GROUP BY 1
       ORDER BY 1
@@ -700,13 +739,17 @@ export class ReportsService {
     return agg._sum.quantity ?? 0;
   }
 
-  private async countLowStock(storeId: string): Promise<number> {
+  private async countLowStock(
+    storeId: string,
+    organizationId: string,
+  ): Promise<number> {
     const rows = await this.prisma.$queryRaw<{ count: bigint }[]>`
       SELECT COUNT(*)::bigint AS count
       FROM "inventory" i
       INNER JOIN "product" p ON p.id = i."productId"
       INNER JOIN "store" st ON st.id = i."storeId"
       WHERE i."storeId" = ${storeId}
+        AND i."organizationId" = ${organizationId}
         AND p."isActive" = true
         AND st."isActive" = true
         AND i.quantity > 0
@@ -716,13 +759,17 @@ export class ReportsService {
     return Number(rows[0]?.count ?? 0);
   }
 
-  private async countOutOfStock(storeId: string): Promise<number> {
+  private async countOutOfStock(
+    storeId: string,
+    organizationId: string,
+  ): Promise<number> {
     const rows = await this.prisma.$queryRaw<{ count: bigint }[]>`
       SELECT COUNT(*)::bigint AS count
       FROM "inventory" i
       INNER JOIN "product" p ON p.id = i."productId"
       INNER JOIN "store" st ON st.id = i."storeId"
       WHERE i."storeId" = ${storeId}
+        AND i."organizationId" = ${organizationId}
         AND p."isActive" = true
         AND st."isActive" = true
         AND i.quantity = 0
@@ -735,6 +782,7 @@ export class ReportsService {
     storeId: string,
     fromCalendar: string,
     toCalendar: string,
+    organizationId: string,
   ): Promise<DailyRevenueRow[]> {
     const fromDate = calendarDateToDbDate(fromCalendar);
     const toDate = calendarDateToDbDate(toCalendar);
@@ -747,6 +795,7 @@ export class ReportsService {
         COALESCE(SUM(s."totalAmount"), 0)::numeric AS revenue
       FROM "sale" s
       WHERE s."storeId" = ${storeId}
+        AND s."organizationId" = ${organizationId}
         AND s."saleDate" >= ${fromDate}
         AND s."saleDate" <= ${toDate}
       GROUP BY 1
@@ -772,6 +821,7 @@ export class ReportsService {
       productName: string;
       productModel: string | null;
     }>,
+    organizationId: string,
   ) {
     const dates = eachCalendarDate(range.fromCalendar, range.toCalendar);
     const productIds = products.map((row) => row.productId);
@@ -799,6 +849,7 @@ export class ReportsService {
       INNER JOIN "product" p ON p.id = s."productId"
       WHERE s."saleDate" >= ${range.fromDate}
         AND s."saleDate" <= ${range.toDate}
+        AND s."organizationId" = ${organizationId}
         AND p."categoryId" = ${categoryId}
         ${storeId ? Prisma.sql`AND s."storeId" = ${storeId}` : Prisma.empty}
         AND s."productId" IN (${Prisma.join(productIds)})
@@ -881,7 +932,8 @@ export class ReportsService {
   }
 
   private async fetchStockByCategory(
-    storeId?: string,
+    storeId: string | undefined,
+    organizationId: string,
   ): Promise<CategoryStockRow[]> {
     const rows = await this.prisma.$queryRaw<CategoryStockRow[]>`
       SELECT
@@ -894,6 +946,8 @@ export class ReportsService {
       INNER JOIN "store" st ON st.id = i."storeId"
       WHERE p."isActive" = true
         AND st."isActive" = true
+        AND i."organizationId" = ${organizationId}
+        AND c."organizationId" = ${organizationId}
         ${storeId ? Prisma.sql`AND i."storeId" = ${storeId}` : Prisma.empty}
       GROUP BY p."categoryId", c.name
       ORDER BY units DESC
@@ -902,7 +956,10 @@ export class ReportsService {
     return rows;
   }
 
-  private async computeLiveStockMetrics(storeId?: string) {
+  private async computeLiveStockMetrics(
+    storeId: string | undefined,
+    organizationId: string,
+  ) {
     const rows = await this.prisma.$queryRaw<
       {
         stockValue: unknown;
@@ -921,6 +978,7 @@ export class ReportsService {
       INNER JOIN "store" st ON st.id = i."storeId"
       WHERE p."isActive" = true
         AND st."isActive" = true
+        AND i."organizationId" = ${organizationId}
         ${storeId ? Prisma.sql`AND i."storeId" = ${storeId}` : Prisma.empty}
     `;
 
@@ -934,13 +992,15 @@ export class ReportsService {
 
   private async fetchStockInvestment(
     range: ReportDateRange,
-    storeId?: string,
+    storeId: string | undefined,
+    organizationId: string,
   ): Promise<number> {
     const rows = await this.prisma.$queryRaw<{ total: unknown }[]>`
       SELECT COALESCE(SUM(ss.quantity * ss."unitPurchasePrice"), 0)::numeric AS total
       FROM "stock_supply" ss
       WHERE ss."createdAt" >= ${range.fromTimestamp}
         AND ss."createdAt" <= ${range.toTimestamp}
+        AND ss."organizationId" = ${organizationId}
         ${storeId ? Prisma.sql`AND ss."storeId" = ${storeId}` : Prisma.empty}
     `;
 
