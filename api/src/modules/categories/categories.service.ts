@@ -5,6 +5,9 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
+import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
+import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
+import { withOrganizationId } from "../../common/utils/with-organization-id.util";
 import { CreateCategoryDto } from "./dto/create-category.dto";
 import { UpdateCategoryDto } from "./dto/update-category.dto";
 
@@ -49,13 +52,19 @@ export class CategoriesService {
     return category;
   }
 
-  async create(dto: CreateCategoryDto): Promise<CategoryWithCount> {
+  async create(
+    dto: CreateCategoryDto,
+    user: CurrentUserPayload,
+  ): Promise<CategoryWithCount> {
     await this.assertUniqueName(dto.name);
     return this.prisma.category.create({
-      data: {
-        name: dto.name.trim(),
-        description: dto.description?.trim() || null,
-      },
+      data: withOrganizationId(
+        {
+          name: dto.name.trim(),
+          description: dto.description?.trim() || null,
+        },
+        requireOrganizationId(user),
+      ),
       ...categoryWithProductCount,
     });
   }
