@@ -7,6 +7,7 @@ import {
 import { AuditAction, Prisma, User, UserRole } from "@prisma/client";
 import { hashPassword } from "better-auth/crypto";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
+import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { PaginatedResult } from "../stores/stores.service";
 import { UpdateUserDto } from "./dto/update-user.dto";
@@ -101,7 +102,7 @@ export class UsersService {
     }
 
     if (nextStoreId) {
-      await this.assertActiveStore(nextStoreId);
+      await this.assertActiveStore(nextStoreId, existing.organizationId);
     }
 
     const email =
@@ -144,6 +145,7 @@ export class UsersService {
     await this.prisma.auditLog.create({
       data: {
         userId: actor.id,
+        organizationId: requireOrganizationId(actor),
         action: AuditAction.USER_UPDATED,
         entityType: "user",
         entityId: user.id,
@@ -177,6 +179,7 @@ export class UsersService {
     await this.prisma.auditLog.create({
       data: {
         userId: actor.id,
+        organizationId: requireOrganizationId(actor),
         action: AuditAction.USER_DEACTIVATED,
         entityType: "user",
         entityId: id,
@@ -194,7 +197,7 @@ export class UsersService {
     }
 
     if (existing.role === UserRole.branch_manager && existing.storeId) {
-      await this.assertActiveStore(existing.storeId);
+      await this.assertActiveStore(existing.storeId, existing.organizationId);
     }
 
     const user = await this.prisma.user.update({
@@ -208,6 +211,7 @@ export class UsersService {
     await this.prisma.auditLog.create({
       data: {
         userId: actor.id,
+        organizationId: requireOrganizationId(actor),
         action: AuditAction.USER_REACTIVATED,
         entityType: "user",
         entityId: id,
@@ -226,9 +230,11 @@ export class UsersService {
     const trimmed =
       typeof storeId === "string" ? storeId.trim() : (storeId ?? "");
 
-    if (role === UserRole.admin) {
+    if (role === UserRole.super_admin || role === UserRole.admin) {
       if (trimmed) {
-        throw new BadRequestException("storeId is not allowed for admin users");
+        throw new BadRequestException(
+          `storeId is not allowed for ${role} users`,
+        );
       }
       return null;
     }
@@ -240,9 +246,16 @@ export class UsersService {
     return trimmed;
   }
 
-  private async assertActiveStore(storeId: string): Promise<void> {
+  private async assertActiveStore(
+    storeId: string,
+    organizationId?: string | null,
+  ): Promise<void> {
     const store = await this.prisma.store.findFirst({
-      where: { id: storeId, isActive: true },
+      where: {
+        id: storeId,
+        isActive: true,
+        ...(organizationId ? { organizationId } : undefined),
+      },
     });
 
     if (!store) {
@@ -275,6 +288,7 @@ export class UsersService {
       name: user.name,
       email: user.email,
       role: user.role,
+      organizationId: user.organizationId,
       storeId: user.storeId,
       phone: user.phone,
       isActive: user.isActive,
