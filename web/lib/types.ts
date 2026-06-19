@@ -19,4 +19,6 @@ export interface AppUser {
   organizationId: string | null;
   organizationName: string | null;
   hasStores: boolean | null;
+  organizationLogoKey: string | null;
+  organizationLogoUpdatedAt: string | null;
 }
