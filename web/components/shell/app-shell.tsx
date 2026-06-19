@@ -10,21 +10,24 @@ import { Navbar } from "./navbar";
 import { ToastHost } from "@/components/ui/toast";
 
 const PAGE_TITLES: Record<string, string> = {
-  "/dashboard":     "Dashboard",
-  "/products":      "Products",
-  "/inventory":     "Inventory",
-  "/stock-report":  "Stock Report",
-  "/sales":         "Sales",
-  "/supply":        "Stock Supply",
-  "/expenses":      "Expenses",
-  "/financial":     "Financial Summary",
-  "/categories":    "Categories",
-  "/stores":        "Stores",
-  "/users":         "Users",
-  "/audit":         "Audit Log",
-  "/submit-sale":   "Submit Sale",
-  "/my-stock":      "My Stock",
+  "/dashboard": "Dashboard",
+  "/products": "Products",
+  "/inventory": "Inventory",
+  "/stock-report": "Stock Report",
+  "/sales": "Sales",
+  "/supply": "Stock Supply",
+  "/expenses": "Expenses",
+  "/financial": "Financial Summary",
+  "/categories": "Categories",
+  "/stores": "Stores",
+  "/users": "Users",
+  "/audit": "Audit Log",
+  "/submit-sale": "Submit Sale",
+  "/my-stock": "My Stock",
   "/sales-history": "Sales History",
+  "/super-admin": "Platform",
+  "/super-admin/organizations": "Organizations",
+  "/super-admin/organizations/new": "New Organization",
 };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -41,7 +44,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     !authLoading &&
     isAuthenticated &&
     user != null &&
-    !isRouteAllowedForRole(user.role, pathname);
+    !isRouteAllowedForRole(user.role, pathname, {
+      hasStores: user.hasStores,
+    });
 
   useEffect(() => {
     if (isFetched && !authLoading && !isAuthenticated) {
@@ -53,19 +58,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (roleDenied) {
-      router.replace("/dashboard");
+      router.replace(
+        user?.role === "super_admin" ? "/super-admin" : "/dashboard",
+      );
     }
-  }, [roleDenied, router]);
+  }, [roleDenied, router, user?.role]);
 
   if (!isFetched || authLoading || !user || roleDenied) return null;
 
-  const title = PAGE_TITLES[pathname] ?? "Dashboard";
+  const title =
+    PAGE_TITLES[pathname] ??
+    (pathname.startsWith("/super-admin/organizations/")
+      ? "Organization"
+      : "Dashboard");
 
   return (
     <div className="app-frame">
-      <Sidebar role={user.role} collapsed={collapsed} storeName={user.store} />
+      <Sidebar
+        role={user.role}
+        collapsed={collapsed}
+        storeName={user.store}
+        hasStores={user.hasStores}
+      />
       <div className="app-main">
-        <Navbar title={title} collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
+        <Navbar
+          title={title}
+          collapsed={collapsed}
+          onToggle={() => setCollapsed(!collapsed)}
+        />
         <div className="app-content">
           <div className="app-content-inner">{children}</div>
         </div>
