@@ -17,9 +17,14 @@ const fillColor = (qty: number, threshold: number) =>
 interface InventoryGridProps {
   rows: Inventory[];
   isLoading?: boolean;
+  hideStore?: boolean;
 }
 
-export function InventoryGrid({ rows, isLoading = false }: InventoryGridProps) {
+export function InventoryGrid({
+  rows,
+  isLoading = false,
+  hideStore = false,
+}: InventoryGridProps) {
   if (isLoading) {
     return (
       <div className="muted" style={{ padding: 24 }}>
@@ -45,10 +50,12 @@ export function InventoryGrid({ rows, isLoading = false }: InventoryGridProps) {
             <div className="ic-name">
               {formatProductLabel(row.product.name, row.product.model)}
             </div>
-            <div className="ic-store">
-              <Store size={13} />
-              {row.store.name}
-            </div>
+            {!hideStore ? (
+              <div className="ic-store">
+                <Store size={13} />
+                {row.store.name}
+              </div>
+            ) : null}
           </div>
           <div
             className="ic-qty num"
