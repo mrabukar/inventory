@@ -25,6 +25,7 @@ type SignUpBody = {
   password?: string;
   role?: string;
   storeId?: string;
+  organizationId?: string;
   email?: string;
   name?: string;
 };
@@ -39,8 +40,9 @@ export class AuthSignUpHook {
 
   @BeforeHook("/sign-up/email")
   async validateSignUp(ctx: AuthHookContext): Promise<void> {
-    if (!isBootstrapSignupAllowed()) {
-      await this.requireAdminSession(ctx);
+    const isBootstrap = isBootstrapSignupAllowed();
+    if (!isBootstrap) {
+      await this.requirePrivilegedSession(ctx);
     }
 
     const body = ctx.body as SignUpBody | undefined;
@@ -54,25 +56,80 @@ export class AuthSignUpHook {
     const role = body?.role;
     if (!isUserRole(role)) {
       throw new APIError("BAD_REQUEST", {
-        message: "role must be admin or branch_manager",
+        message: "role must be super_admin, admin, or branch_manager",
       });
     }
 
-    const storeId = body?.storeId?.trim();
-    if (role === UserRole.admin && storeId) {
-      throw new APIError("BAD_REQUEST", {
-        message: "storeId is not allowed for admin users",
+    if (isBootstrap && role === UserRole.super_admin) {
+      // Bootstrap may create the first platform super_admin only.
+    } else if (!isBootstrap && role === UserRole.super_admin) {
+      throw new APIError("FORBIDDEN", {
+        message: "super_admin cannot be created via sign-up",
       });
     }
 
-    if (role === UserRole.branch_manager && !storeId) {
-      throw new APIError("BAD_REQUEST", {
-        message: "storeId is required for branch managers",
-      });
+    const organizationId = body?.organizationId?.trim() || undefined;
+    const storeId = body?.storeId?.trim() || undefined;
+
+    if (role === UserRole.super_admin) {
+      if (organizationId) {
+        throw new APIError("BAD_REQUEST", {
+          message: "organizationId is not allowed for super_admin users",
+        });
+      }
+      if (storeId) {
+        throw new APIError("BAD_REQUEST", {
+          message: "storeId is not allowed for super_admin users",
+        });
+      }
     }
 
-    if (role === UserRole.branch_manager && storeId) {
-      await this.assertActiveStore(storeId);
+    if (role === UserRole.admin) {
+      if (storeId) {
+        throw new APIError("BAD_REQUEST", {
+          message: "storeId is not allowed for admin users",
+        });
+      }
+      if (!isBootstrap && !organizationId) {
+        throw new APIError("BAD_REQUEST", {
+          message: "organizationId is required for admin users",
+        });
+      }
+    }
+
+    if (role === UserRole.branch_manager) {
+      if (!organizationId) {
+        throw new APIError("BAD_REQUEST", {
+          message: "organizationId is required for branch managers",
+        });
+      }
+      if (!storeId) {
+        throw new APIError("BAD_REQUEST", {
+          message: "storeId is required for branch managers",
+        });
+      }
+
+      const org = await this.prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { hasStores: true, isActive: true },
+      });
+      if (!org?.isActive) {
+        throw new APIError("BAD_REQUEST", {
+          message: `Organization with id "${organizationId}" not found`,
+        });
+      }
+      if (!org.hasStores) {
+        throw new APIError("BAD_REQUEST", {
+          message:
+            "branch_manager cannot be created for an organization without stores",
+        });
+      }
+
+      await this.assertStoreInOrganization(storeId, organizationId);
+    }
+
+    if (!isBootstrap && organizationId) {
+      await this.assertAdminMayAssignOrganization(ctx, organizationId);
     }
   }
 
@@ -92,6 +149,7 @@ export class AuthSignUpHook {
         email: true,
         role: true,
         storeId: true,
+        organizationId: true,
         phone: true,
         isActive: true,
       },
@@ -103,9 +161,14 @@ export class AuthSignUpHook {
 
     const actorId = await this.resolveAuditActorId(ctx, created.id);
 
+    if (!created.organizationId) {
+      return;
+    }
+
     await this.prisma.auditLog.create({
       data: {
         userId: actorId,
+        organizationId: created.organizationId,
         action: AuditAction.USER_CREATED,
         entityType: "user",
         entityId: created.id,
@@ -115,7 +178,7 @@ export class AuthSignUpHook {
     });
   }
 
-  private async requireAdminSession(ctx: AuthHookContext): Promise<void> {
+  private async requirePrivilegedSession(ctx: AuthHookContext): Promise<void> {
     if (!ctx.headers) {
       throw new APIError("FORBIDDEN", {
         message:
@@ -134,10 +197,40 @@ export class AuthSignUpHook {
       });
     }
 
-    if (session.user.role !== UserRole.admin) {
+    const role = session.user.role;
+    if (role !== UserRole.admin && role !== UserRole.super_admin) {
       throw new APIError("FORBIDDEN", {
-        message: "Only admins can create users",
+        message: "Only admins or super admins can create users",
       });
+    }
+  }
+
+  private async assertAdminMayAssignOrganization(
+    ctx: AuthHookContext,
+    organizationId: string,
+  ): Promise<void> {
+    if (!ctx.headers) {
+      return;
+    }
+
+    const session = await this.authService.api.getSession({
+      headers: ctx.headers,
+    });
+
+    if (session?.user?.role === UserRole.super_admin) {
+      return;
+    }
+
+    if (session?.user?.role === UserRole.admin) {
+      const actorOrgId =
+        typeof session.user.organizationId === "string"
+          ? session.user.organizationId
+          : null;
+      if (actorOrgId !== organizationId) {
+        throw new APIError("FORBIDDEN", {
+          message: "Admins can only create users in their own organization",
+        });
+      }
     }
   }
 
@@ -156,15 +249,18 @@ export class AuthSignUpHook {
     return session?.user?.id ?? createdUserId;
   }
 
-  private async assertActiveStore(storeId: string): Promise<void> {
+  private async assertStoreInOrganization(
+    storeId: string,
+    organizationId: string,
+  ): Promise<void> {
     const store = await this.prisma.store.findFirst({
-      where: { id: storeId, isActive: true },
+      where: { id: storeId, organizationId, isActive: true },
       select: { id: true },
     });
 
     if (!store) {
       throw new APIError("BAD_REQUEST", {
-        message: `Store with id "${storeId}" not found`,
+        message: `Store with id "${storeId}" not found in this organization`,
       });
     }
   }
@@ -203,17 +299,28 @@ export class AuthUserDatabaseHook {
   @BeforeCreate("user")
   beforeUserCreate(user: Record<string, unknown>) {
     const role = user.role as UserRole | undefined;
-    const storeId =
-      role === UserRole.admin
-        ? null
-        : typeof user.storeId === "string"
+
+    let organizationId: string | null = null;
+    if (role !== UserRole.super_admin) {
+      organizationId =
+        typeof user.organizationId === "string"
+          ? user.organizationId.trim() || null
+          : (user.organizationId as string | null) ?? null;
+    }
+
+    let storeId: string | null = null;
+    if (role === UserRole.branch_manager) {
+      storeId =
+        typeof user.storeId === "string"
           ? user.storeId.trim() || null
-          : (user.storeId ?? null);
+          : (user.storeId as string | null) ?? null;
+    }
 
     return {
       data: {
         ...user,
         isActive: true,
+        organizationId,
         storeId,
       },
     };
