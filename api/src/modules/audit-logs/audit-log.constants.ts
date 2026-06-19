@@ -18,6 +18,7 @@ export const AUDIT_ACTIONS = [
   "STORE_UPDATED",
   "STORE_DEACTIVATED",
   "STORE_REACTIVATED",
+  "REPORT_EXPORTED",
 ] as const;
 
 export type AuditActionValue = (typeof AUDIT_ACTIONS)[number];
