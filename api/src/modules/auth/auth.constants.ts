@@ -4,8 +4,12 @@ export const SESSION_COOKIE_NAME = "better-auth.session_token";
 
 export { UserRole };
 
-/** Prisma enum values: `admin` | `branch_manager` */
-export const USER_ROLES = [UserRole.admin, UserRole.branch_manager] as const;
+/** Prisma enum values: `super_admin` | `admin` | `branch_manager` */
+export const USER_ROLES = [
+  UserRole.super_admin,
+  UserRole.admin,
+  UserRole.branch_manager,
+] as const;
 
 export function parseTrustedOrigins(value: string | undefined): string[] {
   if (!value) return [];
