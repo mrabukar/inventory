@@ -1,9 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   CreditCard,
-  Download,
   Layers,
   Package,
   TrendingUp,
@@ -16,8 +15,8 @@ import { PnlBreakdown } from "./components/pnl-breakdown";
 import { GroupedBar } from "@/components/charts/grouped-bar";
 import { LineArea } from "@/components/charts/line-area";
 import { ReportFilterBar } from "@/components/filters/report-filter-bar";
+import { ReportExportMenu } from "@/components/reports/report-export-menu";
 import { PageHeader } from "@/components/ui/page-header";
-import { Button } from "@/components/ui/button";
 import { StatCard } from "@/app/(app)/dashboard/components/stat-card";
 import { Card } from "@/components/ui/card";
 import { useReportFilters } from "@/hooks/filters/use-report-filters";
@@ -29,6 +28,7 @@ const defaultRange = getLastSixMonthsRange();
 
 export default function FinancialPage() {
   const filters = useReportFilters(defaultRange);
+  const [exportBusy, setExportBusy] = useState(false);
   const { data, isLoading, isError, error } = useFinancialSummary(filters.query);
 
   const revenueChart = useMemo(
@@ -56,11 +56,13 @@ export default function FinancialPage() {
       desc="Revenue, cost, and profit for the selected period"
       action={
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <ReportFilterBar filters={filters} />
-          <Button variant="outline" disabled>
-            <Download className="size-4" />
-            Export
-          </Button>
+          <ReportFilterBar filters={filters} disabled={exportBusy} />
+          <ReportExportMenu
+            report="financial-summary"
+            params={filters.query}
+            disabled={exportBusy}
+            onBusyChange={setExportBusy}
+          />
         </div>
       }
     />
