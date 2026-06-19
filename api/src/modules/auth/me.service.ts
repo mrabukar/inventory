@@ -8,11 +8,23 @@ const storeSelect = {
   isActive: true,
 } as const;
 
+const organizationSelect = {
+  id: true,
+  name: true,
+  hasStores: true,
+} as const;
+
 export type MeStore = {
   id: string;
   name: string;
   address: string;
   isActive: boolean;
+};
+
+export type MeOrganization = {
+  id: string;
+  name: string;
+  hasStores: boolean;
 };
 
 @Injectable()
@@ -23,18 +35,29 @@ export class MeService {
     const storeId =
       typeof user.storeId === "string" ? user.storeId.trim() : null;
 
-    const store: MeStore | null =
+    const organizationId =
+      typeof user.organizationId === "string" ? user.organizationId : null;
+
+    const [store, organization] = await Promise.all([
       storeId != null
-        ? await this.prisma.store.findUnique({
+        ? this.prisma.store.findUnique({
             where: { id: storeId },
             select: storeSelect,
           })
-        : null;
+        : Promise.resolve(null),
+      organizationId
+        ? this.prisma.organization.findUnique({
+            where: { id: organizationId },
+            select: organizationSelect,
+          })
+        : Promise.resolve(null),
+    ]);
 
     return {
       user: {
         ...user,
         store,
+        organization,
       },
     };
   }
