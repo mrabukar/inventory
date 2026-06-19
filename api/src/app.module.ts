@@ -19,8 +19,10 @@ import { ReportsModule } from "./modules/reports/reports.module";
 import { SalesModule } from "./modules/sales/sales.module";
 import { StockSuppliesModule } from "./modules/stock-supplies/stock-supplies.module";
 import { StoresModule } from "./modules/stores/stores.module";
+import { OrganizationsModule } from "./modules/organizations/organizations.module";
 import { UsersModule } from "./modules/users/users.module";
 import { PrismaModule } from "./prisma/prisma.module";
+import { TenantModule } from "./common/tenant/tenant.module";
 
 @Module({
   imports: [
@@ -59,6 +61,7 @@ import { PrismaModule } from "./prisma/prisma.module";
       },
     }),
     PrismaModule,
+    TenantModule,
     HealthModule,
     BetterAuthNestModule,
     StoresModule,
@@ -71,6 +74,7 @@ import { PrismaModule } from "./prisma/prisma.module";
     ExpenseCategoriesModule,
     ExpensesModule,
     ReportsModule,
+    OrganizationsModule,
     UsersModule,
   ],
   controllers: [AppController],
