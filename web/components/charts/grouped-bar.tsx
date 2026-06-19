@@ -160,7 +160,7 @@ export function GroupedBar({
             fill="var(--fg3)"
             fontFamily="var(--font-mono)"
           >
-            {"$" + Math.round((max * g) / 1000) + "k"}
+            {fmt(max * g)}
           </text>
         ))}
         <rect
