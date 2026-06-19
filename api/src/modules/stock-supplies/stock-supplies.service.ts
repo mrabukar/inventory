@@ -11,6 +11,9 @@ import {
 } from "../../common/utils/app-timezone.util";
 import { MUTATION_TRANSACTION_OPTIONS } from "../../common/constants/prisma-transaction.constants";
 import { lockInventoryForMutation } from "../../common/utils/inventory-lock.util";
+import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
+import { withOrganizationId } from "../../common/utils/with-organization-id.util";
+import { TenantStoreResolver } from "../../common/tenant/tenant-store-resolver.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ProductsService } from "../products/products.service";
 import { PaginatedResult, StoresService } from "../stores/stores.service";
@@ -34,7 +37,7 @@ export type StockSupplyWithDetails = Prisma.StockSupplyGetPayload<{
 
 interface RecordStockChangeInput {
   productId: string;
-  storeId: string;
+  storeId?: string;
   signedQuantity: number;
   unitPurchasePrice?: number;
   note?: string;
@@ -48,6 +51,7 @@ export class StockSuppliesService {
     private readonly prisma: PrismaService,
     private readonly storesService: StoresService,
     private readonly productsService: ProductsService,
+    private readonly tenantStoreResolver: TenantStoreResolver,
   ) {}
 
   async findAll(
@@ -174,13 +178,17 @@ export class StockSuppliesService {
   ): Promise<StockSupplyWithDetails> {
     const {
       productId,
-      storeId,
       signedQuantity,
       unitPurchasePrice,
       note,
       correctsSupplyId,
       type,
     } = input;
+
+    const storeId = await this.tenantStoreResolver.resolveMutationStoreId(
+      user,
+      input.storeId,
+    );
 
     if (signedQuantity === 0) {
       throw new BadRequestException("Quantity must not be zero");
@@ -196,8 +204,15 @@ export class StockSuppliesService {
 
     const resolvedPrice = unitPurchasePrice ?? Number(product.purchasePrice);
 
+    const organizationId = requireOrganizationId(user);
+
     const supplyId = await this.prisma.$transaction(async (tx) => {
-      const inventory = await lockInventoryForMutation(tx, productId, storeId);
+      const inventory = await lockInventoryForMutation(
+        tx,
+        organizationId,
+        productId,
+        storeId,
+      );
 
       const previousQty = inventory?.quantity ?? 0;
       const newQty = previousQty + signedQuantity;
@@ -209,16 +224,19 @@ export class StockSuppliesService {
       }
 
       const stockSupply = await tx.stockSupply.create({
-        data: {
-          productId,
-          storeId,
-          quantity: signedQuantity,
-          unitPurchasePrice: resolvedPrice,
-          type,
-          correctsSupplyId,
-          suppliedById: user.id,
-          note,
-        },
+        data: withOrganizationId(
+          {
+            productId,
+            storeId,
+            quantity: signedQuantity,
+            unitPurchasePrice: resolvedPrice,
+            type,
+            correctsSupplyId,
+            suppliedById: user.id,
+            note,
+          },
+          organizationId,
+        ),
       });
 
       const updatedInventory = inventory
@@ -227,12 +245,16 @@ export class StockSuppliesService {
             data: { quantity: newQty },
           })
         : await tx.inventory.create({
-            data: { productId, storeId, quantity: newQty },
+            data: withOrganizationId(
+              { productId, storeId, quantity: newQty },
+              organizationId,
+            ),
           });
 
       await tx.auditLog.create({
         data: {
           userId: user.id,
+          organizationId,
           action: "STOCK_SUPPLIED",
           entityType: "stock_supply",
           entityId: stockSupply.id,
@@ -253,6 +275,7 @@ export class StockSuppliesService {
       await tx.auditLog.create({
         data: {
           userId: user.id,
+          organizationId,
           action: "INVENTORY_UPDATED",
           entityType: "inventory",
           entityId: updatedInventory.id,
