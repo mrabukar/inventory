@@ -1,10 +1,12 @@
 model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  hasStores Boolean  @default(true)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String    @id @default(cuid())
+  name          String
+  hasStores     Boolean   @default(true)
+  isActive      Boolean   @default(true)
+  logoKey       String?
+  logoUpdatedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   users             User[]
   stores            Store[]
