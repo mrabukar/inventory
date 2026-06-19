@@ -12,6 +12,8 @@ const organizationSelect = {
   id: true,
   name: true,
   hasStores: true,
+  logoKey: true,
+  logoUpdatedAt: true,
 } as const;
 
 export type MeStore = {
@@ -25,6 +27,8 @@ export type MeOrganization = {
   id: string;
   name: string;
   hasStores: boolean;
+  logoKey: string | null;
+  logoUpdatedAt: string | null;
 };
 
 @Injectable()
