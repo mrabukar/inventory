@@ -9,6 +9,8 @@ import {
   parseDateColumnRangeEnd,
   parseDateColumnRangeStart,
 } from "../../common/utils/app-timezone.util";
+import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
+import { withOrganizationId } from "../../common/utils/with-organization-id.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ExpenseCategoriesService } from "../expense-categories/expense-categories.service";
 import { PaginatedResult } from "../stores/stores.service";
@@ -108,22 +110,28 @@ export class ExpensesService {
       await this.storesService.findOne(dto.storeId);
     }
 
+    const organizationId = requireOrganizationId(user);
+
     const expenseId = await this.prisma.$transaction(async (tx) => {
       const expense = await tx.expense.create({
-        data: {
-          title: dto.title,
-          amount: dto.amount,
-          categoryId: dto.categoryId,
-          storeId: dto.storeId ?? null,
-          expenseDate,
-          note: dto.note,
-          createdById: user.id,
-        },
+        data: withOrganizationId(
+          {
+            title: dto.title,
+            amount: dto.amount,
+            categoryId: dto.categoryId,
+            storeId: dto.storeId ?? null,
+            expenseDate,
+            note: dto.note,
+            createdById: user.id,
+          },
+          organizationId,
+        ),
       });
 
       await tx.auditLog.create({
         data: {
           userId: user.id,
+          organizationId,
           action: "EXPENSE_CREATED",
           entityType: "expense",
           entityId: expense.id,
@@ -166,6 +174,8 @@ export class ExpensesService {
         ? parseAndValidateExpenseDate(dto.expenseDate)
         : undefined;
 
+    const organizationId = requireOrganizationId(user);
+
     const expenseId = await this.prisma.$transaction(async (tx) => {
       const expense = await tx.expense.update({
         where: { id },
@@ -184,6 +194,7 @@ export class ExpensesService {
       await tx.auditLog.create({
         data: {
           userId: user.id,
+          organizationId,
           action: "EXPENSE_UPDATED",
           entityType: "expense",
           entityId: expense.id,
@@ -201,12 +212,15 @@ export class ExpensesService {
   async remove(id: string, user: CurrentUserPayload): Promise<void> {
     const existing = await this.findOne(id);
 
+    const organizationId = requireOrganizationId(user);
+
     await this.prisma.$transaction(async (tx) => {
       await tx.expense.delete({ where: { id } });
 
       await tx.auditLog.create({
         data: {
           userId: user.id,
+          organizationId,
           action: "EXPENSE_DELETED",
           entityType: "expense",
           entityId: id,
