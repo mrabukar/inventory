@@ -14,9 +14,10 @@ export class CreateStockSupplyDto {
   @IsNotEmpty()
   productId!: string;
 
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
-  storeId!: string;
+  storeId?: string;
 
   @Type(() => Number)
   @IsInt()
