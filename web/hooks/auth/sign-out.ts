@@ -2,14 +2,8 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { authClient } from "@/lib/auth/client";
+import { clearClientSession } from "@/lib/auth/query-cache";
 import { useAppStore } from "@/store/app";
-import { SESSION_QUERY_KEY } from "./session";
-
-/** Clear client session without triggering a /me refetch. */
-export function clearClientSession(queryClient: ReturnType<typeof useQueryClient>) {
-  void queryClient.cancelQueries({ queryKey: SESSION_QUERY_KEY });
-  queryClient.setQueryData(SESSION_QUERY_KEY, null);
-}
 
 export function useSignOut() {
   const queryClient = useQueryClient();
