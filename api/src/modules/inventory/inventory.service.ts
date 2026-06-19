@@ -1,10 +1,9 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { AuditAction, Prisma, UserRole } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
-import {
-  assertStoreAccess,
-  resolveStoreFilter,
-} from "../../common/utils/store-scope.util";
+import { TenantStoreResolver } from "../../common/tenant/tenant-store-resolver.service";
+import { assertStoreAccess } from "../../common/utils/store-scope.util";
+import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ProductsService } from "../products/products.service";
 import { PaginatedResult, StoresService } from "../stores/stores.service";
@@ -29,6 +28,7 @@ export class InventoryService {
     private readonly prisma: PrismaService,
     private readonly storesService: StoresService,
     private readonly productsService: ProductsService,
+    private readonly tenantStoreResolver: TenantStoreResolver,
   ) {}
 
   async findAll(
@@ -40,7 +40,10 @@ export class InventoryService {
     if (queryStoreId) {
       assertStoreAccess(queryStoreId, user);
     }
-    const storeId = resolveStoreFilter(user, query.storeId);
+    const storeId = await this.tenantStoreResolver.resolveStoreFilter(
+      user,
+      query.storeId,
+    );
     if (storeId) {
       await this.storesService.findOne(storeId);
     }
@@ -70,6 +73,7 @@ export class InventoryService {
     const lowStockFilter = await this.buildLowStockFilter(
       storeId,
       lowStockOnly,
+      requireOrganizationId(user),
     );
 
     const where = this.buildInventoryWhere(
@@ -191,6 +195,7 @@ export class InventoryService {
     await this.prisma.auditLog.create({
       data: {
         userId: user.id,
+        organizationId: requireOrganizationId(user),
         action: AuditAction.INVENTORY_UPDATED,
         entityType: "inventory",
         entityId: updated.id,
@@ -260,8 +265,9 @@ export class InventoryService {
   private async buildLowStockFilter(
     storeId: string | undefined,
     lowStockOnly?: boolean,
+    organizationId?: string,
   ): Promise<Prisma.InventoryWhereInput> {
-    if (!lowStockOnly) {
+    if (!lowStockOnly || !organizationId) {
       return {};
     }
 
@@ -269,6 +275,7 @@ export class InventoryService {
       SELECT id FROM inventory
       WHERE quantity > 0
       AND quantity <= "lowStockThreshold"
+      AND "organizationId" = ${organizationId}
       ${storeId ? Prisma.sql`AND "storeId" = ${storeId}` : Prisma.empty}
     `;
 
@@ -279,16 +286,16 @@ export class InventoryService {
     return { id: { in: lowStockRows.map((row) => row.id) } };
   }
 
-  private resolveAlertStoreId(
+  private async resolveAlertStoreId(
     user: CurrentUserPayload,
     queryStoreId?: string,
-  ): string | undefined {
+  ): Promise<string | undefined> {
     const trimmed =
       typeof queryStoreId === "string" ? queryStoreId.trim() : undefined;
     if (trimmed) {
       assertStoreAccess(trimmed, user);
     }
-    return resolveStoreFilter(user, queryStoreId);
+    return this.tenantStoreResolver.resolveStoreFilter(user, queryStoreId);
   }
 
   private async findStockAlerts(
@@ -296,7 +303,7 @@ export class InventoryService {
     query: InventoryAlertQueryDto,
     user: CurrentUserPayload,
   ): Promise<PaginatedResult<InventoryWithDetails>> {
-    const storeId = this.resolveAlertStoreId(user, query.storeId);
+    const storeId = await this.resolveAlertStoreId(user, query.storeId);
     const search =
       typeof query.search === "string" ? query.search.trim() : undefined;
     const { page, limit, categoryId } = query;
@@ -326,6 +333,7 @@ export class InventoryService {
       };
     }
 
+    const organizationId = requireOrganizationId(user);
     const searchPattern = search ? `%${search}%` : null;
     const [countRows, idRows] = await Promise.all([
       this.prisma.$queryRaw<{ count: bigint }[]>`
@@ -335,6 +343,7 @@ export class InventoryService {
         INNER JOIN "store" st ON st.id = i."storeId"
         WHERE p."isActive" = true
           AND st."isActive" = true
+          AND i."organizationId" = ${organizationId}
           AND i.quantity > 0
           AND i.quantity <= i."lowStockThreshold"
           ${storeId ? Prisma.sql`AND i."storeId" = ${storeId}` : Prisma.empty}
@@ -348,6 +357,7 @@ export class InventoryService {
         INNER JOIN "store" st ON st.id = i."storeId"
         WHERE p."isActive" = true
           AND st."isActive" = true
+          AND i."organizationId" = ${organizationId}
           AND i.quantity > 0
           AND i.quantity <= i."lowStockThreshold"
           ${storeId ? Prisma.sql`AND i."storeId" = ${storeId}` : Prisma.empty}
