@@ -18,18 +18,24 @@ enum AuditAction {
   STORE_UPDATED
   STORE_DEACTIVATED
   STORE_REACTIVATED
+  ORGANIZATION_CREATED
+  ORGANIZATION_UPDATED
+  ORGANIZATION_DEACTIVATED
+  ORGANIZATION_REACTIVATED
 }
 
 model AuditLog {
-  id         String      @id @default(cuid())
-  userId     String
-  user       User        @relation(fields: [userId], references: [id])
-  action     AuditAction
-  entityType String
-  entityId   String
-  oldValue   Json?
-  newValue   Json?
-  createdAt  DateTime    @default(now())
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  action         AuditAction
+  entityType     String
+  entityId       String
+  oldValue       Json?
+  newValue       Json?
+  createdAt      DateTime     @default(now())
 
   @@index([userId])
   @@index([action])
