@@ -6,6 +6,8 @@ import {
 } from "@nestjs/common";
 import { AuditAction, Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
+import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
+import { withOrganizationId } from "../../common/utils/with-organization-id.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { PaginatedResult } from "../stores/stores.service";
 import { CreateProductDto } from "./dto/create-product.dto";
@@ -92,34 +94,47 @@ export class ProductsService {
   ): Promise<ProductWithCategory> {
     await this.assertCategoryExists(dto.categoryId);
 
+    const organizationId = requireOrganizationId(user);
+
     const name = dto.name.trim();
     const normalizedName = normalizeProductName(name);
     const model = dto.model?.trim() || null;
     const normalizedModel = model ? normalizeProductName(model) : null;
-    await this.assertUniqueNameAndModel(normalizedName, normalizedModel);
+    await this.assertUniqueNameAndModel(
+      normalizedName,
+      normalizedModel,
+      organizationId,
+    );
 
     assertSellingPriceNotBelowPurchase(dto.purchasePrice, dto.sellingPrice);
 
-    const product = await this.prisma.product
-      .create({
-        data: {
-          name,
-          normalizedName,
-          model,
-          normalizedModel,
-          categoryId: dto.categoryId,
-          description: dto.description,
-          purchasePrice: dto.purchasePrice,
-          sellingPrice: dto.sellingPrice,
-          createdById: user.id,
-        },
+    let product: ProductWithCategory;
+    try {
+      product = await this.prisma.product.create({
+        data: withOrganizationId(
+          {
+            name,
+            normalizedName,
+            model,
+            normalizedModel,
+            categoryId: dto.categoryId,
+            description: dto.description,
+            purchasePrice: dto.purchasePrice,
+            sellingPrice: dto.sellingPrice,
+            createdById: user.id,
+          },
+          organizationId,
+        ),
         include: { category: true },
-      })
-      .catch((e) => this.handleP2002(e));
+      });
+    } catch (e) {
+      this.handleP2002(e);
+    }
 
     await this.prisma.auditLog.create({
       data: {
         userId: user.id,
+        organizationId,
         action: AuditAction.PRODUCT_CREATED,
         entityType: "product",
         entityId: product.id,
@@ -156,6 +171,8 @@ export class ProductsService {
       ? normalizeProductName(incomingModel)
       : null;
 
+    const organizationId = requireOrganizationId(user);
+
     if (dto.name !== undefined) {
       const name = dto.name.trim();
       const normalizedName = normalizeProductName(name);
@@ -167,6 +184,7 @@ export class ProductsService {
         await this.assertUniqueNameAndModel(
           normalizedName,
           incomingNormalizedModel,
+          organizationId,
           id,
         );
       }
@@ -177,6 +195,7 @@ export class ProductsService {
       await this.assertUniqueNameAndModel(
         existing.normalizedName,
         incomingNormalizedModel,
+        organizationId,
         id,
       );
     }
@@ -210,6 +229,7 @@ export class ProductsService {
     await this.prisma.auditLog.create({
       data: {
         userId: user.id,
+        organizationId,
         action: AuditAction.PRODUCT_UPDATED,
         entityType: "product",
         entityId: product.id,
@@ -247,6 +267,7 @@ export class ProductsService {
     await this.prisma.auditLog.create({
       data: {
         userId: user.id,
+        organizationId: requireOrganizationId(user),
         action: "PRODUCT_DEACTIVATED",
         entityType: "product",
         entityId: id,
@@ -282,9 +303,12 @@ export class ProductsService {
       throw new NotFoundException(`Inactive product with id "${id}" not found`);
     }
 
+    const organizationId = requireOrganizationId(user);
+
     await this.assertUniqueNameAndModel(
       normalizeProductName(existing.name),
       (existing as any).normalizedModel as string | null,
+      organizationId,
       id,
     );
 
@@ -297,6 +321,7 @@ export class ProductsService {
     await this.prisma.auditLog.create({
       data: {
         userId: user.id,
+        organizationId,
         action: "PRODUCT_REACTIVATED",
         entityType: "product",
         entityId: id,
@@ -321,10 +346,12 @@ export class ProductsService {
   private async assertUniqueNameAndModel(
     normalizedName: string,
     normalizedModel: string | null,
+    organizationId: string,
     excludeId?: string,
   ): Promise<void> {
     const conflict = await this.prisma.product.findFirst({
       where: {
+        organizationId,
         normalizedName,
         normalizedModel,
         isActive: true,
