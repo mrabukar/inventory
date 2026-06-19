@@ -11,6 +11,10 @@ import {
   Post,
 } from "@nestjs/common";
 import { UserRole } from "@prisma/client";
+import {
+  CurrentUser,
+  type CurrentUserPayload,
+} from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
 import { CategoriesService } from "./categories.service";
 import { CreateCategoryDto } from "./dto/create-category.dto";
@@ -28,8 +32,11 @@ export class CategoriesController {
   @Roles(UserRole.admin)
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() dto: CreateCategoryDto) {
-    return this.categoriesService.create(dto);
+  create(
+    @Body() dto: CreateCategoryDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.categoriesService.create(dto, user);
   }
 
   @Roles(UserRole.admin)
