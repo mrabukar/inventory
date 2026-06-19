@@ -6,9 +6,10 @@ import { Combobox } from "@/components/ui/combobox";
 
 interface StoreFilterProps {
   filters: ReportFilters;
+  disabled?: boolean;
 }
 
-export function StoreFilter({ filters }: StoreFilterProps) {
+export function StoreFilter({ filters, disabled = false }: StoreFilterProps) {
   const { data, isLoading } = useStores({ limit: 100 });
   const stores = data?.data ?? [];
 
@@ -28,6 +29,7 @@ export function StoreFilter({ filters }: StoreFilterProps) {
       emptyText="No stores found."
       clearOption={{ label: "All stores" }}
       loading={isLoading}
+      disabled={disabled}
     />
   );
 }
