@@ -5,6 +5,9 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
   "engines": {
     "node": ">=20"
   },
@@ -23,7 +26,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:generate": "prisma generate --schema=./prisma",
     "prisma:migrate": "prisma migrate dev --schema=./prisma",
-    "prisma:studio": "prisma studio --schema=./prisma"
+    "prisma:studio": "prisma studio --schema=./prisma",
+    "prisma:seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
