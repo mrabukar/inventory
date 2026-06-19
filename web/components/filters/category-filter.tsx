@@ -9,6 +9,7 @@ interface CategoryFilterProps {
   value?: number;
   onValueChange?: (categoryId: number | undefined) => void;
   allowClear?: boolean;
+  disabled?: boolean;
 }
 
 export function CategoryFilter({
@@ -16,6 +17,7 @@ export function CategoryFilter({
   value,
   onValueChange,
   allowClear = true,
+  disabled = false,
 }: CategoryFilterProps) {
   const { data: categories = [], isLoading } = useCategories();
 
@@ -47,6 +49,7 @@ export function CategoryFilter({
       emptyText="No categories found."
       clearOption={allowClear ? { label: "All categories" } : undefined}
       loading={isLoading}
+      disabled={disabled}
       className="min-w-[160px]"
     />
   );
