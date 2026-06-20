@@ -9,6 +9,7 @@ interface Props {
 export function DashboardPageHeader({ filters }: Props) {
   return (
     <PageHeader
+      className="page-head--band"
       title="Dashboard"
       desc="Monitor revenue, profit, expenses, and inventory for the selected period."
       action={<ReportFilterBar filters={filters} />}
