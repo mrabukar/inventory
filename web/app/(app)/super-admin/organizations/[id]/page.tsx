@@ -4,14 +4,18 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 
 import { OrganizationLogoUpload } from "@/components/organization/organization-logo-upload";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+// import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+// import { useActivateOrganizationUser } from "@/hooks/organizations/use-activate-organization-user";
+// import { useDeactivateOrganizationUser } from "@/hooks/organizations/use-deactivate-organization-user";
+import { useUpdateOrganizationUser } from "@/hooks/organizations/use-update-organization-user";
 import { useCreateUser } from "@/hooks/users/use-create-user";
 import {
   getOrganization,
@@ -24,11 +28,33 @@ import {
 } from "@/service/organizations/logo";
 import { useAppStore } from "@/store/app";
 import { isStrongPassword, STRONG_PASSWORD_MESSAGE } from "@/lib/auth/password";
+import { cn } from "@/lib/utils";
+import type { OrganizationUser } from "@/types/organizations/organization";
+import type { User } from "@/types/users/user";
+import {
+  UserModal,
+  type UserFormValues,
+} from "@/app/(app)/users/components/user-modal";
 
 import { OrganizationUsersTable } from "./components/organization-users-table";
 
 const inputCls =
   "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+
+function toUserModalUser(user: OrganizationUser): User {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: "admin",
+    phone: user.phone,
+    isActive: user.isActive,
+    storeId: user.store?.id ?? null,
+    store: user.store,
+    createdAt: "",
+    updatedAt: "",
+  };
+}
 
 export default function OrganizationDetailPage() {
   const params = useParams<{ id: string }>();
@@ -77,6 +103,13 @@ export default function OrganizationDetailPage() {
   const [adminName, setAdminName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
+  const [adminConfirmPassword, setAdminConfirmPassword] = useState("");
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [showAdminConfirmPassword, setShowAdminConfirmPassword] = useState(false);
+  const [passwordMismatch, setPasswordMismatch] = useState(false);
+  const [editUser, setEditUser] = useState<OrganizationUser | null>(null);
+  // const [confirmDeactivate, setConfirmDeactivate] =
+  //   useState<OrganizationUser | null>(null);
 
   useEffect(() => {
     if (!org) return;
@@ -102,6 +135,9 @@ export default function OrganizationDetailPage() {
   });
 
   const createAdmin = useCreateUser(id);
+  const updateOrgUser = useUpdateOrganizationUser(id);
+  // const deactivateOrgUser = useDeactivateOrganizationUser(id);
+  // const activateOrgUser = useActivateOrganizationUser(id);
 
   const settingsDirty =
     org != null &&
@@ -112,6 +148,53 @@ export default function OrganizationDetailPage() {
   if (isPending || !org) {
     return <p className="text-muted-foreground">Loading…</p>;
   }
+
+  const saveOrgAdmin = async (form: UserFormValues) => {
+    if (!editUser) return;
+    try {
+      const input: Parameters<typeof updateOrgUser.mutateAsync>[0]["input"] = {
+        name: form.name,
+        email: form.email,
+        phone: form.phone || null,
+      };
+      if (form.password) input.password = form.password;
+
+      await updateOrgUser.mutateAsync({ userId: editUser.id, input });
+      addToast({ title: "Admin user updated" });
+      setEditUser(null);
+    } catch (error) {
+      addErrorToast({
+        title: "Failed to update admin",
+        sub: error instanceof Error ? error.message : undefined,
+      });
+    }
+  };
+
+  // const handleDeactivate = async () => {
+  //   if (!confirmDeactivate) return;
+  //   try {
+  //     await deactivateOrgUser.mutateAsync(confirmDeactivate.id);
+  //     addToast({ title: "Admin user deactivated" });
+  //     setConfirmDeactivate(null);
+  //   } catch (error) {
+  //     addErrorToast({
+  //       title: "Failed to deactivate admin",
+  //       sub: error instanceof Error ? error.message : undefined,
+  //     });
+  //   }
+  // };
+
+  // const handleActivate = async (user: OrganizationUser) => {
+  //   try {
+  //     await activateOrgUser.mutateAsync(user.id);
+  //     addToast({ title: "Admin user reactivated" });
+  //   } catch (error) {
+  //     addErrorToast({
+  //       title: "Failed to reactivate admin",
+  //       sub: error instanceof Error ? error.message : undefined,
+  //     });
+  //   }
+  // };
 
   return (
     <>
@@ -221,6 +304,9 @@ export default function OrganizationDetailPage() {
               setPageSize(nextSize);
             }}
             isLoading={usersLoading}
+            onEdit={(user) => setEditUser(user)}
+            // onDeactivate={(user) => setConfirmDeactivate(user)}
+            // onActivate={(user) => void handleActivate(user)}
           />
         </Card>
 
@@ -230,10 +316,16 @@ export default function OrganizationDetailPage() {
               className="space-y-4"
               onSubmit={async (e) => {
                 e.preventDefault();
+                if (adminPassword !== adminConfirmPassword) {
+                  setPasswordMismatch(true);
+                  addErrorToast({ title: "Passwords do not match" });
+                  return;
+                }
                 if (!isStrongPassword(adminPassword)) {
                   addErrorToast({ title: STRONG_PASSWORD_MESSAGE });
                   return;
                 }
+                setPasswordMismatch(false);
                 try {
                   await createAdmin.mutateAsync({
                     name: adminName.trim(),
@@ -245,6 +337,9 @@ export default function OrganizationDetailPage() {
                   setAdminName("");
                   setAdminEmail("");
                   setAdminPassword("");
+                  setAdminConfirmPassword("");
+                  setShowAdminPassword(false);
+                  setShowAdminConfirmPassword(false);
                   queryClient.invalidateQueries({ queryKey: ["organizations", id] });
                   queryClient.invalidateQueries({
                     queryKey: ["organizations", id, "users"],
@@ -295,19 +390,81 @@ export default function OrganizationDetailPage() {
                 >
                   Password <span className="text-destructive">*</span>
                 </label>
-                <input
-                  id="admin-password"
-                  className={inputCls}
-                  placeholder="Strong password"
-                  type="password"
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
-                  required
-                  disabled={createAdmin.isPending}
-                />
+                <div className="relative">
+                  <input
+                    id="admin-password"
+                    className={cn(inputCls, "pr-10")}
+                    placeholder="Strong password"
+                    type={showAdminPassword ? "text" : "password"}
+                    value={adminPassword}
+                    onChange={(e) => {
+                      setAdminPassword(e.target.value);
+                      setPasswordMismatch(false);
+                    }}
+                    required
+                    disabled={createAdmin.isPending}
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+                    onClick={() => setShowAdminPassword((show) => !show)}
+                    tabIndex={-1}
+                    aria-label={showAdminPassword ? "Hide password" : "Show password"}
+                  >
+                    {showAdminPassword ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
+                  </button>
+                </div>
                 <p className="text-sm text-muted-foreground">
                   {STRONG_PASSWORD_MESSAGE}
                 </p>
+              </div>
+
+              <div className="grid gap-2">
+                <label
+                  htmlFor="admin-confirm-password"
+                  className="text-sm font-medium leading-none"
+                >
+                  Confirm password <span className="text-destructive">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    id="admin-confirm-password"
+                    className={cn(inputCls, "pr-10")}
+                    placeholder="Re-enter password"
+                    type={showAdminConfirmPassword ? "text" : "password"}
+                    value={adminConfirmPassword}
+                    onChange={(e) => {
+                      setAdminConfirmPassword(e.target.value);
+                      setPasswordMismatch(false);
+                    }}
+                    required
+                    disabled={createAdmin.isPending}
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+                    onClick={() => setShowAdminConfirmPassword((show) => !show)}
+                    tabIndex={-1}
+                    aria-label={
+                      showAdminConfirmPassword ? "Hide password" : "Show password"
+                    }
+                  >
+                    {showAdminConfirmPassword ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
+                  </button>
+                </div>
+                {passwordMismatch ? (
+                  <p className="text-sm text-destructive">Passwords do not match.</p>
+                ) : null}
               </div>
 
               <Button type="submit" disabled={createAdmin.isPending}>
@@ -317,6 +474,34 @@ export default function OrganizationDetailPage() {
           </Card>
         </div>
       </div>
+
+      {editUser ? (
+        <UserModal
+          key={editUser.id}
+          open
+          mode="edit"
+          user={toUserModalUser(editUser)}
+          storeItems={[]}
+          showStoreField={false}
+          hideRoleField
+          withPasswordConfirm
+          onClose={() => setEditUser(null)}
+          onSave={(form) => void saveOrgAdmin(form)}
+          isSaving={updateOrgUser.isPending}
+        />
+      ) : null}
+
+      {/* {confirmDeactivate ? (
+        <ConfirmDialog
+          title="Deactivate admin?"
+          message={`Deactivate ${confirmDeactivate.name}? They will no longer be able to sign in.`}
+          confirmLabel="Deactivate"
+          variant="danger"
+          isLoading={deactivateOrgUser.isPending}
+          onConfirm={() => void handleDeactivate()}
+          onClose={() => setConfirmDeactivate(null)}
+        />
+      ) : null} */}
     </>
   );
 }
