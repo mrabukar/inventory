@@ -20,6 +20,7 @@ export function ManagerDashboard({ user }: { user: AppUser }) {
 
   const header = (
     <PageHeader
+      className="page-head--band"
       title={`Dashboard — ${label}`}
       desc="Your store at a glance"
       action={
