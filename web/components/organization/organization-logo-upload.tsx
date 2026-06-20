@@ -2,11 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { ImageIcon, Trash2, Upload } from "lucide-react";
+import { Trash2, Upload, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { fetchOrganizationLogoBlob } from "@/service/upload";
 import { useAppStore } from "@/store/app";
+
+import {
+  LOGO_ACCEPT,
+  LOGO_FIELD_DESCRIPTION,
+  OrganizationLogoPreview,
+} from "./organization-logo-preview";
 
 interface OrganizationLogoUploadProps {
   scope: "current" | "organization";
@@ -32,14 +38,18 @@ export function OrganizationLogoUpload({
   const inputRef = useRef<HTMLInputElement>(null);
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [savedPreviewUrl, setSavedPreviewUrl] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     let active = true;
     let objectUrl: string | null = null;
 
     if (!hasLogo) {
-      setPreviewUrl(null);
+      setSavedPreviewUrl(null);
       return;
     }
 
@@ -50,7 +60,7 @@ export function OrganizationLogoUpload({
           return;
         }
         objectUrl = url;
-        setPreviewUrl(url);
+        setSavedPreviewUrl(url);
       },
     );
 
@@ -62,10 +72,27 @@ export function OrganizationLogoUpload({
     };
   }, [hasLogo, scope, organizationId, logoUpdatedAt]);
 
+  useEffect(() => {
+    return () => {
+      if (pendingPreviewUrl) {
+        URL.revokeObjectURL(pendingPreviewUrl);
+      }
+    };
+  }, [pendingPreviewUrl]);
+
+  const clearPending = () => {
+    if (pendingPreviewUrl) {
+      URL.revokeObjectURL(pendingPreviewUrl);
+    }
+    setPendingFile(null);
+    setPendingPreviewUrl(null);
+  };
+
   const uploadMutation = useMutation({
     mutationFn: uploadLogo,
     onSuccess: () => {
       addToast({ title: "Logo updated" });
+      clearPending();
       onUploaded();
     },
     onError: (error: Error) => {
@@ -85,63 +112,87 @@ export function OrganizationLogoUpload({
   });
 
   const busy = uploadMutation.isPending || deleteMutation.isPending;
+  const previewUrl = pendingPreviewUrl ?? savedPreviewUrl;
 
   return (
     <div className="space-y-3 rounded-lg border border-border p-4">
       <div>
         <h3 className="text-sm font-medium">Report logo</h3>
-        <p className="text-sm text-muted-foreground">
-          PNG or JPG, up to 3MB. Used on exported PDF reports.
-        </p>
+        <p className="text-sm text-muted-foreground">{LOGO_FIELD_DESCRIPTION}</p>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="flex h-20 w-40 items-center justify-center overflow-hidden rounded-md border border-dashed border-border bg-muted/30">
-          {previewUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={previewUrl}
-              alt="Organization logo"
-              className="max-h-full max-w-full object-contain"
-            />
-          ) : (
-            <ImageIcon className="size-8 text-muted-foreground" />
-          )}
-        </div>
+      <div className="flex flex-wrap items-start gap-4">
+        <OrganizationLogoPreview previewUrl={previewUrl} />
 
-        <div className="flex flex-wrap gap-2">
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/png,image/jpeg"
-            className="hidden"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.target.value = "";
-              if (!file) return;
-              uploadMutation.mutate(file);
-            }}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            disabled={busy}
-            onClick={() => inputRef.current?.click()}
-          >
-            <Upload className="size-4" />
-            {hasLogo ? "Replace logo" : "Upload logo"}
-          </Button>
-          {hasLogo ? (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={busy}
-              onClick={() => deleteMutation.mutate()}
-            >
-              <Trash2 className="size-4" />
-              Remove
-            </Button>
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          {pendingFile ? (
+            <p className="text-sm text-muted-foreground">
+              Preview ready — upload to save, or cancel to keep the current logo.
+            </p>
           ) : null}
+
+          <div className="flex flex-wrap gap-2">
+            <input
+              ref={inputRef}
+              type="file"
+              accept={LOGO_ACCEPT}
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (!file) return;
+                setPendingPreviewUrl((current) => {
+                  if (current) URL.revokeObjectURL(current);
+                  return URL.createObjectURL(file);
+                });
+                setPendingFile(file);
+              }}
+            />
+
+            {pendingFile ? (
+              <>
+                <Button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => uploadMutation.mutate(pendingFile)}
+                >
+                  <Upload className="size-4" />
+                  {uploadMutation.isPending ? "Uploading…" : "Upload logo"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={clearPending}
+                >
+                  <X className="size-4" />
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={() => inputRef.current?.click()}
+              >
+                <Upload className="size-4" />
+                {hasLogo ? "Replace logo" : "Choose logo"}
+              </Button>
+            )}
+
+            {hasLogo && !pendingFile ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={() => deleteMutation.mutate()}
+              >
+                <Trash2 className="size-4" />
+                Remove
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>
