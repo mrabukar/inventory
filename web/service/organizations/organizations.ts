@@ -4,6 +4,8 @@ import type {
   Organization,
   OrganizationDetail,
   OrganizationListQuery,
+  OrganizationUsersQuery,
+  OrganizationUsersResponse,
   PlatformStats,
   UpdateOrganizationInput,
 } from "@/types/organizations/organization";
@@ -22,6 +24,31 @@ export function listOrganizations(query: OrganizationListQuery = {}) {
 
 export function getOrganization(id: string) {
   return apiFetch<OrganizationDetail>(`/api/organizations/${id}`);
+}
+
+export function getCurrentOrganization() {
+  return apiFetch<OrganizationDetail>("/api/organization");
+}
+
+export function updateCurrentOrganization(input: { name?: string }) {
+  return apiFetch<Organization>("/api/organization", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function listOrganizationUsers(
+  id: string,
+  query: OrganizationUsersQuery = {},
+) {
+  const params = new URLSearchParams();
+  if (query.page) params.set("page", String(query.page));
+  if (query.limit) params.set("limit", String(query.limit));
+  if (query.search) params.set("search", query.search);
+  const qs = params.toString();
+  return apiFetch<OrganizationUsersResponse>(
+    `/api/organizations/${id}/users${qs ? `?${qs}` : ""}`,
+  );
 }
 
 export function getPlatformStats() {
