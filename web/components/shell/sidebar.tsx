@@ -39,6 +39,7 @@ interface NavLinkItem {
   label: string;
   icon: React.ElementType;
   badge?: number;
+  match?: "exact" | "prefix";
 }
 
 interface NavGroupItem {
@@ -51,7 +52,7 @@ interface NavGroupItem {
 type AdminNavEntry = NavLinkItem | NavGroupItem;
 
 const SUPER_ADMIN_NAV: NavLinkItem[] = [
-  { href: "/super-admin", label: "Platform", icon: LayoutDashboard },
+  { href: "/super-admin", label: "Platform", icon: LayoutDashboard, match: "exact" },
   {
     href: "/super-admin/organizations",
     label: "Organizations",
@@ -127,12 +128,21 @@ function isNavGroup(entry: AdminNavEntry): entry is NavGroupItem {
   return "type" in entry && entry.type === "group";
 }
 
-function isRouteActive(pathname: string, href: string): boolean {
+function isRouteActive(
+  pathname: string,
+  href: string,
+  match: "exact" | "prefix" = "prefix",
+): boolean {
+  if (match === "exact") {
+    return pathname === href;
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 function isGroupActive(pathname: string, children: NavLinkItem[]): boolean {
-  return children.some((child) => isRouteActive(pathname, child.href));
+  return children.some((child) =>
+    isRouteActive(pathname, child.href, child.match),
+  );
 }
 
 interface SidebarNavLinkProps {
@@ -153,7 +163,7 @@ function SidebarNavTreeRow({
   linkClassName: string;
   onNavigate?: () => void;
 }) {
-  const active = isRouteActive(pathname, item.href);
+  const active = isRouteActive(pathname, item.href, item.match);
 
   return (
     <div className="nav-tree-row">
@@ -179,7 +189,7 @@ function SidebarNavLink({
   onNavigate,
 }: SidebarNavLinkProps) {
   const Icon = item.icon;
-  const active = isRouteActive(pathname, item.href);
+  const active = isRouteActive(pathname, item.href, item.match);
 
   return (
     <Link
