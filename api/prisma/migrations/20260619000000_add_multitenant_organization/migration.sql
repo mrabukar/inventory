@@ -30,21 +30,43 @@ ALTER TABLE "audit_log" ADD COLUMN "organizationId" TEXT;
 ALTER TABLE "category" DROP CONSTRAINT IF EXISTS "category_name_key";
 ALTER TABLE "expense_category" DROP CONSTRAINT IF EXISTS "expense_category_name_key";
 
--- Backfill: default organization for existing data
-INSERT INTO "organization" ("id", "name", "hasStores", "isActive", "createdAt", "updatedAt")
-VALUES ('cldefault00000000000000001', 'Default Organization', true, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+-- Backfill: default organization only when upgrading existing tenant data.
+-- Greenfield installs (no stores/products/org users) drop pre-migration seed rows instead.
+DO $$
+DECLARE
+  needs_backfill BOOLEAN;
+BEGIN
+  SELECT EXISTS (
+    SELECT 1 FROM "store"
+    UNION ALL
+    SELECT 1 FROM "product"
+    UNION ALL
+    SELECT 1 FROM "sale"
+    UNION ALL
+    SELECT 1 FROM "user" WHERE "role" IN ('admin', 'branch_manager')
+    LIMIT 1
+  ) INTO needs_backfill;
 
-UPDATE "user" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
-UPDATE "store" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
-UPDATE "category" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
-UPDATE "product" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
-UPDATE "inventory" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
-UPDATE "sale" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
-UPDATE "sale_correction" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
-UPDATE "stock_supply" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
-UPDATE "expense_category" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
-UPDATE "expense" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
-UPDATE "audit_log" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
+  IF needs_backfill THEN
+    INSERT INTO "organization" ("id", "name", "hasStores", "isActive", "createdAt", "updatedAt")
+    VALUES ('cldefault00000000000000001', 'Default Organization', true, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+    UPDATE "user" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
+    UPDATE "store" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
+    UPDATE "category" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
+    UPDATE "product" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
+    UPDATE "inventory" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
+    UPDATE "sale" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
+    UPDATE "sale_correction" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
+    UPDATE "stock_supply" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
+    UPDATE "expense_category" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
+    UPDATE "expense" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
+    UPDATE "audit_log" SET "organizationId" = 'cldefault00000000000000001' WHERE "organizationId" IS NULL;
+  ELSE
+    DELETE FROM "category";
+    DELETE FROM "expense_category";
+  END IF;
+END $$;
 
 -- Enforce NOT NULL (user keeps nullable for super_admin)
 ALTER TABLE "store" ALTER COLUMN "organizationId" SET NOT NULL;
