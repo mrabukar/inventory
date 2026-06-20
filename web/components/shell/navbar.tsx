@@ -5,6 +5,7 @@ import { PanelLeft, Sun, Moon, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useSignOut } from "@/hooks/auth/sign-out";
 import { useAppStore } from "@/store/app";
+import { appRoleLabel } from "@/lib/types";
 import { initials } from "@/lib/utils";
 
 interface Props {
@@ -62,7 +63,7 @@ export function Navbar({ title, collapsed, onToggle }: Props) {
             <div className="av-dropdown">
               <div className="av-who">
                 <div className="av-name">{user?.name}</div>
-                <div className="av-role">{user?.role === "admin" ? "Administrator" : "Branch Manager"}</div>
+                <div className="av-role">{appRoleLabel(user?.role)}</div>
               </div>
               <button className="danger" onClick={handleLogout}>
                 <LogOut size={16} />Log out
