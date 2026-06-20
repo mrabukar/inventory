@@ -23,6 +23,7 @@ export interface OrganizationUser {
   name: string;
   email: string;
   role: string;
+  phone: string | null;
   isActive: boolean;
   store: { id: string; name: string } | null;
 }
@@ -50,6 +51,13 @@ export interface UpdateOrganizationInput {
   name?: string;
   hasStores?: boolean;
   isActive?: boolean;
+}
+
+export interface UpdateOrganizationUserInput {
+  name?: string;
+  email?: string;
+  password?: string;
+  phone?: string | null;
 }
 
 export interface PlatformStats {
