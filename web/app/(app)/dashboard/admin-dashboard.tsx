@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useAdminDashboard } from "@/hooks/reports/admin-dashboard";
 import { useReportFilters } from "@/hooks/filters/use-report-filters";
 import { AdminPerformanceCharts } from "./components/admin/performance-charts";
-import { AdminProductDistributionChart } from "./components/admin/product-distribution-chart";
+// import { AdminProductDistributionChart } from "./components/admin/product-distribution-chart";
 import { AdminRevenueCharts } from "./components/admin/revenue-charts";
 import { AdminStatGrid } from "./components/admin/stat-grid";
 import { AdminStockAlertsTable } from "./components/admin/stock-alerts-table";
@@ -53,7 +53,7 @@ export function AdminDashboard() {
 
       <AdminStatGrid summary={summary} comparison={comparison} />
       <AdminRevenueCharts charts={charts} />
-      <AdminProductDistributionChart filters={filters} />
+      {/* <AdminProductDistributionChart filters={filters} /> */}
       <AdminPerformanceCharts charts={charts} />
       <AdminStockSection stockByCategory={charts.stockByCategory} recentSales={recentSales} />
       <AdminStockAlertsTable
