@@ -5,23 +5,29 @@ import {
 } from "@nestjs/common";
 import { AuditAction, Organization, Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
+import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { StoresService } from "../stores/stores.service";
 import { PaginatedResult } from "../stores/stores.service";
 import { CreateOrganizationDto } from "./dto/create-organization.dto";
 import { OrganizationQueryDto } from "./dto/organization-query.dto";
+import { OrganizationUsersQueryDto } from "./dto/organization-users-query.dto";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 
-export type OrganizationWithUsers = Organization & {
-  users: Array<{
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-    isActive: boolean;
-  }>;
+export type OrganizationDetail = Organization & {
   _count: { users: number; stores: number };
 };
+
+export type OrganizationUserRow = Prisma.UserGetPayload<{
+  select: {
+    id: true;
+    name: true;
+    email: true;
+    role: true;
+    isActive: true;
+    store: { select: { id: true; name: true } };
+  };
+}>;
 
 @Injectable()
 export class OrganizationsService {
@@ -61,20 +67,10 @@ export class OrganizationsService {
     };
   }
 
-  async findOne(id: string): Promise<OrganizationWithUsers> {
+  async findOne(id: string): Promise<OrganizationDetail> {
     const organization = await this.prisma.organization.findUnique({
       where: { id },
       include: {
-        users: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            isActive: true,
-          },
-          orderBy: { createdAt: "desc" },
-        },
         _count: { select: { users: true, stores: true } },
       },
     });
@@ -84,6 +80,56 @@ export class OrganizationsService {
     }
 
     return organization;
+  }
+
+  async findUsers(
+    id: string,
+    query: OrganizationUsersQueryDto,
+  ): Promise<PaginatedResult<OrganizationUserRow>> {
+    await this.findOne(id);
+
+    const { page, limit, search } = query;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.UserWhereInput = {
+      organizationId: id,
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: "insensitive" } },
+              { email: { contains: search, mode: "insensitive" } },
+            ],
+          }
+        : undefined),
+    };
+
+    const [data, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          isActive: true,
+          store: { select: { id: true, name: true } },
+        },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async create(
@@ -152,6 +198,44 @@ export class OrganizationsService {
         userId: actor.id,
         organizationId: organization.id,
         action,
+        entityType: "organization",
+        entityId: organization.id,
+        oldValue: existing,
+        newValue: organization,
+      },
+    });
+
+    return organization;
+  }
+
+  async findCurrent(user: CurrentUserPayload): Promise<OrganizationDetail> {
+    const id = requireOrganizationId(user);
+    return this.findOne(id);
+  }
+
+  async updateCurrent(
+    user: CurrentUserPayload,
+    dto: { name?: string },
+  ): Promise<Organization> {
+    if (Object.keys(dto).length === 0) {
+      throw new BadRequestException("At least one field must be provided");
+    }
+
+    const id = requireOrganizationId(user);
+    const existing = await this.findOne(id);
+
+    const organization = await this.prisma.organization.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name.trim() } : undefined),
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        organizationId: organization.id,
+        action: AuditAction.ORGANIZATION_UPDATED,
         entityType: "organization",
         entityId: organization.id,
         oldValue: existing,
