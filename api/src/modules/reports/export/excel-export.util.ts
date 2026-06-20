@@ -70,10 +70,11 @@ export function styleTableHeaderRow(
   sheet: ExcelJS.Worksheet,
   rowNumber: number,
   columnCount: number,
+  horizontal: "left" | "center" | "right" = "left",
 ): void {
   const row = sheet.getRow(rowNumber);
   row.font = EXCEL_HEADER_FONT;
-  row.alignment = { vertical: "middle" };
+  row.alignment = { horizontal, vertical: "middle" };
   for (let col = 1; col <= columnCount; col += 1) {
     row.getCell(col).fill = EXCEL_HEADER_FILL;
   }
@@ -107,5 +108,19 @@ export function freezeHeaderAndFilter(
       from: { row: headerRow, column: 1 },
       to: { row: lastDataRow, column: columnCount },
     };
+  }
+}
+
+export function centerTableRows(
+  sheet: ExcelJS.Worksheet,
+  fromRow: number,
+  toRow: number,
+  columnCount: number,
+): void {
+  for (let rowNumber = fromRow; rowNumber <= toRow; rowNumber += 1) {
+    const row = sheet.getRow(rowNumber);
+    for (let col = 1; col <= columnCount; col += 1) {
+      row.getCell(col).alignment = { horizontal: "center", vertical: "middle" };
+    }
   }
 }
