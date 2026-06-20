@@ -17,6 +17,7 @@ import {
 import { Roles } from "../../common/decorators/roles.decorator";
 import { CreateOrganizationDto } from "./dto/create-organization.dto";
 import { OrganizationQueryDto } from "./dto/organization-query.dto";
+import { OrganizationUsersQueryDto } from "./dto/organization-users-query.dto";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 import { OrganizationsService } from "./organizations.service";
 
@@ -33,6 +34,14 @@ export class OrganizationsController {
   @Get()
   findAll(@Query() query: OrganizationQueryDto) {
     return this.organizationsService.findAll(query);
+  }
+
+  @Get(":id/users")
+  findUsers(
+    @Param("id") id: string,
+    @Query() query: OrganizationUsersQueryDto,
+  ) {
+    return this.organizationsService.findUsers(id, query);
   }
 
   @Get(":id")
