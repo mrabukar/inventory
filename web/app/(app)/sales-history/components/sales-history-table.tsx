@@ -7,8 +7,6 @@ import { SquarePen } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { SaleStatusBadge } from "@/components/ui/badge";
-import { ProductName } from "@/components/ui/product-name";
-import { formatProductLabel } from "@/lib/products/format";
 import { formatSaleDate, toNumber } from "@/lib/reports/format";
 import { fmt } from "@/lib/utils";
 import type { Sale } from "@/types/sales/sale";
@@ -56,21 +54,32 @@ export function SalesHistoryTable({
       },
       {
         id: "product",
-        accessorFn: (row) =>
-          formatProductLabel(row.product.name, row.product.model),
+        accessorFn: (row) => row.product.name,
         meta: {
           label: "Product",
-          exportValue: (row: Sale) =>
-            formatProductLabel(row.product.name, row.product.model),
+          exportValue: (row: Sale) => row.product.name,
         },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Product" />
         ),
         cell: ({ row }) => (
-          <ProductName
-            name={row.original.product.name}
-            model={row.original.product.model}
-          />
+          <span className="strong">{row.original.product.name}</span>
+        ),
+      },
+      {
+        id: "model",
+        accessorFn: (row) => row.product.model ?? "",
+        meta: {
+          label: "Model",
+          exportValue: (row: Sale) => row.product.model ?? "",
+        },
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Model" />
+        ),
+        cell: ({ row }) => (
+          <span className="muted">
+            {row.original.product.model || "—"}
+          </span>
         ),
       },
       {
