@@ -23,20 +23,12 @@ export function ManagerDashboard({ user }: { user: AppUser }) {
       title={`Dashboard — ${label}`}
       desc="Your store at a glance"
       action={
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <ReportExportMenu
-            report="financial-summary"
-            params={exportRange}
-            disabled={exportBusy}
-            onBusyChange={setExportBusy}
-          />
-          <ReportExportMenu
-            report="stock-report"
-            params={exportRange}
-            disabled={exportBusy}
-            onBusyChange={setExportBusy}
-          />
-        </div>
+        <ReportExportMenu
+          reports={["financial-summary", "stock-report"]}
+          params={exportRange}
+          disabled={exportBusy}
+          onBusyChange={setExportBusy}
+        />
       }
     />
   );
