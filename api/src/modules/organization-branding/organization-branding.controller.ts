@@ -1,7 +1,9 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
+  Patch,
   Post,
   Res,
   UploadedFile,
@@ -19,11 +21,29 @@ import { Roles } from "../../common/decorators/roles.decorator";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { OrganizationLogoService } from "../../common/storage/organization-logo.service";
 import { ORGANIZATION_LOGO_MAX_BYTES } from "../../common/storage/organization-logo.constants";
+import { OrganizationsService } from "../organizations/organizations.service";
+import { UpdateCurrentOrganizationDto } from "./dto/update-current-organization.dto";
 
 @Roles(UserRole.admin)
 @Controller("organization")
 export class OrganizationBrandingController {
-  constructor(private readonly organizationLogo: OrganizationLogoService) {}
+  constructor(
+    private readonly organizationLogo: OrganizationLogoService,
+    private readonly organizationsService: OrganizationsService,
+  ) {}
+
+  @Get()
+  getCurrent(@CurrentUser() user: CurrentUserPayload) {
+    return this.organizationsService.findCurrent(user);
+  }
+
+  @Patch()
+  updateCurrent(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: UpdateCurrentOrganizationDto,
+  ) {
+    return this.organizationsService.updateCurrent(user, dto);
+  }
 
   @Post("logo")
   @UseInterceptors(
