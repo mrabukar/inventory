@@ -9,12 +9,8 @@ export function hasStockActivity(data: StockReportData): boolean {
   return data.products.length > 0;
 }
 
-export function productLabel(
-  row: StockReportData["products"][number],
-): string {
-  return row.productModel
-    ? `${row.productName} (${row.productModel})`
-    : row.productName;
+export function productModelDisplay(model?: string | null): string {
+  return model?.trim() ? model : "—";
 }
 
 export interface StockSummaryMetric {
