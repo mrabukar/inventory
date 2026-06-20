@@ -2470,8 +2470,11 @@ table.tbl {
   border-collapse: collapse;
   border-spacing: 0;
 }
-.stock-report-col-name {
-  width: 44%;
+.stock-report-col-product {
+  width: 30%;
+}
+.stock-report-col-model {
+  width: 14%;
 }
 .stock-report-col-num {
   width: 18.66%;
@@ -2530,6 +2533,11 @@ table.tbl {
 .stock-report-name {
   text-align: left;
   font-weight: 600;
+  word-break: break-word;
+}
+.stock-report-model {
+  text-align: left;
+  color: var(--fg3);
   word-break: break-word;
 }
 .stock-report-num {
