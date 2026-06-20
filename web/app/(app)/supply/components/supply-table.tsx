@@ -7,8 +7,6 @@ import { Eye, Store } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { SupplyTypeBadge } from "@/components/ui/badge";
-import { ProductName } from "@/components/ui/product-name";
-import { formatProductLabel } from "@/lib/products/format";
 import { formatDisplayDate } from "@/lib/filters/dates";
 import { toNumber } from "@/lib/reports/format";
 import { fmt } from "@/lib/utils";
@@ -68,21 +66,32 @@ export function SupplyTable({
       },
       {
         id: "product",
-        accessorFn: (row) =>
-          formatProductLabel(row.product.name, row.product.model),
+        accessorFn: (row) => row.product.name,
         meta: {
           label: "Product",
-          exportValue: (row: StockSupply) =>
-            formatProductLabel(row.product.name, row.product.model),
+          exportValue: (row: StockSupply) => row.product.name,
         },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Product" />
         ),
         cell: ({ row }) => (
-          <ProductName
-            name={row.original.product.name}
-            model={row.original.product.model}
-          />
+          <span className="strong">{row.original.product.name}</span>
+        ),
+      },
+      {
+        id: "model",
+        accessorFn: (row) => row.product.model ?? "",
+        meta: {
+          label: "Model",
+          exportValue: (row: StockSupply) => row.product.model ?? "",
+        },
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Model" />
+        ),
+        cell: ({ row }) => (
+          <span className="muted">
+            {row.original.product.model || "—"}
+          </span>
         ),
       },
       {
