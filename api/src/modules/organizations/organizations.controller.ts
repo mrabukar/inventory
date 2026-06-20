@@ -19,6 +19,7 @@ import { CreateOrganizationDto } from "./dto/create-organization.dto";
 import { OrganizationQueryDto } from "./dto/organization-query.dto";
 import { OrganizationUsersQueryDto } from "./dto/organization-users-query.dto";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
+import { UpdateOrganizationUserDto } from "./dto/update-organization-user.dto";
 import { OrganizationsService } from "./organizations.service";
 
 @Roles(UserRole.super_admin)
@@ -42,6 +43,35 @@ export class OrganizationsController {
     @Query() query: OrganizationUsersQueryDto,
   ) {
     return this.organizationsService.findUsers(id, query);
+  }
+
+  @Patch(":id/users/:userId/deactivate")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  deactivateUser(
+    @Param("id") id: string,
+    @Param("userId") userId: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.organizationsService.deactivateUser(id, userId, user);
+  }
+
+  @Patch(":id/users/:userId/activate")
+  activateUser(
+    @Param("id") id: string,
+    @Param("userId") userId: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.organizationsService.activateUser(id, userId, user);
+  }
+
+  @Patch(":id/users/:userId")
+  updateUser(
+    @Param("id") id: string,
+    @Param("userId") userId: string,
+    @Body() dto: UpdateOrganizationUserDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.organizationsService.updateUser(id, userId, dto, user);
   }
 
   @Get(":id")
