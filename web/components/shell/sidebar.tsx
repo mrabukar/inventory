@@ -52,7 +52,12 @@ interface NavGroupItem {
 type AdminNavEntry = NavLinkItem | NavGroupItem;
 
 const SUPER_ADMIN_NAV: NavLinkItem[] = [
-  { href: "/super-admin", label: "Platform", icon: LayoutDashboard, match: "exact" },
+  {
+    href: "/super-admin",
+    label: "Platform",
+    icon: LayoutDashboard,
+    match: "exact",
+  },
   {
     href: "/super-admin/organizations",
     label: "Organizations",
@@ -108,7 +113,11 @@ function buildAdminNav(hasStores: boolean): AdminNavEntry[] {
       children: [
         { href: "/users", label: "Users", icon: Users },
         { href: "/audit", label: "Audit Log", icon: ClipboardList },
-        { href: "/settings/organization", label: "Organization", icon: Building2 },
+        {
+          href: "/settings/organization",
+          label: "Organization",
+          icon: Building2,
+        },
       ],
     },
     { href: "/financial", label: "Financial Summary", icon: TrendingUp },
@@ -312,7 +321,12 @@ interface Props {
   hasStores?: boolean | null;
 }
 
-export function Sidebar({ role, collapsed, storeName, hasStores = true }: Props) {
+export function Sidebar({
+  role,
+  collapsed,
+  storeName,
+  hasStores = true,
+}: Props) {
   const pathname = usePathname();
   const adminNav = buildAdminNav(hasStores !== false);
 
@@ -355,7 +369,11 @@ export function Sidebar({ role, collapsed, storeName, hasStores = true }: Props)
                 ),
               )
             : MANAGER_NAV.map((item) => (
-                <SidebarNavLink key={item.href} item={item} pathname={pathname} />
+                <SidebarNavLink
+                  key={item.href}
+                  item={item}
+                  pathname={pathname}
+                />
               ))}
       </nav>
 
