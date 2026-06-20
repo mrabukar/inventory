@@ -52,7 +52,7 @@ export function LoginForm() {
   const [pw, setPw] = useState("");
   const [show, setShow] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
-  const [err, setErr] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (isFetched && isAuthenticated) {
@@ -62,17 +62,21 @@ export function LoginForm() {
 
   const handleSubmit = async () => {
     if (!email || !pw) {
-      setErr(true);
+      setErrorMessage("Email and password are required.");
       return;
     }
 
-    setErr(false);
+    setErrorMessage(null);
 
     try {
       await signIn.mutateAsync({ email, password: pw, rememberMe });
       router.push(returnUrl);
-    } catch {
-      setErr(true);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : "Sign in failed.",
+      );
     }
   };
 
@@ -105,15 +109,15 @@ export function LoginForm() {
                 Sign in to your account
               </p>
 
-              {err && (
+              {errorMessage ? (
                 <div
                   className="mb-4 flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-700"
                   role="alert"
                 >
                   <XCircle className="size-4 shrink-0" />
-                  Invalid email or password.
+                  {errorMessage}
                 </div>
-              )}
+              ) : null}
 
               <div className="space-y-4">
                 <div className="space-y-1.5">
@@ -131,7 +135,7 @@ export function LoginForm() {
                     value={email}
                     onChange={(e) => {
                       setEmail(e.target.value);
-                      setErr(false);
+                      setErrorMessage(null);
                     }}
                     disabled={signIn.isPending}
                     autoComplete="email"
@@ -154,7 +158,7 @@ export function LoginForm() {
                       value={pw}
                       onChange={(e) => {
                         setPw(e.target.value);
-                        setErr(false);
+                        setErrorMessage(null);
                       }}
                       disabled={signIn.isPending}
                       autoComplete="current-password"
