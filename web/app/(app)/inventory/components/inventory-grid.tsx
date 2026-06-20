@@ -4,7 +4,6 @@ import { Store } from "lucide-react";
 
 import { StockBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { formatProductLabel } from "@/lib/products/format";
 import type { Inventory } from "@/types/inventory/inventory";
 
 const fillColor = (qty: number, threshold: number) =>
@@ -47,8 +46,9 @@ export function InventoryGrid({
       {rows.map((row) => (
         <div className="inv-card" key={row.id}>
           <div>
-            <div className="ic-name">
-              {formatProductLabel(row.product.name, row.product.model)}
+            <div className="ic-name">{row.product.name}</div>
+            <div className="ic-model muted">
+              {row.product.model || "—"}
             </div>
             {!hideStore ? (
               <div className="ic-store">
