@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import type { ColumnDef, PaginationState } from "@tanstack/react-table";
+import { Pencil /* , Power, PowerOff */ } from "lucide-react";
 
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
@@ -17,6 +18,9 @@ interface OrganizationUsersTableProps {
   onSearchChange: (value: string) => void;
   onPaginationChange: (state: PaginationState) => void;
   isLoading?: boolean;
+  onEdit?: (user: OrganizationUser) => void;
+  onDeactivate?: (user: OrganizationUser) => void;
+  onActivate?: (user: OrganizationUser) => void;
 }
 
 export function OrganizationUsersTable({
@@ -28,6 +32,9 @@ export function OrganizationUsersTable({
   onSearchChange,
   onPaginationChange,
   isLoading = false,
+  onEdit,
+  onDeactivate,
+  onActivate,
 }: OrganizationUsersTableProps) {
   const columns = useMemo<ColumnDef<OrganizationUser>[]>(
     () => [
@@ -76,8 +83,49 @@ export function OrganizationUsersTable({
         cell: ({ row }) => <StatusBadge active={row.original.isActive} />,
         enableSorting: false,
       },
+      {
+        id: "actions",
+        meta: { export: false, align: "center" },
+        header: "Actions",
+        cell: ({ row }) => {
+          if (row.original.role !== "admin") return null;
+          return (
+            <div className="dt-actions">
+              <button
+                type="button"
+                className="dt-act"
+                title="Edit"
+                onClick={() => onEdit?.(row.original)}
+              >
+                <Pencil size={16} />
+              </button>
+              {/* {row.original.isActive ? (
+                <button
+                  type="button"
+                  className="dt-act danger"
+                  title="Deactivate"
+                  onClick={() => onDeactivate?.(row.original)}
+                >
+                  <PowerOff size={16} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="dt-act"
+                  title="Reactivate"
+                  onClick={() => onActivate?.(row.original)}
+                >
+                  <Power size={16} />
+                </button>
+              )} */}
+            </div>
+          );
+        },
+        enableSorting: false,
+        enableHiding: false,
+      },
     ],
-    [],
+    [onEdit],
   );
 
   return (
