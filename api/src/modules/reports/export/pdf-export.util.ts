@@ -93,13 +93,31 @@ export function buildPdfDataTable(
   headers: string[],
   rows: TableCell[][],
   widths?: (string | number)[],
+  alignment?: "left" | "center" | "right",
 ): Content {
+  const withAlignment = (cell: TableCell): TableCell => {
+    if (!alignment) {
+      return cell;
+    }
+    if (typeof cell === "object" && cell !== null && !Array.isArray(cell)) {
+      return { ...cell, alignment } as TableCell;
+    }
+    return { text: cell ?? "", alignment };
+  };
+
+  const headerRow = alignment
+    ? headers.map((header) => ({ text: header, bold: true, alignment }))
+    : headers;
+  const body = alignment
+    ? rows.map((row) => row.map((cell) => withAlignment(cell)))
+    : rows;
+
   return {
     table: {
       headerRows: 1,
       dontBreakRows: true,
       widths: widths ?? headers.map(() => "*"),
-      body: [headers, ...rows],
+      body: [headerRow, ...body],
     },
     layout: {
       hLineWidth: () => 0.5,
