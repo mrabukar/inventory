@@ -21,7 +21,7 @@ function KpiCardSkeleton({ tintClass }: { tintClass: string }) {
     <div className={cn("stat-card stock-report-kpi", tintClass)}>
       <div className="stat-top">
         <SkeletonBar
-          style={{ width: 40, height: 40, borderRadius: 9999, maxWidth: 40 }}
+          style={{ width: 44, height: 44, borderRadius: 6, maxWidth: 44 }}
         />
       </div>
       <SkeletonBar
