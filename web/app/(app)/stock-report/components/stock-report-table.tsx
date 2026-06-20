@@ -5,7 +5,6 @@ import {
 } from "lucide-react";
 
 import { StatCard } from "@/app/(app)/dashboard/components/stat-card";
-import { formatProductLabel } from "@/lib/products/format";
 import type {
   StockReportProduct,
   StockReportTotals,
@@ -61,13 +60,19 @@ export function StockReportTable({ totals, products }: Props) {
         <div className="stock-report-table-scroll">
           <table className="stock-report-table">
             <colgroup>
-              <col className="stock-report-col-name" />
+              <col className="stock-report-col-product" />
+              <col className="stock-report-col-model" />
               <col className="stock-report-col-num" />
               <col className="stock-report-col-num" />
               <col className="stock-report-col-num" />
             </colgroup>
             <thead>
               <tr className="stock-report-total-row">
+                <th
+                  scope="row"
+                  className="stock-report-total-spacer"
+                  aria-hidden="true"
+                />
                 <th
                   scope="row"
                   className="stock-report-total-spacer"
@@ -84,7 +89,8 @@ export function StockReportTable({ totals, products }: Props) {
                 </th>
               </tr>
               <tr className="stock-report-columns-row">
-                <th scope="col">Product name</th>
+                <th scope="col">Product</th>
+                <th scope="col">Model</th>
                 <th scope="col" className="stock-report-th-purchase">
                   Purchase devices
                 </th>
@@ -99,8 +105,9 @@ export function StockReportTable({ totals, products }: Props) {
             <tbody>
               {products.map((row) => (
                 <tr key={row.productId}>
-                  <td className="stock-report-name">
-                    {formatProductLabel(row.productName, row.productModel)}
+                  <td className="stock-report-name">{row.productName}</td>
+                  <td className="stock-report-model">
+                    {row.productModel || "—"}
                   </td>
                   <td className="stock-report-num">
                     {formatUnits(row.purchaseDevices)}
