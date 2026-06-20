@@ -30,7 +30,11 @@ export function useSignIn() {
       });
 
       if (result.error) {
-        throw new Error(result.error.message ?? "Invalid email or password.");
+        const message =
+          result.error.message?.trim() ||
+          result.error.statusText?.trim() ||
+          "Sign in failed.";
+        throw new Error(message);
       }
 
       const user = await fetchCurrentUser();
