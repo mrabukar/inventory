@@ -1,3 +1,5 @@
+import type { PaginatedResponse } from "@/types/common/pagination";
+
 export interface Organization {
   id: string;
   name: string;
@@ -10,18 +12,28 @@ export interface Organization {
 }
 
 export interface OrganizationDetail extends Organization {
-  users: Array<{
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-    isActive: boolean;
-  }>;
   _count: {
     users: number;
     stores: number;
   };
 }
+
+export interface OrganizationUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  store: { id: string; name: string } | null;
+}
+
+export interface OrganizationUsersQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+}
+
+export type OrganizationUsersResponse = PaginatedResponse<OrganizationUser>;
 
 export interface OrganizationListQuery {
   page?: number;
