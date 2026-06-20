@@ -7,7 +7,6 @@ import {
 import { AuditAction, Prisma, User, UserRole } from "@prisma/client";
 import { hashPassword } from "better-auth/crypto";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
-import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { PaginatedResult } from "../stores/stores.service";
 import { UpdateUserDto } from "./dto/update-user.dto";
@@ -145,7 +144,7 @@ export class UsersService {
     await this.prisma.auditLog.create({
       data: {
         userId: actor.id,
-        organizationId: requireOrganizationId(actor),
+        organizationId: this.resolveAuditOrganizationId(actor, user),
         action: AuditAction.USER_UPDATED,
         entityType: "user",
         entityId: user.id,
@@ -179,7 +178,7 @@ export class UsersService {
     await this.prisma.auditLog.create({
       data: {
         userId: actor.id,
-        organizationId: requireOrganizationId(actor),
+        organizationId: this.resolveAuditOrganizationId(actor, existing),
         action: AuditAction.USER_DEACTIVATED,
         entityType: "user",
         entityId: id,
@@ -211,7 +210,7 @@ export class UsersService {
     await this.prisma.auditLog.create({
       data: {
         userId: actor.id,
-        organizationId: requireOrganizationId(actor),
+        organizationId: this.resolveAuditOrganizationId(actor, user),
         action: AuditAction.USER_REACTIVATED,
         entityType: "user",
         entityId: id,
@@ -280,6 +279,17 @@ export class UsersService {
         `A user with email "${email}" already exists`,
       );
     }
+  }
+
+  private resolveAuditOrganizationId(
+    actor: CurrentUserPayload,
+    targetUser: User | SafeUser,
+  ): string {
+    const organizationId = actor.organizationId ?? targetUser.organizationId;
+    if (!organizationId) {
+      throw new BadRequestException("Organization context is required");
+    }
+    return organizationId;
   }
 
   private toAuditSnapshot(user: User | SafeUser): Prisma.InputJsonValue {
