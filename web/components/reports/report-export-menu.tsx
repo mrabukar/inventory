@@ -8,6 +8,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -19,26 +21,37 @@ import type { ReportQuery } from "@/types/reports/query";
 import { useAppStore } from "@/store/app";
 
 interface ReportExportMenuProps {
-  report: ReportExportKind;
+  report?: ReportExportKind;
+  reports?: ReportExportKind[];
   params: ReportQuery;
   disabled?: boolean;
   onBusyChange?: (busy: boolean) => void;
 }
 
+const REPORT_LABELS: Record<ReportExportKind, string> = {
+  "financial-summary": "Financial Summary",
+  "stock-report": "Stock Report",
+};
+
 export function ReportExportMenu({
   report,
+  reports,
   params,
   disabled = false,
   onBusyChange,
 }: ReportExportMenuProps) {
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
-  const [busyFormat, setBusyFormat] = useState<ReportExportFormat | null>(null);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const reportList = reports ?? (report ? [report] : []);
 
-  const exportReport = async (format: ReportExportFormat) => {
-    setBusyFormat(format);
+  const exportReport = async (
+    kind: ReportExportKind,
+    format: ReportExportFormat,
+  ) => {
+    setBusyKey(`${kind}:${format}`);
     try {
-      await downloadReportExport(report, format, params);
+      await downloadReportExport(kind, format, params);
       addToast({
         title: format === "xlsx" ? "Excel export ready" : "PDF export ready",
       });
@@ -48,11 +61,11 @@ export function ReportExportMenu({
         sub: error instanceof Error ? error.message : "Please try again.",
       });
     } finally {
-      setBusyFormat(null);
+      setBusyKey(null);
     }
   };
 
-  const busy = busyFormat !== null;
+  const busy = busyKey !== null;
 
   useEffect(() => {
     onBusyChange?.(busy);
@@ -71,20 +84,28 @@ export function ReportExportMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem
-          disabled={busy}
-          onClick={() => void exportReport("xlsx")}
-        >
-          <FileSpreadsheet className="size-4" />
-          Excel (.xlsx)
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={busy}
-          onClick={() => void exportReport("pdf")}
-        >
-          <FileText className="size-4" />
-          PDF (.pdf)
-        </DropdownMenuItem>
+        {reportList.map((kind, index) => (
+          <div key={kind}>
+            {index > 0 ? <DropdownMenuSeparator /> : null}
+            {reportList.length > 1 ? (
+              <DropdownMenuLabel>{REPORT_LABELS[kind]}</DropdownMenuLabel>
+            ) : null}
+            <DropdownMenuItem
+              disabled={busy}
+              onClick={() => void exportReport(kind, "xlsx")}
+            >
+              <FileSpreadsheet className="size-4" />
+              Excel (.xlsx)
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={busy}
+              onClick={() => void exportReport(kind, "pdf")}
+            >
+              <FileText className="size-4" />
+              PDF (.pdf)
+            </DropdownMenuItem>
+          </div>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
