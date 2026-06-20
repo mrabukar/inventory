@@ -5,6 +5,7 @@ import {
   applyMetaRows,
   applyNoticeRow,
   applyWorksheetTitle,
+  centerTableRows,
   freezeHeaderAndFilter,
   setIntegerCell,
   styleTableHeaderRow,
@@ -20,7 +21,7 @@ import type { ExportFileResult, ReportExportContext } from "./report-export.type
 import {
   buildStockSummaryMetrics,
   hasStockActivity,
-  productLabel,
+  productModelDisplay,
   STOCK_EMPTY_NOTICE,
 } from "./stock-export.helpers";
 
@@ -28,7 +29,7 @@ type StockReportData = Awaited<
   ReturnType<import("../reports.service").ReportsService["getStockReport"]>
 >;
 
-const COLUMN_COUNT = 4;
+const COLUMN_COUNT = 5;
 
 function addSheetHeader(
   sheet: ExcelJS.Worksheet,
@@ -81,29 +82,39 @@ function addProductsSheet(
   addSheetHeader(sheet, context, showEmptyNotice);
 
   const headerRow = sheet.rowCount + 1;
-  sheet.addRow(["Product", "Purchased", "In Stock", "Sold"]);
-  styleTableHeaderRow(sheet, headerRow, COLUMN_COUNT);
+  sheet.addRow(["Product", "Model", "Purchased", "In Stock", "Sold"]);
+  styleTableHeaderRow(sheet, headerRow, COLUMN_COUNT, "center");
 
   if (showEmptyNotice) {
-    const emptyRow = sheet.addRow([STOCK_EMPTY_NOTICE, null, null, null]);
+    const emptyRow = sheet.addRow([STOCK_EMPTY_NOTICE, null, null, null, null]);
     sheet.mergeCells(emptyRow.number, 1, emptyRow.number, COLUMN_COUNT);
+    centerTableRows(sheet, emptyRow.number, emptyRow.number, COLUMN_COUNT);
   } else {
+    const firstDataRow = sheet.rowCount + 1;
     for (const row of data.products) {
-      const excelRow = sheet.addRow([productLabel(row), null, null, null]);
-      setIntegerCell(excelRow.getCell(2), row.purchaseDevices);
-      setIntegerCell(excelRow.getCell(3), row.inStock);
-      setIntegerCell(excelRow.getCell(4), row.salesDevices);
+      const excelRow = sheet.addRow([
+        row.productName,
+        productModelDisplay(row.productModel),
+        null,
+        null,
+        null,
+      ]);
+      setIntegerCell(excelRow.getCell(3), row.purchaseDevices);
+      setIntegerCell(excelRow.getCell(4), row.inStock);
+      setIntegerCell(excelRow.getCell(5), row.salesDevices);
     }
 
-    const totalsRow = sheet.addRow(["Totals", null, null, null]);
+    const totalsRow = sheet.addRow(["Totals", "—", null, null, null]);
     totalsRow.font = { bold: true };
-    setIntegerCell(totalsRow.getCell(2), data.totals.purchaseDevices);
-    setIntegerCell(totalsRow.getCell(3), data.totals.inStock);
-    setIntegerCell(totalsRow.getCell(4), data.totals.salesDevices);
+    setIntegerCell(totalsRow.getCell(3), data.totals.purchaseDevices);
+    setIntegerCell(totalsRow.getCell(4), data.totals.inStock);
+    setIntegerCell(totalsRow.getCell(5), data.totals.salesDevices);
+    centerTableRows(sheet, firstDataRow, sheet.rowCount, COLUMN_COUNT);
   }
 
   sheet.columns = [
-    { width: 40 },
+    { width: 28 },
+    { width: 18 },
     { width: 14 },
     { width: 14 },
     { width: 14 },
@@ -140,11 +151,24 @@ export async function buildStockExcel(
 
 function productPdfRows(data: StockReportData): TableCell[][] {
   if (!hasStockActivity(data)) {
-    return [[STOCK_EMPTY_NOTICE, "—", "—", "—"]];
+    return [
+      [
+        {
+          text: STOCK_EMPTY_NOTICE,
+          colSpan: COLUMN_COUNT,
+          alignment: "center",
+        },
+        "",
+        "",
+        "",
+        "",
+      ],
+    ];
   }
 
   const rows: TableCell[][] = data.products.map((row) => [
-    productLabel(row),
+    row.productName,
+    productModelDisplay(row.productModel),
     formatExportNumber(row.purchaseDevices),
     formatExportNumber(row.inStock),
     formatExportNumber(row.salesDevices),
@@ -152,6 +176,7 @@ function productPdfRows(data: StockReportData): TableCell[][] {
 
   rows.push([
     { text: "Totals", bold: true },
+    { text: "—", bold: true },
     { text: formatExportNumber(data.totals.purchaseDevices), bold: true },
     { text: formatExportNumber(data.totals.inStock), bold: true },
     { text: formatExportNumber(data.totals.salesDevices), bold: true },
@@ -197,9 +222,10 @@ export async function buildStockPdf(
     buildPdfSection(
       "By Product",
       buildPdfDataTable(
-        ["Product", "Purchased", "In Stock", "Sold"],
+        ["Product", "Model", "Purchased", "In Stock", "Sold"],
         productPdfRows(data),
-        ["*", 80, 80, 80],
+        ["*", "*", 80, 80, 80],
+        "center",
       ),
     ),
   );
