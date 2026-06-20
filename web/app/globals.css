@@ -102,17 +102,17 @@
   --input: var(--border);
   --ring: var(--brand-indigo);
 
-  /* Sidebar — brand indigo (matches expense breakdown chart) */
-  --sidebar-bg: #6366f1;
-  --sidebar-border: rgba(255, 255, 255, 0.12);
+  /* Sidebar — bold brand indigo (matches expense breakdown chart) */
+  --sidebar-bg: #4338ca;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
   --sidebar-fg: #ffffff;
-  --sidebar-fg-muted: rgba(255, 255, 255, 0.84);
-  --sidebar-fg-subtle: rgba(255, 255, 255, 0.58);
-  --sidebar-hover: rgba(255, 255, 255, 0.12);
-  --sidebar-active-bg: rgba(255, 255, 255, 0.22);
+  --sidebar-fg-muted: rgba(255, 255, 255, 0.88);
+  --sidebar-fg-subtle: rgba(255, 255, 255, 0.62);
+  --sidebar-hover: rgba(255, 255, 255, 0.14);
+  --sidebar-active-bg: rgba(255, 255, 255, 0.2);
   --sidebar-active-fg: #ffffff;
-  --sidebar-panel-bg: rgba(255, 255, 255, 0.1);
-  --sidebar-panel-border: rgba(255, 255, 255, 0.2);
+  --sidebar-panel-bg: rgba(255, 255, 255, 0.08);
+  --sidebar-panel-border: rgba(255, 255, 255, 0.18);
 
   /* Dashboard page header band */
   --page-head-band-bg: #eef2ff;
@@ -2666,19 +2666,19 @@ table.tbl {
   text-align: center;
 }
 .stock-report-th-purchase {
-  color: #b45309;
-  background: color-mix(in srgb, var(--tint-amber) 75%, var(--surface));
-  border-bottom-color: color-mix(in srgb, var(--status-amber) 30%, var(--border));
+  color: #be123c;
+  background: color-mix(in srgb, #fecdd3 50%, var(--surface));
+  border-bottom-color: color-mix(in srgb, #f43f5e 35%, var(--border));
 }
 .stock-report-th-instock {
-  color: var(--brand-teal-600);
-  background: color-mix(in srgb, var(--tint-teal) 75%, var(--surface));
-  border-bottom-color: color-mix(in srgb, var(--brand-teal) 30%, var(--border));
+  color: #075985;
+  background: color-mix(in srgb, #bae6fd 50%, var(--surface));
+  border-bottom-color: color-mix(in srgb, #0284c7 35%, var(--border));
 }
 .stock-report-th-sales {
-  color: var(--brand-indigo-600);
-  background: color-mix(in srgb, var(--tint-indigo) 75%, var(--surface));
-  border-bottom-color: color-mix(in srgb, var(--brand-indigo) 30%, var(--border));
+  color: #7e22ce;
+  background: color-mix(in srgb, #e9d5ff 50%, var(--surface));
+  border-bottom-color: color-mix(in srgb, #a855f7 35%, var(--border));
 }
 .stock-report-table tbody td {
   padding: 14px 20px;
@@ -2744,11 +2744,11 @@ table.tbl {
   color: #ffffff;
 }
 .stock-report-total-card--purchase {
-  background: linear-gradient(145deg, #fbbf24 0%, #f59e0b 52%, #d97706 100%);
+  background: linear-gradient(135deg, #f43f5e 0%, #e11d48 55%, #be123c 100%);
 }
 .stock-report-total-card--instock {
-  background: linear-gradient(145deg, #2dd4bf 0%, #14b8a6 52%, #0d9488 100%);
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 55%, #075985 100%);
 }
 .stock-report-total-card--sales {
-  background: linear-gradient(145deg, #818cf8 0%, #6366f1 52%, #4f46e5 100%);
+  background: linear-gradient(135deg, #a855f7 0%, #9333ea 55%, #7e22ce 100%);
 }
