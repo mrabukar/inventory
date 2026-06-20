@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Dialog } from "radix-ui";
-import { X } from "lucide-react";
+import { Eye, EyeOff, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
@@ -25,6 +25,8 @@ interface UserModalProps {
   user?: User;
   storeItems: { value: string; label: string }[];
   showStoreField?: boolean;
+  hideRoleField?: boolean;
+  withPasswordConfirm?: boolean;
   onClose: () => void;
   onSave: (data: UserFormValues) => void;
   isSaving: boolean;
@@ -84,15 +86,21 @@ export function UserModal({
   user,
   storeItems,
   showStoreField = true,
+  hideRoleField = false,
+  withPasswordConfirm = false,
   onClose,
   onSave,
   isSaving,
 }: UserModalProps) {
   const isEdit = mode === "edit";
   const [form, setForm] = useState<UserFormValues>(() => initialForm(user));
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [err, setErr] = useState<Partial<Record<keyof UserFormValues, string>>>(
     {},
   );
+  const [confirmErr, setConfirmErr] = useState<string | undefined>();
 
   const roleItems = useMemo(() => {
     const items = ROLE_ITEMS.map((item) => ({
@@ -139,7 +147,15 @@ export function UserModal({
     }
 
     setErr(next);
-    if (Object.keys(next).length) return;
+    let nextConfirmErr: string | undefined;
+    if (withPasswordConfirm && form.password && form.password !== confirmPassword) {
+      nextConfirmErr = "Passwords do not match";
+    } else if (withPasswordConfirm && !isEdit && form.password !== confirmPassword) {
+      nextConfirmErr = "Passwords do not match";
+    }
+    setConfirmErr(nextConfirmErr);
+
+    if (Object.keys(next).length || nextConfirmErr) return;
 
     onSave({
       ...form,
@@ -200,30 +216,93 @@ export function UserModal({
                   : STRONG_PASSWORD_MESSAGE
               }
             >
-              <input
-                className={cn(
-                  inputClassName,
-                  err.password && "border-destructive",
-                )}
-                type="password"
-                value={form.password}
-                onChange={(e) => set("password", e.target.value)}
-                placeholder={isEdit ? "Unchanged" : "Min. 8 characters"}
-              />
+              <div className="relative">
+                <input
+                  className={cn(
+                    inputClassName,
+                    "pr-10",
+                    err.password && "border-destructive",
+                  )}
+                  type={showPassword ? "text" : "password"}
+                  value={form.password}
+                  onChange={(e) => {
+                    set("password", e.target.value);
+                    setConfirmErr(undefined);
+                  }}
+                  placeholder={isEdit ? "Unchanged" : "Min. 8 characters"}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={() => setShowPassword((show) => !show)}
+                  tabIndex={-1}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </button>
+              </div>
             </FormField>
 
-            <FormField label="Role" required>
-              <Combobox
-                value={form.role}
-                onValueChange={(value) => setRole(value as UserRole | undefined)}
-                items={roleItems}
-                placeholder="Select role"
-                searchPlaceholder="Search roles…"
-                emptyText="No roles found."
-                className="w-full"
-                popoverClassName="z-[200]"
-              />
-            </FormField>
+            {withPasswordConfirm ? (
+              <FormField
+                label="Confirm password"
+                required={!isEdit || Boolean(form.password)}
+                error={confirmErr}
+              >
+                <div className="relative">
+                  <input
+                    className={cn(
+                      inputClassName,
+                      "pr-10",
+                      confirmErr && "border-destructive",
+                    )}
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value);
+                      setConfirmErr(undefined);
+                    }}
+                    placeholder="Re-enter password"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+                    onClick={() => setShowConfirmPassword((show) => !show)}
+                    tabIndex={-1}
+                    aria-label={
+                      showConfirmPassword ? "Hide password" : "Show password"
+                    }
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
+                  </button>
+                </div>
+              </FormField>
+            ) : null}
+
+            {!hideRoleField ? (
+              <FormField label="Role" required>
+                <Combobox
+                  value={form.role}
+                  onValueChange={(value) => setRole(value as UserRole | undefined)}
+                  items={roleItems}
+                  placeholder="Select role"
+                  searchPlaceholder="Search roles…"
+                  emptyText="No roles found."
+                  className="w-full"
+                  popoverClassName="z-[200]"
+                />
+              </FormField>
+            ) : null}
 
             {showStoreField && form.role === "branch_manager" ? (
               <FormField label="Store" required error={err.storeId}>
