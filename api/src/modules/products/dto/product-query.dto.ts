@@ -1,6 +1,5 @@
 import { Type } from "class-transformer";
 import {
-  IsBoolean,
   IsInt,
   IsOptional,
   IsPositive,
@@ -20,9 +19,4 @@ export class ProductQueryDto extends PaginationQueryDto {
   @IsInt()
   @IsPositive()
   categoryId?: number;
-
-  @IsOptional()
-  @Type(() => Boolean)
-  @IsBoolean()
-  missingOpeningCost?: boolean;
 }
