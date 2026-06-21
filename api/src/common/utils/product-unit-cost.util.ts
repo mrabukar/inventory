@@ -4,23 +4,12 @@ import { toMoneyNumber } from "./money.util";
 
 type ProductCostFields = {
   averageCost?: Decimal | string | number | null;
-  purchasePrice?: Decimal | string | number | null;
 };
 
-/** Live unit cost for stock value — prefers averageCost from purchases, legacy purchasePrice as fallback. */
+/** Live unit cost for stock value — the moving weighted-average cost from purchases. */
 export function productUnitCost(product: ProductCostFields): number {
-  const average = toMoneyNumber(product.averageCost);
-  if (average > 0) {
-    return average;
-  }
-
-  return toMoneyNumber(product.purchasePrice);
+  return toMoneyNumber(product.averageCost);
 }
 
 /** SQL expression for quantity × unit cost in raw inventory reports. */
-export const productUnitCostSql = Prisma.sql`
-  CASE
-    WHEN p."averageCost" > 0 THEN p."averageCost"
-    ELSE p."purchasePrice"
-  END
-`;
+export const productUnitCostSql = Prisma.sql`p."averageCost"`;
