@@ -18,6 +18,7 @@ import { ExpensesModule } from "./modules/expenses/expenses.module";
 import { ReportsModule } from "./modules/reports/reports.module";
 import { SalesModule } from "./modules/sales/sales.module";
 import { StockSuppliesModule } from "./modules/stock-supplies/stock-supplies.module";
+import { PurchasesModule } from "./modules/purchases/purchases.module";
 import { StoresModule } from "./modules/stores/stores.module";
 import { OrganizationsModule } from "./modules/organizations/organizations.module";
 import { OrganizationBrandingModule } from "./modules/organization-branding/organization-branding.module";
@@ -72,6 +73,7 @@ import { StorageModule } from "./common/storage/storage.module";
     ProductsModule,
     InventoryModule,
     StockSuppliesModule,
+    PurchasesModule,
     AuditLogsModule,
     SalesModule,
     ExpenseCategoriesModule,
