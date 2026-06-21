@@ -1,3 +1,5 @@
+import { notifyUnauthorized } from "@/lib/auth/unauthorized";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export class ApiError extends Error {
@@ -10,6 +12,24 @@ export class ApiError extends Error {
   }
 }
 
+export async function throwIfNotOk(res: Response): Promise<void> {
+  if (res.ok) return;
+
+  if (res.status === 401) {
+    notifyUnauthorized();
+  }
+
+  let message = res.statusText;
+  try {
+    const body = (await res.json()) as { message?: string | string[]; error?: string };
+    const raw = body.message ?? body.error;
+    message = Array.isArray(raw) ? raw.join(", ") : (raw ?? message);
+  } catch {
+    // ignore JSON parse errors
+  }
+  throw new ApiError(res.status, message);
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -20,17 +40,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     },
   });
 
-  if (!res.ok) {
-    let message = res.statusText;
-    try {
-      const body = (await res.json()) as { message?: string | string[]; error?: string };
-      const raw = body.message ?? body.error;
-      message = Array.isArray(raw) ? raw.join(", ") : (raw ?? message);
-    } catch {
-      // ignore JSON parse errors
-    }
-    throw new ApiError(res.status, message);
-  }
+  await throwIfNotOk(res);
 
   if (res.status === 204) {
     return undefined as T;
