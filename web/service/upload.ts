@@ -1,4 +1,4 @@
-import { ApiError } from "@/service/client";
+import { throwIfNotOk } from "@/service/client";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -8,20 +8,7 @@ export async function apiDelete<T>(path: string): Promise<T> {
     credentials: "include",
   });
 
-  if (!res.ok) {
-    let message = res.statusText;
-    try {
-      const body = (await res.json()) as {
-        message?: string | string[];
-        error?: string;
-      };
-      const raw = body.message ?? body.error;
-      message = Array.isArray(raw) ? raw.join(", ") : (raw ?? message);
-    } catch {
-      // ignore JSON parse errors
-    }
-    throw new ApiError(res.status, message);
-  }
+  await throwIfNotOk(res);
 
   if (res.status === 204) {
     return undefined as T;
@@ -42,20 +29,7 @@ export async function apiUpload<T>(
     body: formData,
   });
 
-  if (!res.ok) {
-    let message = res.statusText;
-    try {
-      const body = (await res.json()) as {
-        message?: string | string[];
-        error?: string;
-      };
-      const raw = body.message ?? body.error;
-      message = Array.isArray(raw) ? raw.join(", ") : (raw ?? message);
-    } catch {
-      // ignore JSON parse errors
-    }
-    throw new ApiError(res.status, message);
-  }
+  await throwIfNotOk(res);
 
   if (res.status === 204) {
     return undefined as T;
