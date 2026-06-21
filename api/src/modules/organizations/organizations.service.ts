@@ -230,6 +230,10 @@ export class OrganizationsService {
 
     const existing = await this.findOne(id);
 
+    if (existing.hasStores && dto.hasStores === false) {
+      await this.assertCanDisableStores(id);
+    }
+
     const organization = await this.prisma.organization.update({
       where: { id },
       data: {
@@ -263,6 +267,24 @@ export class OrganizationsService {
     });
 
     return organization;
+  }
+
+  private async assertCanDisableStores(organizationId: string): Promise<void> {
+    const stockSummary = await this.prisma.inventory.aggregate({
+      where: {
+        organizationId,
+        quantity: { gt: 0 },
+        store: { isOrgWarehouse: false },
+      },
+      _sum: { quantity: true },
+      _count: { _all: true },
+    });
+
+    if (stockSummary._count._all > 0) {
+      throw new BadRequestException(
+        `Cannot switch to direct-sales mode: ${stockSummary._sum.quantity ?? 0} unit(s) remain across ${stockSummary._count._all} product(s) in branch stores. Clear stock from all stores first.`,
+      );
+    }
   }
 
   async findCurrent(user: CurrentUserPayload): Promise<OrganizationDetail> {

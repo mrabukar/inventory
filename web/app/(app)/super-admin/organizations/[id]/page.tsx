@@ -131,6 +131,11 @@ export default function OrganizationDetailPage() {
     },
     onError: (error: Error) => {
       addErrorToast({ title: "Update failed", sub: error.message });
+      if (org) {
+        setName(org.name);
+        setHasStores(org.hasStores);
+        setIsActive(org.isActive);
+      }
     },
   });
 
