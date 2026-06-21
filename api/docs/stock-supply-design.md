@@ -1,17 +1,19 @@
-# Stock Supply — Design Reference
+# Stock Supply (Distribution) — Design Reference
 
-This document explains why stock supply works the way it does: pricing snapshots, immutable records, correction endpoints, and schema choices. Use it when implementing features, reviewing reports, or onboarding.
+This document explains how stock supply works **after the purchasing/weighted-average-cost change**. Stock supply is now **distribution** — moving already-purchased stock from the organization's central warehouse out to a store. Cost is captured earlier, at **purchase** time. Use this when implementing features, reviewing reports, or onboarding.
 
-_Last updated: 2026-06-06_
+_Last updated: 2026-06-21_
+
+> **Cost model changed.** Product cost is now the **moving weighted-average cost** (`Product.averageCost`), set by **purchases** (`/api/purchases`). Stock supply no longer captures cost. See [`PURCHASING_DESIGN.md`](../../PURCHASING_DESIGN.md) for the full purchasing/costing design.
 
 ---
 
 ## Table of Contents
 
 1. [Overview](#1-overview)
-2. [Schema](#2-schema)
-3. [Pricing: Product vs Supply vs Sale](#3-pricing-product-vs-supply-vs-sale)
-4. [Why No `unitSellingPrice` on Supply](#4-why-no-unitsellingprice-on-supply)
+2. [Where stock comes from: Purchase → Warehouse → Store](#2-where-stock-comes-from-purchase--warehouse--store)
+3. [Schema](#3-schema)
+4. [Pricing: Purchase vs Product vs Supply vs Sale](#4-pricing-purchase-vs-product-vs-supply-vs-sale)
 5. [Immutable Supplies & Corrections](#5-immutable-supplies--corrections)
 6. [API Endpoints](#6-api-endpoints)
 7. [Business Rules](#7-business-rules)
@@ -23,48 +25,55 @@ _Last updated: 2026-06-06_
 
 ## 1. Overview
 
-**Stock supply** is when an admin sends inventory to a store. Each event is stored as an immutable row in `stock_supply`. The store's live quantity lives in `inventory`.
+**Stock supply** moves inventory from the organization's central **warehouse** to a **store**. Each event is stored as an immutable row in `stock_supply`. Store and warehouse live quantities both live in `inventory` (each is an `inventory` row scoped to a `storeId`; the warehouse is a hidden store).
 
 This module is **admin-only**. Branch managers read inventory but do not create supplies.
 
 Design goals:
 
-- **Strong audit trail** — append-only supply history, no silent edits
-- **Accurate financial history** — cost frozen at supply time, not tied to today's catalog price
+- **Strong audit trail** — append-only distribution history, no silent edits
+- **Single source of cost** — cost is set once, at purchase time (`Product.averageCost`); distribution does not change cost
 - **Good UX** — users never type negative numbers; corrections use dedicated endpoints
+
+> **Multi-tenant note.** In organizations with `hasStores = false` there are no stores to distribute to — stock supply does not apply. Those orgs sell directly from the warehouse. See [`PURCHASING_DESIGN.md`](../../PURCHASING_DESIGN.md).
 
 ---
 
-## 2. Schema
+## 2. Where stock comes from: Purchase → Warehouse → Store
 
-We use the existing `StockSupply` model in `prisma/models/inventory.prisma`, extended with optional fields for corrections.
+```
+Vendor ──purchase──▶ Warehouse (central pool) ──supply/distribute──▶ Store ──sale──▶ Customer
+        (sets cost)                              (moves units)              (snapshots cost)
+```
 
-### Core fields (existing)
+| Step | Endpoint | What happens | Cost effect |
+|------|----------|--------------|-------------|
+| **Purchase** | `POST /api/purchases` | Buy units from a vendor; they land in the **warehouse** | Recomputes `Product.averageCost` (moving weighted average) |
+| **Supply / distribute** | `POST /api/stock-supplies` | Move units **warehouse → store** | **None** — cost already set at purchase |
+| **Sale** | `POST /api/sales` | Store sells to a customer | Snapshots `Product.averageCost` onto the sale as COGS |
+
+The warehouse is the only place purchases land. Distribution never creates new cost; it just relocates units the org already owns.
+
+---
+
+## 3. Schema
+
+We use the existing `StockSupply` model in `prisma/models/inventory.prisma`.
+
+### Core fields
 
 | Column | Purpose |
 |--------|---------|
-| `productId` | Product being supplied |
-| `storeId` | Destination store |
-| `quantity` | Units added or removed (signed internally for correction subtract) |
-| `unitPurchasePrice` | **Cost snapshot at supply time** (see [§3](#3-pricing-product-vs-supply-vs-sale)) |
+| `productId` | Product being distributed |
+| `storeId` | Destination store (must **not** be the warehouse) |
+| `quantity` | Units moved (signed internally for correction subtract) |
+| `unitPurchasePrice` | **Reference snapshot** of `Product.averageCost` at distribution time. Informational only — **not** a cost source for profit (see [§4](#4-pricing-purchase-vs-product-vs-supply-vs-sale)) |
 | `suppliedById` | Admin who performed the action |
 | `note` | Optional for normal supply; **required** for corrections |
+| `type` | `supply` \| `correction_add` \| `correction_subtract` |
+| `correctsSupplyId` | Optional FK to the `StockSupply` row being corrected |
+| `organizationId` | Tenant scope |
 | `createdAt` | Immutable timestamp |
-
-### Optional fields (corrections & reporting)
-
-| Column | Purpose |
-|--------|---------|
-| `type` | `supply` \| `correction_add` \| `correction_subtract` — clear intent in history and reports |
-| `correctsSupplyId` | Optional FK to the mistaken `StockSupply` row being corrected |
-
-```prisma
-enum StockSupplyType {
-  supply
-  correction_add
-  correction_subtract
-}
-```
 
 **Quantity sign convention:**
 
@@ -78,63 +87,31 @@ Users always enter a **positive** number in forms. The subtract endpoint convert
 
 ---
 
-## 3. Pricing: Product vs Supply vs Sale
+## 4. Pricing: Purchase vs Product vs Supply vs Sale
 
-Three different price concepts exist in the system. They must not be confused.
+Four price/cost concepts now exist. They must not be confused.
 
 | Location | Fields | Role |
 |----------|--------|------|
-| **Product** | `purchasePrice`, `sellingPrice` | **Current catalog prices** — what the product costs and sells for *today*. Admin can update these anytime. |
-| **StockSupply** | `unitPurchasePrice` | **Cost snapshot at supply time** — what this shipment actually cost when stock was sent to a store. Never changes after the row is created. |
-| **Sale** | `unitPurchasePrice`, `unitPrice` | **Snapshots at sale time** — frozen cost and selling price for profit on that specific sale. Never changes after the row is created. |
+| **Purchase** | `unitPurchasePrice`, `totalCost` | **The real cost event.** What the org actually paid a vendor for a batch. Drives `Product.averageCost`. Never changes after the row is created. |
+| **Product** | `averageCost`, `sellingPrice` | `averageCost` = **moving weighted-average cost** (source of truth for COGS). `sellingPrice` = current catalog price. Both update over time. (`purchasePrice` is a legacy column, retained but **unused**.) |
+| **StockSupply** | `unitPurchasePrice` | **Reference snapshot** of `averageCost` when stock was distributed. Informational; not used for profit. |
+| **Sale** | `unitPurchasePrice`, `unitPrice` | **Snapshots at sale time** — `unitPurchasePrice` = `Product.averageCost`, `unitPrice` = `Product.sellingPrice`. Frozen for profit on that specific sale. |
 
-### Why not read only from `Product.purchasePrice`?
+### Why cost lives on the purchase / average cost — not on supply
 
-Catalog prices change. Financial history must not.
+Stock can be bought at different prices over time. The system blends those into a **moving weighted average** on the product, recomputed on each purchase:
 
 **Example:**
 
-1. January — Admin supplies 50 iPhones at **$800** each. `Product.purchasePrice` is $800.
-2. March — Supplier raises price. Admin updates `Product.purchasePrice` to **$850** and supplies 30 more.
+1. January — buy 10 units @ **110** → `averageCost = 110`
+2. February — buy 10 units @ **120** → `averageCost = (10×110 + 10×120) / 20 = 115`
 
-If supply history used today's product price:
+Sales from then on are costed at the current `averageCost` (115) until the next purchase shifts it. Distribution between warehouse and stores does **not** change the average — it only moves units.
 
-- January stock investment would incorrectly show **$850 × 50**
-- Reports would drift whenever someone edits the product
+### Price snapshot on sale (unchanged principle)
 
-Storing `unitPurchasePrice` on each supply row keeps **stock investment** reports accurate.
-
-### Real-world parallel
-
-Retail and inventory systems (Shopify, Square, Odoo, etc.) typically:
-
-- Keep a **current cost** on the product/SKU
-- Store **cost at receipt** on purchase/supply lines
-- Store **price at sale** on order/sale lines
-
-This app follows the same pattern at a simpler scale.
-
-### System design rule (from `system-design.md`)
-
-> **Price snapshot on sale.** Both the selling price and purchase price at the time of sale are stored permanently in `sales.unit_purchase_price` and `sales.unit_price`. Changing product prices later does not alter any historical sale or profit record.
-
-The same principle applies to supplies: **snapshot at event time**.
-
----
-
-## 4. Why No `unitSellingPrice` on Supply
-
-**Supply = stock into a store (cost / investment side).**  
-**Sale = stock out to a customer (revenue side).**
-
-| Event | Money direction | Price field |
-|-------|-----------------|-------------|
-| Supply | Admin → store (inventory) | `unitPurchasePrice` only |
-| Sale | Store → customer | `unitPrice` (selling) + `unitPurchasePrice` (COGS snapshot) |
-
-`unitSellingPrice` on supply would only matter if branches **buy** from headquarters at an internal wholesale price. This system models: admin supplies at **purchase cost**, managers sell at **selling price** to end customers.
-
-Selling price belongs on **Sale**, defaulting from `Product.sellingPrice` at sale time and snapshotted there.
+> Both the selling price and the cost at the time of sale are stored permanently on the sale (`unitPrice`, `unitPurchasePrice`). Changing the product's price or average cost later does not alter any historical sale or profit record.
 
 ---
 
@@ -142,10 +119,10 @@ Selling price belongs on **Sale**, defaulting from `Product.sellingPrice` at sal
 
 ### Why supplies are not editable
 
-Supply records are **append-only**:
+Supply (distribution) records are **append-only**:
 
-- Full audit trail — who supplied what, when
-- Supply history reports stay trustworthy
+- Full audit trail — who moved what, when, to which store
+- Distribution history reports stay trustworthy
 - Aligns with sale corrections (new records, not silent edits)
 
 If an admin makes a mistake (wrong quantity, product, or store), they do **not** edit or delete the original row. They post a **corrective supply**.
@@ -158,20 +135,16 @@ If an admin makes a mistake (wrong quantity, product, or store), they do **not**
    - `type`: `correction_add` or `correction_subtract`
    - Mandatory `note` (e.g. _"Corrects supply #42 — meant 10 not 100"_)
    - Optional `correctsSupplyId` linking to the original
-4. `inventory.quantity` is updated in the same transaction.
+4. Both warehouse and store `inventory.quantity` are adjusted in the same transaction (a correction moves units back from the store to the warehouse, or out again).
 5. An audit log entry is written (`STOCK_SUPPLIED`).
 
-**Example — overstated quantity:**
+**Example — overstated distribution:**
 
-| Step | Action | `quantity` | Inventory effect |
-|------|--------|------------|------------------|
-| 1 | Original supply (mistake) | +100 | +100 |
-| 2 | Correction subtract | −90 | −90 |
-| **Net** | | +10 | +10 |
-
-### Why not allow editing supplies?
-
-Editing is simpler UX but weakens audit unless you build full edit history (old/new values on every change). Append-only + visible corrections is safer for a multi-store system with financial reports. See team discussion: editable supplies trade convenience for weaker historical truth.
+| Step | Action | `quantity` | Store effect | Warehouse effect |
+|------|--------|------------|--------------|------------------|
+| 1 | Original supply (mistake) | +100 | +100 | −100 |
+| 2 | Correction subtract | −90 | −90 | +90 |
+| **Net** | | +10 | +10 | −10 |
 
 ---
 
@@ -181,32 +154,36 @@ All routes are **admin-only**, under `/api/stock-supplies`.
 
 | Method | Route | Purpose |
 |--------|-------|---------|
-| `POST` | `/stock-supplies` | Normal supply — quantity **> 0**, note optional |
+| `POST` | `/stock-supplies` | Distribute warehouse → store — quantity **> 0**, note optional |
 | `GET` | `/stock-supplies` | Paginated history — filters: store, product, type, date, etc. |
-| `POST` | `/stock-supplies/corrections/add` | Fix under-count — quantity **> 0**, note **required** |
-| `POST` | `/stock-supplies/corrections/subtract` | Fix over-count — quantity **> 0**, note **required**; stored as negative |
+| `POST` | `/stock-supplies/corrections/add` | Fix under-distribution — quantity **> 0**, note **required** |
+| `POST` | `/stock-supplies/corrections/subtract` | Fix over-distribution — quantity **> 0**, note **required**; stored as negative |
 
-Validation reuses `StoresService` and `ProductsService` (active store/product must exist), same pattern as the Inventory module.
+The destination store must exist, be active, and **not** be the organization warehouse. There must be enough **warehouse** stock to cover a distribution.
 
 ---
 
 ## 7. Business Rules
 
-1. **Normal supply** — positive quantity only; `type = supply`.
-2. **Corrections** — admin only; note mandatory; flagged via `type`.
-3. **Inventory never below zero** — subtract/correction rejected if `inventory.quantity + delta < 0`. Same rule as sales (enforced in app logic; DB may also use `CHECK (quantity >= 0)` on `inventory`).
-4. **Atomic updates** — create `StockSupply` + upsert/update `inventory` in one transaction.
-5. **Audit** — write `STOCK_SUPPLIED` (and optionally `INVENTORY_UPDATED`) after success.
-6. **Immutability** — no `PATCH` or `DELETE` on supply rows.
+1. **Normal supply** — positive quantity only; `type = supply`; moves units warehouse → store.
+2. **Warehouse must have stock** — a distribution is rejected if warehouse quantity < requested quantity.
+3. **Cannot distribute to the warehouse** — the destination store may not be the warehouse itself.
+4. **Corrections** — admin only; note mandatory; flagged via `type`.
+5. **Inventory never below zero** — neither warehouse nor store quantity may go negative (enforced in app logic; DB may also use `CHECK (quantity >= 0)`).
+6. **Cost is not set here** — distribution records a reference `unitPurchasePrice` (= current `averageCost`) but never changes `Product.averageCost`.
+7. **Atomic updates** — create `StockSupply` + adjust both `inventory` rows in one transaction.
+8. **Audit** — write `STOCK_SUPPLIED` (and optionally `INVENTORY_UPDATED`) after success.
+9. **Immutability** — no `PATCH` or `DELETE` on supply rows.
 
 ---
 
 ## 8. Form & UX
 
-### Normal supply form
+### Normal supply (distribute) form
 
 - Select store, product, quantity
-- **`unitPurchasePrice`**: pre-filled from `Product.purchasePrice`, **admin may override** if this batch cost differs (supplier discount, freight, etc.)
+- Show available **warehouse** stock for the product
+- **No purchase-price input** — cost is set at purchase time, not here
 - Note: optional
 
 ### Correction forms (separate UI)
@@ -215,7 +192,7 @@ Validation reuses `StoresService` and `ProductsService` (active store/product mu
 - **Remove stock** — correction subtract endpoint; reason/note always visible and required
 - Never expose a single "quantity" field where users type `-90`
 
-This keeps routine restocking simple and makes mistakes/fixes explicit.
+This keeps routine distribution simple and makes mistakes/fixes explicit.
 
 ---
 
@@ -224,14 +201,16 @@ This keeps routine restocking simple and makes mistakes/fixes explicit.
 ```
 POST /stock-supplies (or correction endpoint)
         │
-        ├─ Validate store (StoresService.findOne)
+        ├─ Resolve destination store (must be active, not the warehouse)
+        ├─ Resolve org warehouse (ensureOrgWarehouse)
         ├─ Validate product (ProductsService.findOne)
-        ├─ Resolve unitPurchasePrice (DTO or product default)
-        ├─ If subtract: ensure inventory.quantity - qty >= 0
         │
         └─ prisma.$transaction
-              ├─ INSERT stock_supply
-              └─ UPSERT inventory (increment quantity; create row if missing)
+              ├─ Lock warehouse inventory row + store inventory row
+              ├─ Check warehouse has enough stock (for distribution)
+              ├─ INSERT stock_supply (reference unitPurchasePrice = averageCost)
+              ├─ UPDATE warehouse inventory (decrement)
+              └─ UPDATE/UPSERT store inventory (increment)
         │
         └─ INSERT audit_log
 ```
@@ -240,17 +219,20 @@ POST /stock-supplies (or correction endpoint)
 
 ## 10. Reports That Depend on This
 
-| Report / metric | Formula | Uses |
-|-----------------|---------|------|
-| Stock investment (period) | `SUM(quantity × unitPurchasePrice)` on `stock_supply` | Per-row snapshot, not `Product.purchasePrice` |
-| Current stock value (live) | `SUM(inventory.quantity × Product.purchasePrice)` | Live catalog cost × on-hand qty |
-| COGS (period) | `SUM(quantitySold × unitPurchasePrice)` on `sale` | Sale-time snapshot |
+| Report / metric | Formula | Source |
+|-----------------|---------|--------|
+| Stock investment (period) | `SUM(totalCost)` on `purchase` | What was actually paid to vendors in the period |
+| Current stock value (live) | `SUM(inventory.quantity × Product.averageCost)` | Live on-hand × weighted-average cost |
+| COGS (period) | `SUM(quantitySold × unitPurchasePrice)` on `sale` | Sale-time snapshot of `averageCost` |
 | Gross profit | Revenue − COGS | Sale snapshots |
-| Supply history | List `stock_supply` with `type` | Corrections labeled separately |
+| Supply / distribution history | List `stock_supply` with `type` | Corrections labeled separately |
+
+> Stock investment now comes from the **`purchase`** table, not `stock_supply`. Supply rows no longer represent money spent — they represent internal movement of already-owned stock.
 
 ---
 
 ## Related docs
 
+- [Purchasing & weighted-average cost](../../PURCHASING_DESIGN.md) — the purchasing/costing model (authoritative)
 - [Modules Implementation Guide](./modules-implementation-guide.md) — build order, conventions, audit logging
 - [System design](../../system-design.md) — full domain rules and report specs
