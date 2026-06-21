@@ -22,7 +22,6 @@ model Product {
   categoryId     Int
   category       Category     @relation(fields: [categoryId], references: [id])
   description    String?
-  purchasePrice  Decimal      @db.Decimal(10, 2)
   averageCost    Decimal      @default(0) @db.Decimal(10, 2)
   sellingPrice   Decimal      @db.Decimal(10, 2)
   isActive       Boolean      @default(true)
