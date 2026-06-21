@@ -1,7 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-} from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { AuditAction, Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import {
@@ -19,7 +16,6 @@ import { ProductsService } from "../products/products.service";
 import { PaginatedResult, StoresService } from "../stores/stores.service";
 import { CreatePurchaseDto } from "./dto/create-purchase.dto";
 import { PurchaseQueryDto } from "./dto/purchase-query.dto";
-import { SetOpeningCostDto } from "./dto/set-opening-cost.dto";
 import { parseAndValidatePurchaseDate } from "./purchase-date.util";
 import { computeWeightedAverageCost } from "./weighted-average.util";
 
@@ -159,7 +155,14 @@ export class PurchasesService {
         _sum: { quantity: true },
       });
       const onHand = onHandAgg._sum.quantity ?? 0;
-      const currentAverage = Number(product.averageCost);
+      // Re-read the average inside the lock — a concurrent purchase may have
+      // updated it after the pre-transaction product fetch.
+      const { averageCost: lockedAverageCost } =
+        await tx.product.findUniqueOrThrow({
+          where: { id: dto.productId },
+          select: { averageCost: true },
+        });
+      const currentAverage = Number(lockedAverageCost);
       const newAverage = computeWeightedAverageCost(
         onHand,
         currentAverage,
@@ -297,137 +300,4 @@ export class PurchasesService {
     };
   }
 
-  async recordOpeningCost(
-    productId: string,
-    dto: SetOpeningCostDto,
-    user: CurrentUserPayload,
-  ): Promise<PurchaseCreateResult> {
-    const product = await this.productsService.findOneIncludingInactive(
-      productId,
-    );
-    const purchaseDate = parseAndValidatePurchaseDate(dto.purchaseDate);
-    const unitPurchasePrice = toMoneyNumber(dto.unitPurchasePrice);
-    const organizationId = requireOrganizationId(user);
-
-    const currentAverage = Number(product.averageCost);
-    if (currentAverage > 0) {
-      throw new BadRequestException(
-        "This product already has an average cost. Use Record Purchase for new stock.",
-      );
-    }
-
-    const onHandAgg = await this.prisma.inventory.aggregate({
-      where: { productId, organizationId },
-      _sum: { quantity: true },
-    });
-    const onHand = onHandAgg._sum.quantity ?? 0;
-    if (onHand <= 0) {
-      throw new BadRequestException(
-        "Cannot set opening cost: no stock on hand for this product.",
-      );
-    }
-
-    const totalCost = toMoneyNumber(unitPurchasePrice * onHand);
-    const sellingPrice =
-      dto.newSellingPrice !== undefined
-        ? toMoneyNumber(dto.newSellingPrice)
-        : Number(product.sellingPrice);
-
-    if (dto.newSellingPrice !== undefined && !dto.acceptSellingBelowCost) {
-      assertSellingPriceNotBelowPurchase(unitPurchasePrice, sellingPrice);
-    }
-
-    const note =
-      dto.note?.trim() ||
-      "Opening balance — cost for stock on hand before purchasing was tracked";
-
-    const purchaseId = await this.prisma.$transaction(async (tx) => {
-      const purchase = await tx.purchase.create({
-        data: withOrganizationId(
-          {
-            productId,
-            quantity: onHand,
-            unitPurchasePrice,
-            totalCost,
-            purchaseDate,
-            invoiceNumber: null,
-            note,
-            purchasedById: user.id,
-          },
-          organizationId,
-        ),
-      });
-
-      const updatedProduct = await tx.product.update({
-        where: { id: productId },
-        data: {
-          averageCost: unitPurchasePrice,
-          ...(dto.newSellingPrice !== undefined
-            ? { sellingPrice }
-            : undefined),
-        },
-        include: { category: true },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          userId: user.id,
-          organizationId,
-          action: AuditAction.PURCHASE_CREATED,
-          entityType: "purchase",
-          entityId: purchase.id,
-          oldValue: Prisma.JsonNull,
-          newValue: {
-            id: purchase.id,
-            productId,
-            productName: product.name,
-            quantity: onHand,
-            unitPurchasePrice,
-            totalCost,
-            purchaseDate,
-            openingBalance: true,
-            note,
-            previousAverageCost: currentAverage,
-            newAverageCost: unitPurchasePrice,
-            ...(dto.newSellingPrice !== undefined
-              ? { newSellingPrice: sellingPrice }
-              : undefined),
-          },
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          userId: user.id,
-          organizationId,
-          action: AuditAction.PRODUCT_COST_RECALCULATED,
-          entityType: "product",
-          entityId: productId,
-          oldValue: { averageCost: currentAverage },
-          newValue: {
-            averageCost: unitPurchasePrice,
-            openingBalance: true,
-            onHand,
-          },
-        },
-      });
-
-      return purchase.id;
-    }, MUTATION_TRANSACTION_OPTIONS);
-
-    const purchase = await this.prisma.purchase.findUniqueOrThrow({
-      where: { id: purchaseId },
-      include: purchaseInclude,
-    });
-
-    const updatedProduct = await this.prisma.product.findUniqueOrThrow({
-      where: { id: productId },
-      include: { category: true },
-    });
-
-    return {
-      ...purchase,
-      product: updatedProduct,
-    };
-  }
 }
