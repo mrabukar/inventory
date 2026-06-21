@@ -202,9 +202,7 @@ export class OrganizationsService {
       },
     });
 
-    if (!organization.hasStores) {
-      await this.storesService.ensureOrgWarehouse(organization.id);
-    }
+    await this.storesService.ensureOrgWarehouse(organization.id);
 
     await this.prisma.auditLog.create({
       data: {
