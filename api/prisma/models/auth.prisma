@@ -26,6 +26,7 @@ model User {
   sales           Sale[]           @relation("SalesSoldBy")
   saleCorrections SaleCorrection[] @relation("SaleCorrections")
   stockSupplies   StockSupply[]    @relation("StockSupplies")
+  purchases       Purchase[]       @relation("PurchasesCreatedBy")
   expenses        Expense[]        @relation("ExpensesCreatedBy")
   auditLogs       AuditLog[]
 
