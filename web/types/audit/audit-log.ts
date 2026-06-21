@@ -20,7 +20,9 @@ export type AuditAction =
   | "STORE_UPDATED"
   | "STORE_DEACTIVATED"
   | "STORE_REACTIVATED"
-  | "REPORT_EXPORTED";
+  | "REPORT_EXPORTED"
+  | "PURCHASE_CREATED"
+  | "PRODUCT_COST_RECALCULATED";
 
 export type AuditJsonValue = Record<string, unknown> | unknown[] | string | number | boolean | null;
 
@@ -71,6 +73,7 @@ const ENTITY_LABELS: Record<string, string> = {
   store: "store",
   user: "user",
   report: "report",
+  purchase: "purchase",
 };
 
 const ACTION_COLORS: Record<AuditAction, string> = {
@@ -94,6 +97,8 @@ const ACTION_COLORS: Record<AuditAction, string> = {
   STORE_DEACTIVATED: "indigo",
   STORE_REACTIVATED: "indigo",
   REPORT_EXPORTED: "teal",
+  PURCHASE_CREATED: "indigo",
+  PRODUCT_COST_RECALCULATED: "slate",
 };
 
 const ACTION_LABELS: Record<AuditAction, string> = {
@@ -117,6 +122,8 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   STORE_DEACTIVATED: "Store deactivated",
   STORE_REACTIVATED: "Store reactivated",
   REPORT_EXPORTED: "Report exported",
+  PURCHASE_CREATED: "Purchase recorded",
+  PRODUCT_COST_RECALCULATED: "Average cost updated",
 };
 
 export const AUDIT_ACTION_ITEMS = (Object.keys(ACTION_LABELS) as AuditAction[]).map(
@@ -258,6 +265,15 @@ export function formatAuditSummary(log: AuditLog): string {
     case "INVENTORY_UPDATED": {
       const from = readNumber(oldRecord?.quantity);
       const to = readNumber(newRecord?.quantity);
+      const note = readString(newRecord?.note);
+      const removed = readNumber(newRecord?.removedQuantity);
+      if (newRecord?.warehouseWriteOff === true && from != null && to != null) {
+        const removedLabel =
+          removed != null ? `${removed} unit(s)` : `${from - to} unit(s)`;
+        return note
+          ? `Removed ${removedLabel} from warehouse (${note})`
+          : `Removed ${removedLabel} from warehouse`;
+      }
       if (from != null && to != null) {
         return `Inventory quantity ${from} → ${to}`;
       }
@@ -304,6 +320,19 @@ export function formatAuditSummary(log: AuditLog): string {
       const periodPart =
         fromDate && toDate ? ` · ${fromDate} to ${toDate}` : "";
       return `Exported ${report?.replace(/-/g, " ") ?? "report"}${formatPart}${periodPart}`;
+    }
+    case "PURCHASE_CREATED": {
+      const productName = readString(newRecord?.productName);
+      const qty = readNumber(newRecord?.quantity);
+      return productName && qty != null
+        ? `Recorded purchase · ${productName} · ${qty} units`
+        : "Purchase recorded";
+    }
+    case "PRODUCT_COST_RECALCULATED": {
+      const newAverage = readNumber(newRecord?.averageCost);
+      return newAverage != null
+        ? `Average cost updated to ${newAverage}`
+        : "Average cost updated";
     }
     default:
       return `${log.action} on ${log.entityType}`;
