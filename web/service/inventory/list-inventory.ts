@@ -20,6 +20,7 @@ function toQueryString(params: InventoryListQuery = {}): string {
   if (params.categoryId != null)
     search.set("categoryId", String(params.categoryId));
   if (params.storeId) search.set("storeId", params.storeId);
+  if (params.productId) search.set("productId", params.productId);
 
   const qs = search.toString();
   return qs ? `?${qs}` : "";
