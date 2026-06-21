@@ -3,7 +3,9 @@
 import { createContext, useContext, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/hooks/auth/session";
-import { clearTenantQueries } from "@/lib/auth/query-cache";
+import { buildLoginUrl } from "@/lib/auth/redirect";
+import { clearClientSession, clearTenantQueries } from "@/lib/auth/query-cache";
+import { registerUnauthorizedHandler } from "@/lib/auth/unauthorized";
 import { useAppStore } from "@/store/app";
 
 interface AuthContextValue {
@@ -45,6 +47,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearUser();
     }
   }, [user, isFetched, setUser, clearUser]);
+
+  useEffect(() => {
+    return registerUnauthorizedHandler(() => {
+      clearUser();
+      clearClientSession(queryClient);
+      const returnPath = `${window.location.pathname}${window.location.search}`;
+      window.location.replace(buildLoginUrl(returnPath));
+    });
+  }, [queryClient, clearUser]);
 
   useEffect(() => {
     if (!isFetched) return;
