@@ -4,6 +4,8 @@ import type { Role } from "@/lib/types";
 export const PROTECTED_ROUTE_PREFIXES = [
   "/dashboard",
   "/products",
+  "/purchases",
+  "/warehouse",
   "/inventory",
   "/stock-report",
   "/sales",
@@ -25,6 +27,8 @@ export const SUPER_ADMIN_ROUTE_PREFIXES = ["/super-admin"] as const;
 /** Admin-only routes — branch managers must not access these. */
 export const ADMIN_ONLY_ROUTE_PREFIXES = [
   "/products",
+  "/purchases",
+  "/warehouse",
   "/inventory",
   "/stock-report",
   "/sales",
