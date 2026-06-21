@@ -19,16 +19,37 @@ import { CreateProductDto } from "./dto/create-product.dto";
 import { DeactivateProductDto } from "./dto/deactivate-product.dto";
 import { ProductQueryDto } from "./dto/product-query.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
+import { SetOpeningCostDto } from "../purchases/dto/set-opening-cost.dto";
 import { ProductsService } from "./products.service";
+import { PurchasesService } from "../purchases/purchases.service";
+import { PurchaseQueryDto } from "../purchases/dto/purchase-query.dto";
 
 @Roles(UserRole.admin)
 @Controller("products")
 export class ProductsController {
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(
+    private readonly productsService: ProductsService,
+    private readonly purchasesService: PurchasesService,
+  ) {}
 
   @Get()
   findAll(@Query() query: ProductQueryDto) {
     return this.productsService.findAll(query);
+  }
+
+  @Get(":id/purchases")
+  findPurchases(@Param("id") id: string, @Query() query: PurchaseQueryDto) {
+    return this.purchasesService.findByProduct(id, query);
+  }
+
+  @Post(":id/opening-cost")
+  @HttpCode(HttpStatus.CREATED)
+  recordOpeningCost(
+    @Param("id") id: string,
+    @Body() dto: SetOpeningCostDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.purchasesService.recordOpeningCost(id, dto, user);
   }
 
   @Get(":id")
