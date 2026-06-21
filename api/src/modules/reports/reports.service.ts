@@ -7,6 +7,7 @@ import { Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { TenantStoreResolver } from "../../common/tenant/tenant-store-resolver.service";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
+import { productUnitCostSql } from "../../common/utils/product-unit-cost.util";
 import {
   requireManagerStore,
 } from "../../common/utils/store-scope.util";
@@ -971,7 +972,7 @@ export class ReportsService {
       }[]
     >`
       SELECT
-        COALESCE(SUM(i.quantity * p."purchasePrice"), 0)::numeric AS "stockValue",
+        COALESCE(SUM(i.quantity * ${productUnitCostSql}), 0)::numeric AS "stockValue",
         COALESCE(SUM(i.quantity), 0)::int AS units,
         COALESCE(SUM(CASE WHEN i.quantity > 0 AND i.quantity <= i."lowStockThreshold" THEN 1 ELSE 0 END), 0)::int AS "lowStockCount",
         COALESCE(SUM(CASE WHEN i.quantity = 0 THEN 1 ELSE 0 END), 0)::int AS "outOfStockCount"
@@ -998,12 +999,11 @@ export class ReportsService {
     organizationId: string,
   ): Promise<number> {
     const rows = await this.prisma.$queryRaw<{ total: unknown }[]>`
-      SELECT COALESCE(SUM(ss.quantity * ss."unitPurchasePrice"), 0)::numeric AS total
-      FROM "stock_supply" ss
-      WHERE ss."createdAt" >= ${range.fromTimestamp}
-        AND ss."createdAt" <= ${range.toTimestamp}
-        AND ss."organizationId" = ${organizationId}
-        ${storeId ? Prisma.sql`AND ss."storeId" = ${storeId}` : Prisma.empty}
+      SELECT COALESCE(SUM(p."totalCost"), 0)::numeric AS total
+      FROM "purchase" p
+      WHERE p."purchaseDate" >= ${range.fromDate}::date
+        AND p."purchaseDate" <= ${range.toDate}::date
+        AND p."organizationId" = ${organizationId}
     `;
 
     return parseRawMoney(rows[0]?.total);
@@ -1028,14 +1028,13 @@ export class ReportsService {
       : { isActive: true as const };
 
     const [purchaseRows, salesRows, inventoryRows] = await Promise.all([
-      this.prisma.stockSupply.groupBy({
+      this.prisma.purchase.groupBy({
         by: ["productId"],
         where: {
-          ...(storeId ? { storeId } : undefined),
           product: productFilter,
-          createdAt: {
-            gte: range.fromTimestamp,
-            lte: range.toTimestamp,
+          purchaseDate: {
+            gte: range.fromDate,
+            lte: range.toDate,
           },
         },
         _sum: { quantity: true },
