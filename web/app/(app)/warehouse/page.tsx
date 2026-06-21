@@ -25,6 +25,7 @@ import type { WarehouseStockWriteOffInput } from "@/service/inventory/write-off-
 export default function WarehousePage() {
   const hasStores = useAppStore((s) => s.user?.hasStores ?? true);
   const addToast = useAppStore((s) => s.addToast);
+  const addErrorToast = useAppStore((s) => s.addErrorToast);
   const [view, setView] = useState<InventoryView>("table");
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(20);
@@ -70,10 +71,9 @@ export default function WarehousePage() {
       addToast({ title: "Warehouse stock removed" });
       setWriteOffRow(null);
     } catch (err) {
-      addToast({
+      addErrorToast({
         title: "Failed to remove warehouse stock",
         sub: err instanceof Error ? err.message : undefined,
-        kind: "error",
       });
     }
   };
