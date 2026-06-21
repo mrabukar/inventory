@@ -23,6 +23,7 @@ model Product {
   category       Category     @relation(fields: [categoryId], references: [id])
   description    String?
   purchasePrice  Decimal      @db.Decimal(10, 2)
+  averageCost    Decimal      @default(0) @db.Decimal(10, 2)
   sellingPrice   Decimal      @db.Decimal(10, 2)
   isActive       Boolean      @default(true)
   organizationId String
@@ -35,6 +36,7 @@ model Product {
   inventory     Inventory[]
   sales         Sale[]
   stockSupplies StockSupply[]
+  purchases     Purchase[]
 
   @@index([normalizedName])
   @@map("product")
