@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Pencil, Plus, PowerOff } from "lucide-react";
+// import { Receipt } from "lucide-react";
 
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
@@ -16,7 +17,9 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useCreateProduct } from "@/hooks/products/use-create-product";
 import { useDeactivateProduct } from "@/hooks/products/use-deactivate-product";
 import { useProducts } from "@/hooks/products/use-products";
+// import { useSetOpeningCost } from "@/hooks/products/use-set-opening-cost";
 import { useUpdateProduct } from "@/hooks/products/use-update-product";
+// import type { SetOpeningCostInput } from "@/service/products/set-opening-cost";
 import { listProducts } from "@/service/products/list-products";
 import { toNumber } from "@/lib/reports/format";
 import { fmt } from "@/lib/utils";
@@ -27,6 +30,7 @@ import {
   ProductSheet,
   type ProductFormValues,
 } from "./components/product-sheet";
+// import { OpeningCostModal } from "./components/opening-cost-modal";
 
 interface SheetState {
   mode: "add" | "edit";
@@ -47,10 +51,14 @@ export default function ProductsPage() {
   const [pageSize, setPageSize] = useState(20);
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState<string | undefined>();
+  // const [missingOpeningCostOnly, setMissingOpeningCostOnly] = useState(false);
   const debouncedSearch = useDebouncedValue(search, 300);
 
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const [confirm, setConfirm] = useState<Product | null>(null);
+  // const [openingCostProduct, setOpeningCostProduct] = useState<Product | null>(
+  //   null,
+  // );
 
   const { data: categories = [] } = useCategories();
   const listQuery = useMemo(
@@ -59,16 +67,24 @@ export default function ProductsPage() {
       limit: pageSize,
       search: debouncedSearch || undefined,
       categoryId: categoryId ? Number(categoryId) : undefined,
+      // missingOpeningCost: missingOpeningCostOnly || undefined,
     }),
     [pageIndex, pageSize, debouncedSearch, categoryId],
   );
 
   const { data, isPending, isFetching, isError, error } = useProducts(listQuery);
+  // const { data: needsCostSummary } = useProducts({
+  //   page: 1,
+  //   limit: 1,
+  //   missingOpeningCost: true,
+  // });
+  // const needsOpeningCostCount = needsCostSummary?.meta.total ?? 0;
   const isLoading =
     isPending || (isFetching && (data?.data.length ?? 0) === 0);
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const deactivateProduct = useDeactivateProduct();
+  // const setOpeningCost = useSetOpeningCost();
 
   const products = data?.data ?? [];
   const rowCount = data?.meta.total ?? 0;
@@ -116,19 +132,19 @@ export default function ProductsPage() {
         cell: ({ row }) => <CategoryBadge cat={row.original.category.name} />,
       },
       {
-        id: "purchasePrice",
-        accessorFn: (row) => toNumber(row.purchasePrice),
+        id: "averageCost",
+        accessorFn: (row) => toNumber(row.averageCost),
         meta: {
-          label: "Purchase",
+          label: "Avg cost",
           align: "center",
-          exportValue: (row: Product) => toNumber(row.purchasePrice),
+          exportValue: (row: Product) => toNumber(row.averageCost),
         },
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Purchase" />
+          <DataTableColumnHeader column={column} title="Avg cost" />
         ),
         cell: ({ row }) => (
           <span className="num muted">
-            {fmt(toNumber(row.original.purchasePrice))}
+            {fmt(toNumber(row.original.averageCost))}
           </span>
         ),
       },
@@ -181,6 +197,16 @@ export default function ProductsPage() {
         header: "Actions",
         cell: ({ row }) => (
           <div className="dt-actions">
+            {/* {toNumber(row.original.averageCost) <= 0 ? (
+              <button
+                type="button"
+                className="dt-act"
+                title="Set opening cost"
+                onClick={() => setOpeningCostProduct(row.original)}
+              >
+                <Receipt size={16} />
+              </button>
+            ) : null} */}
             <button
               type="button"
               className="dt-act"
@@ -233,7 +259,6 @@ export default function ProductsPage() {
       categoryId: Number(form.categoryId),
       model: form.model.trim() || undefined,
       description: form.description.trim() || undefined,
-      purchasePrice: Number(form.purchasePrice),
       sellingPrice: Number(form.sellingPrice),
     };
 
@@ -268,13 +293,30 @@ export default function ProductsPage() {
     }
   };
 
+  // const handleOpeningCost = async (input: SetOpeningCostInput) => {
+  //   if (!openingCostProduct) return;
+  //   try {
+  //     await setOpeningCost.mutateAsync({
+  //       productId: openingCostProduct.id,
+  //       input,
+  //     });
+  //     addToast({ title: "Opening cost set" });
+  //     setOpeningCostProduct(null);
+  //   } catch (e) {
+  //     addErrorToast({
+  //       title: "Failed to set opening cost",
+  //       sub: e instanceof Error ? e.message : "Something went wrong",
+  //     });
+  //   }
+  // };
+
   const isSaving = createProduct.isPending || updateProduct.isPending;
 
   return (
     <>
       <PageHeader
         title="Products"
-        desc="Your product catalog across all stores"
+        desc="Product catalog — record purchases to set unit cost"
         action={
           <Button onClick={() => setSheet({ mode: "add" })}>
             <Plus className="size-4" />
@@ -282,6 +324,12 @@ export default function ProductsPage() {
           </Button>
         }
       />
+
+      {/* {needsOpeningCostCount > 0 && !missingOpeningCostOnly ? (
+        <div className="alert-warning" ...>
+          ...
+        </div>
+      ) : null} */}
 
       {isError && (
         <div className="alert-error" style={{ marginBottom: 16 }}>
@@ -337,6 +385,14 @@ export default function ProductsPage() {
           isSaving={isSaving}
         />
       )}
+
+      {/* <OpeningCostModal
+        open={openingCostProduct !== null}
+        product={openingCostProduct}
+        onClose={() => setOpeningCostProduct(null)}
+        onSave={(input) => void handleOpeningCost(input)}
+        isSaving={setOpeningCost.isPending}
+      /> */}
 
       {confirm && (
         <ConfirmDialog
