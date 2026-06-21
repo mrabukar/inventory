@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { AuditAction, Prisma, UserRole } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
+import { MUTATION_TRANSACTION_OPTIONS } from "../../common/constants/prisma-transaction.constants";
+import { lockInventoryForMutation } from "../../common/utils/inventory-lock.util";
 import { TenantStoreResolver } from "../../common/tenant/tenant-store-resolver.service";
 import { assertStoreAccess } from "../../common/utils/store-scope.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
@@ -9,6 +11,7 @@ import { ProductsService } from "../products/products.service";
 import { PaginatedResult, StoresService } from "../stores/stores.service";
 import { InventoryAlertQueryDto } from "./dto/inventory-alert-query.dto";
 import { InventoryQueryDto } from "./dto/inventory-query.dto";
+import { WarehouseStockWriteOffDto } from "./dto/warehouse-stock-write-off.dto";
 
 export type InventoryWithDetails = Prisma.InventoryGetPayload<{
   include: {
@@ -51,6 +54,17 @@ export class InventoryService {
     return this.listInventory(storeId, query, user);
   }
 
+  async findWarehouse(
+    query: InventoryQueryDto,
+    user: CurrentUserPayload,
+  ): Promise<PaginatedResult<InventoryWithDetails>> {
+    const organizationId = requireOrganizationId(user);
+    const warehouse =
+      await this.storesService.ensureOrgWarehouse(organizationId);
+
+    return this.listInventory(warehouse.id, query, user);
+  }
+
   async findByStore(
     storeId: string,
     query: InventoryQueryDto,
@@ -67,7 +81,7 @@ export class InventoryService {
     query: InventoryQueryDto,
     user: CurrentUserPayload,
   ): Promise<PaginatedResult<InventoryWithDetails>> {
-    const { page, limit, search, categoryId, lowStockOnly } = query;
+    const { page, limit, search, categoryId, lowStockOnly, productId } = query;
     const skip = (page - 1) * limit;
 
     const lowStockFilter = await this.buildLowStockFilter(
@@ -79,7 +93,7 @@ export class InventoryService {
     const where = this.buildInventoryWhere(
       storeId,
       user,
-      { search, categoryId },
+      { search, categoryId, productId },
       lowStockFilter,
     );
 
@@ -103,7 +117,7 @@ export class InventoryService {
     ]);
 
     return {
-      data,
+      data: data.map((row) => this.sanitizeInventoryForUser(row, user)),
       meta: {
         total,
         page,
@@ -141,7 +155,7 @@ export class InventoryService {
       );
     }
 
-    return inventory;
+    return this.sanitizeInventoryForUser(inventory, user);
   }
 
   async findLowStock(
@@ -215,6 +229,76 @@ export class InventoryService {
     return updated;
   }
 
+  async writeOffWarehouseStock(
+    dto: WarehouseStockWriteOffDto,
+    user: CurrentUserPayload,
+  ): Promise<InventoryWithDetails> {
+    const organizationId = requireOrganizationId(user);
+    const [warehouse, product] = await Promise.all([
+      this.storesService.ensureOrgWarehouse(organizationId),
+      this.productsService.findOneIncludingInactive(dto.productId),
+    ]);
+
+    const note = dto.note.trim();
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const inventory = await lockInventoryForMutation(
+        tx,
+        organizationId,
+        dto.productId,
+        warehouse.id,
+      );
+
+      if (!inventory) {
+        throw new NotFoundException(
+          `No warehouse stock found for product "${product.name}"`,
+        );
+      }
+
+      const previousQty = inventory.quantity;
+      const newQty = previousQty - dto.quantity;
+
+      if (newQty < 0) {
+        throw new BadRequestException(
+          `Insufficient warehouse stock: ${previousQty} available, cannot remove ${dto.quantity} units`,
+        );
+      }
+
+      const updatedInventory = await tx.inventory.update({
+        where: { id: inventory.id },
+        data: { quantity: newQty },
+        include: inventoryInclude,
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          organizationId,
+          action: AuditAction.INVENTORY_UPDATED,
+          entityType: "inventory",
+          entityId: updatedInventory.id,
+          oldValue: {
+            quantity: previousQty,
+            productId: dto.productId,
+            storeId: warehouse.id,
+          },
+          newValue: {
+            quantity: newQty,
+            productId: dto.productId,
+            storeId: warehouse.id,
+            warehouseWriteOff: true,
+            removedQuantity: dto.quantity,
+            note,
+          },
+        },
+      });
+
+      return updatedInventory;
+    }, MUTATION_TRANSACTION_OPTIONS);
+
+    return updated;
+  }
+
   private buildProductSearchFilter(
     search?: string,
     categoryId?: number,
@@ -230,7 +314,7 @@ export class InventoryService {
   private buildInventoryWhere(
     storeId: string | undefined,
     user: CurrentUserPayload,
-    filters: { search?: string; categoryId?: number },
+    filters: { search?: string; categoryId?: number; productId?: string },
     lowStockFilter: Prisma.InventoryWhereInput,
   ): Prisma.InventoryWhereInput {
     const productSearch = this.buildProductSearchFilter(
@@ -239,7 +323,8 @@ export class InventoryService {
     );
     const base: Prisma.InventoryWhereInput = {
       ...(storeId ? { storeId } : undefined),
-      store: { isActive: true },
+      ...(filters.productId ? { productId: filters.productId } : undefined),
+      store: this.buildStoreRelationFilter(storeId),
       ...lowStockFilter,
     };
 
@@ -259,6 +344,34 @@ export class InventoryService {
     return {
       ...base,
       product: { isActive: true, ...productSearch },
+    };
+  }
+
+  private buildStoreRelationFilter(
+    storeId: string | undefined,
+  ): Prisma.StoreWhereInput {
+    return {
+      isActive: true,
+      ...(storeId ? undefined : { isOrgWarehouse: false }),
+    };
+  }
+
+  private sanitizeInventoryForUser(
+    row: InventoryWithDetails,
+    user: CurrentUserPayload,
+  ): InventoryWithDetails {
+    if (user.role !== UserRole.branch_manager) {
+      return row;
+    }
+
+    const product = row.product as InventoryWithDetails["product"] & {
+      averageCost?: unknown;
+    };
+    const { averageCost: _averageCost, ...productWithoutCost } = product;
+
+    return {
+      ...row,
+      product: productWithoutCost as InventoryWithDetails["product"],
     };
   }
 
@@ -346,7 +459,7 @@ export class InventoryService {
           AND i."organizationId" = ${organizationId}
           AND i.quantity > 0
           AND i.quantity <= i."lowStockThreshold"
-          ${storeId ? Prisma.sql`AND i."storeId" = ${storeId}` : Prisma.empty}
+          ${storeId ? Prisma.sql`AND i."storeId" = ${storeId}` : Prisma.sql`AND st."isOrgWarehouse" = false`}
           ${categoryId ? Prisma.sql`AND p."categoryId" = ${categoryId}` : Prisma.empty}
           ${searchPattern ? Prisma.sql`AND p.name ILIKE ${searchPattern}` : Prisma.empty}
       `,
@@ -360,7 +473,7 @@ export class InventoryService {
           AND i."organizationId" = ${organizationId}
           AND i.quantity > 0
           AND i.quantity <= i."lowStockThreshold"
-          ${storeId ? Prisma.sql`AND i."storeId" = ${storeId}` : Prisma.empty}
+          ${storeId ? Prisma.sql`AND i."storeId" = ${storeId}` : Prisma.sql`AND st."isOrgWarehouse" = false`}
           ${categoryId ? Prisma.sql`AND p."categoryId" = ${categoryId}` : Prisma.empty}
           ${searchPattern ? Prisma.sql`AND p.name ILIKE ${searchPattern}` : Prisma.empty}
         ORDER BY i.quantity ASC, p.name ASC
@@ -410,7 +523,7 @@ export class InventoryService {
       ...(storeId ? { storeId } : undefined),
       quantity: 0,
       product: { isActive: true, ...productSearch },
-      store: { isActive: true },
+      store: this.buildStoreRelationFilter(storeId),
     };
   }
 }
