@@ -1,0 +1,181 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Plus } from "lucide-react";
+
+import { PurchaseModal } from "./components/purchase-modal";
+import { PurchaseTable } from "./components/purchase-table";
+import { Combobox } from "@/components/ui/combobox";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { PageHeader } from "@/components/ui/page-header";
+import { Button } from "@/components/ui/button";
+import { useCategories } from "@/hooks/categories/use-categories";
+import { useCreatePurchase } from "@/hooks/purchases/use-create-purchase";
+import { usePurchases } from "@/hooks/purchases/use-purchases";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { getCurrentMonthRange } from "@/lib/filters/dates";
+import { useAppStore } from "@/store/app";
+import type { CreatePurchaseInput } from "@/types/purchases/purchase";
+
+export default function PurchasesPage() {
+  const addToast = useAppStore((s) => s.addToast);
+  const addErrorToast = useAppStore((s) => s.addErrorToast);
+  const defaultRange = useMemo(() => getCurrentMonthRange(), []);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
+  const [search, setSearch] = useState("");
+  const [categoryId, setCategoryId] = useState<string | undefined>();
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [fromDate, setFromDate] = useState(defaultRange.fromDate);
+  const [toDate, setToDate] = useState(defaultRange.toDate);
+  const [showCreate, setShowCreate] = useState(false);
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const debouncedInvoice = useDebouncedValue(invoiceNumber, 300);
+
+  const listQuery = useMemo(
+    () => ({
+      page: pageIndex + 1,
+      limit: pageSize,
+      search: debouncedSearch || undefined,
+      categoryId: categoryId ? Number(categoryId) : undefined,
+      invoiceNumber: debouncedInvoice || undefined,
+      fromDate,
+      toDate,
+    }),
+    [
+      pageIndex,
+      pageSize,
+      debouncedSearch,
+      categoryId,
+      debouncedInvoice,
+      fromDate,
+      toDate,
+    ],
+  );
+
+  const { data: categories = [] } = useCategories();
+  const { data, isPending, isFetching, isError, error } =
+    usePurchases(listQuery);
+  const createPurchase = useCreatePurchase();
+
+  const rows = data?.data ?? [];
+  const rowCount = data?.meta.total ?? 0;
+  const isLoading = isPending || (isFetching && (data?.data.length ?? 0) === 0);
+
+  const categoryItems = useMemo(
+    () =>
+      categories.map((category) => ({
+        value: String(category.id),
+        label: category.name,
+      })),
+    [categories],
+  );
+
+  const resetPage = () => setPageIndex(0);
+
+  const handleCreate = async (input: CreatePurchaseInput) => {
+    try {
+      await createPurchase.mutateAsync(input);
+      addToast({ title: "Purchase recorded successfully" });
+      setShowCreate(false);
+    } catch (e) {
+      addErrorToast({
+        title: "Failed to record purchase",
+        sub: e instanceof Error ? e.message : "Something went wrong",
+      });
+    }
+  };
+
+  const toolbarExtra = (
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 8,
+        alignItems: "center",
+      }}
+    >
+      <DateRangePicker
+        fromDate={fromDate}
+        toDate={toDate}
+        onChange={(range) => {
+          setFromDate(range.fromDate);
+          setToDate(range.toDate);
+          resetPage();
+        }}
+      />
+      <input
+        className="f-input"
+        style={{ minWidth: 160 }}
+        value={invoiceNumber}
+        onChange={(e) => {
+          setInvoiceNumber(e.target.value);
+          resetPage();
+        }}
+        placeholder="Invoice number"
+      />
+      <Combobox
+        value={categoryId}
+        onValueChange={(value) => {
+          setCategoryId(value);
+          resetPage();
+        }}
+        items={categoryItems}
+        placeholder="All categories"
+        searchPlaceholder="Search categories…"
+        emptyText="No categories found."
+        clearOption={{ label: "All categories" }}
+        className="min-w-[160px]"
+      />
+    </div>
+  );
+
+  return (
+    <>
+      <PageHeader
+        title="Purchases"
+        desc="Record vendor purchases and track purchase history"
+        action={
+          <Button onClick={() => setShowCreate(true)}>
+            <Plus className="size-4" />
+            Record Purchase
+          </Button>
+        }
+      />
+
+      {isError && (
+        <div className="alert-error" style={{ marginBottom: 16 }}>
+          {error instanceof Error
+            ? error.message
+            : "Failed to load purchases."}
+        </div>
+      )}
+
+      <PurchaseTable
+        rows={rows}
+        rowCount={rowCount}
+        pageIndex={pageIndex}
+        pageSize={pageSize}
+        searchValue={search}
+        onSearchChange={(value) => {
+          setSearch(value);
+          resetPage();
+        }}
+        onPaginationChange={({ pageIndex: nextPage, pageSize: nextSize }) => {
+          setPageIndex(nextPage);
+          setPageSize(nextSize);
+        }}
+        isLoading={isLoading}
+        toolbarExtra={toolbarExtra}
+      />
+
+      <PurchaseModal
+        key={showCreate ? "open" : "closed"}
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        onSave={(form) => void handleCreate(form)}
+        isSaving={createPurchase.isPending}
+      />
+    </>
+  );
+}
