@@ -28,20 +28,14 @@ export class ProductsService {
   async findAll(
     query: ProductQueryDto,
   ): Promise<PaginatedResult<ProductWithCategory>> {
-    const { page, limit, search, categoryId, missingOpeningCost } = query;
+    const { page, limit, search, categoryId } = query;
     const skip = (page - 1) * limit;
 
     const where: Prisma.ProductWhereInput = {
-      ...(missingOpeningCost ? undefined : { isActive: true }),
+      isActive: true,
       ...(categoryId ? { categoryId } : undefined),
       ...(search
         ? { name: { contains: search, mode: "insensitive" } }
-        : undefined),
-      ...(missingOpeningCost
-        ? {
-            averageCost: { lte: 0 },
-            inventory: { some: { quantity: { gt: 0 } } },
-          }
         : undefined),
     };
 
@@ -125,7 +119,6 @@ export class ProductsService {
             normalizedModel,
             categoryId: dto.categoryId,
             description: dto.description,
-            purchasePrice: 0,
             averageCost: 0,
             sellingPrice: dto.sellingPrice,
             createdById: user.id,
