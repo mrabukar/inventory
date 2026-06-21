@@ -16,7 +16,6 @@ export interface Product {
   categoryId: number;
   category: ProductCategory;
   description: string | null;
-  purchasePrice: number | string;
   averageCost: number | string;
   sellingPrice: number | string;
   isActive: boolean;
@@ -30,7 +29,6 @@ export interface ProductListQuery {
   limit?: number;
   search?: string;
   categoryId?: number;
-  missingOpeningCost?: boolean;
 }
 
 export type ProductListResponse = PaginatedResponse<Product>;
