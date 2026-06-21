@@ -13,6 +13,7 @@ const TENANT_MODELS = new Set([
   "ExpenseCategory",
   "Expense",
   "AuditLog",
+  "Purchase",
 ]);
 
 const WHERE_OPERATIONS = new Set([
