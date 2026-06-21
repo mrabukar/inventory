@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Package,
   Layers,
+  Receipt,
   ShoppingCart,
   ShoppingBag,
   Tag,
@@ -24,6 +25,7 @@ import {
   ShieldCheck,
   Store,
   Boxes,
+  Warehouse,
 } from "lucide-react";
 
 import { LogoMark } from "@/components/logo";
@@ -75,7 +77,10 @@ function buildAdminNav(hasStores: boolean): AdminNavEntry[] {
       children: [
         { href: "/products", label: "Products", icon: Package },
         { href: "/categories", label: "Categories", icon: Tag },
-        { href: "/supply", label: "Stock Supply", icon: Truck },
+        { href: "/purchases", label: "Purchases", icon: Receipt },
+        ...(hasStores
+          ? [{ href: "/supply", label: "Distribute to Store", icon: Truck }]
+          : []),
       ],
     },
   ];
@@ -85,6 +90,7 @@ function buildAdminNav(hasStores: boolean): AdminNavEntry[] {
     label: "Stock",
     icon: Boxes,
     children: [
+      { href: "/warehouse", label: "Warehouse", icon: Warehouse },
       { href: "/inventory", label: "Inventory", icon: Layers },
       { href: "/stock-report", label: "Stock Report", icon: FileBarChart2 },
     ],
