@@ -6,14 +6,16 @@ import { Store } from "lucide-react";
 
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
+import { Button } from "@/components/ui/button";
 import { StockBadge } from "@/components/ui/badge";
 import { formatRelativeTime } from "@/lib/format-relative-time";
+import { productUnitCost } from "@/lib/products/unit-cost";
 import { toNumber } from "@/lib/reports/format";
 import { fmt } from "@/lib/utils";
 import type { Inventory } from "@/types/inventory/inventory";
 
 function stockValue(row: Inventory): number {
-  return row.quantity * toNumber(row.product.purchasePrice);
+  return row.quantity * productUnitCost(row.product);
 }
 
 interface InventoryTableProps {
@@ -32,6 +34,7 @@ interface InventoryTableProps {
   onSearchChange?: (value: string) => void;
   searchPlaceholder?: string;
   toolbarExtra?: React.ReactNode;
+  onWriteOffStock?: (row: Inventory) => void;
 }
 
 export function InventoryTable({
@@ -50,6 +53,7 @@ export function InventoryTable({
   onSearchChange,
   searchPlaceholder,
   toolbarExtra,
+  onWriteOffStock,
 }: InventoryTableProps) {
   const columns = useMemo<ColumnDef<Inventory>[]>(() => {
     const cols: ColumnDef<Inventory>[] = [
@@ -199,8 +203,30 @@ export function InventoryTable({
       });
     }
 
+    if (onWriteOffStock) {
+      cols.push({
+        id: "actions",
+        meta: { label: "Actions", export: false },
+        header: () => <span className="sr-only">Actions</span>,
+        cell: ({ row }) =>
+          row.original.quantity > 0 ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onWriteOffStock(row.original)}
+            >
+              Remove stock
+            </Button>
+          ) : (
+            <span className="muted">—</span>
+          ),
+        enableSorting: false,
+      });
+    }
+
     return cols;
-  }, [hideStoreColumn, hideStockValue, hideUpdatedAt]);
+  }, [hideStoreColumn, hideStockValue, hideUpdatedAt, onWriteOffStock]);
 
   return (
     <DataTable
