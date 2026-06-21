@@ -166,15 +166,15 @@ All **period** metrics filter by **`saleDate`** and **`expenseDate`**, not `crea
 |--------|---------|-------|
 | **Total revenue** | `SUM(sale.totalAmount)` | Uses corrected sale totals after a correction |
 | **Total units sold** | `SUM(sale.quantitySold)` | |
-| **COGS** | `SUM(quantitySold × unitPurchasePrice)` | Snapshot on each sale row — not today’s catalog price |
+| **COGS** | `SUM(quantitySold × unitPurchasePrice)` | `unitPurchasePrice` is the **weighted-average cost** (`Product.averageCost`) snapshotted on each sale row — not today’s cost |
 | **Gross profit** | Revenue − COGS | |
 | **Total expenses** | `SUM(expense.amount)` | |
 | **Net profit** | Gross profit − total expenses | Can be negative (valid business state) |
 | **Gross margin %** | `(grossProfit / revenue) × 100` | Financial summary only; `0` when revenue is `0` |
-| **Current stock value** | `SUM(inventory.qty × product.purchasePrice)` | **Live snapshot** — not filtered by date range |
+| **Current stock value** | `SUM(inventory.qty × product.averageCost)` | **Live snapshot** — moving weighted-average cost × on-hand qty; not filtered by date range |
 | **In-stock balance** | `SUM(inventory.quantity)` | **Live snapshot** |
 | **Low stock count** | Rows where `quantity ≤ lowStockThreshold` | **Live snapshot** |
-| **Stock investment** | `SUM(supply.qty × unitPurchasePrice)` in period | Financial summary only; uses `stock_supply.createdAt` |
+| **Stock investment** | `SUM(purchase.totalCost)` in period | Financial summary only; money actually paid to vendors; uses `purchase.purchaseDate` |
 
 ### Worked example
 
