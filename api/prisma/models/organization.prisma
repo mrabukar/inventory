@@ -19,6 +19,7 @@ model Organization {
   expenses          Expense[]
   expenseCategories ExpenseCategory[]
   auditLogs         AuditLog[]
+  purchases         Purchase[]
 
   @@map("organization")
 }
