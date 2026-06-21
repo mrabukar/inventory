@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import { Prisma, UserRole } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import {
   parseDateColumnRangeEnd,
@@ -106,7 +106,7 @@ export class SalesService {
     ]);
 
     return {
-      data,
+      data: data.map((sale) => this.sanitizeSaleForUser(sale, user)),
       meta: {
         total,
         page: query.page,
@@ -131,7 +131,19 @@ export class SalesService {
 
     assertStoreAccess(sale.storeId, user);
 
-    return sale;
+    return this.sanitizeSaleForUser(sale, user);
+  }
+
+  private sanitizeSaleForUser(
+    sale: SaleWithDetails,
+    user: CurrentUserPayload,
+  ): SaleWithDetails {
+    if (user.role !== UserRole.branch_manager) {
+      return sale;
+    }
+
+    const { unitPurchasePrice: _cost, ...rest } = sale;
+    return rest as SaleWithDetails;
   }
 
   async create(
@@ -146,7 +158,7 @@ export class SalesService {
     const saleDate = parseAndValidateSaleDate(dto.saleDate);
 
     const unitPrice = Number(product.sellingPrice);
-    const unitPurchasePrice = Number(product.purchasePrice);
+    const unitPurchasePrice = Number(product.averageCost);
     const totalAmount = unitPrice * dto.quantitySold;
 
     const organizationId = requireOrganizationId(user);
@@ -240,10 +252,13 @@ export class SalesService {
       return sale.id;
     }, MUTATION_TRANSACTION_OPTIONS);
 
-    return this.prisma.sale.findUniqueOrThrow({
-      where: { id: saleId },
-      include: saleInclude,
-    });
+    return this.sanitizeSaleForUser(
+      await this.prisma.sale.findUniqueOrThrow({
+        where: { id: saleId },
+        include: saleInclude,
+      }),
+      user,
+    );
   }
 
   async correct(
@@ -385,10 +400,13 @@ export class SalesService {
       return sale.id;
     }, MUTATION_TRANSACTION_OPTIONS);
 
-    return this.prisma.sale.findUniqueOrThrow({
-      where: { id: saleId },
-      include: saleInclude,
-    });
+    return this.sanitizeSaleForUser(
+      await this.prisma.sale.findUniqueOrThrow({
+        where: { id: saleId },
+        include: saleInclude,
+      }),
+      user,
+    );
   }
 
   private findManagerStore(storeId: string) {
