@@ -76,12 +76,13 @@ AuditLog ── append-only record of domain actions (admin read)
 
 | Data | Mutable? | Used for |
 |------|----------|----------|
-| `product.purchasePrice` / `sellingPrice` | Yes (admin) | **Current** catalog; future sales/supplies default to these |
-| `inventory.quantity` | Only via supply/sale/correction | **Live** stock on hand |
-| `stock_supply.unitPurchasePrice` | Never (immutable row) | **Historical** cost at receipt |
+| `product.averageCost` | Via **purchases** only | **Live** weighted-average cost; source of COGS |
+| `product.sellingPrice` | Yes (admin) | **Current** catalog price; future sales default to this |
+| `inventory.quantity` | Only via purchase/supply/sale/correction | **Live** stock on hand (warehouse + stores) |
+| `purchase.unitPurchasePrice` / `totalCost` | Never (immutable row) | **Historical** cost actually paid to a vendor |
 | `sale.unitPrice` / `unitPurchasePrice` | Never (immutable after create) | **Historical** revenue and COGS |
 
-Changing product prices **does not** rewrite past sales or supply rows.
+Changing the selling price or average cost **does not** rewrite past sales. (`product.purchasePrice` is a legacy column, retained but unused.)
 
 ### Security defaults
 
@@ -115,9 +116,9 @@ flowchart TD
 | 2 | Operator | Bootstrap first admin via `POST /api/auth/sign-up/email` (`role: admin`, no `storeId`) while `ALLOW_SIGNUP=true` |
 | 3 | Operator | Set `ALLOW_SIGNUP=false` in production |
 | 4 | Admin | `POST /stores` — create each branch |
-| 5 | Admin | `POST /products` — build catalog (`sellingPrice ≥ purchasePrice`) |
+| 5 | Admin | `POST /products` — build catalog (`sellingPrice > 0`; cost comes from purchases) |
 | 6 | Admin | `POST /auth/sign-up/email` — create managers (`role: branch_manager`, `storeId` required, store must be **active**) |
-| 7 | Admin | `POST /stock-supplies` — send stock to each store |
+| 7 | Admin | `POST /purchases` — buy stock into the warehouse, then `POST /stock-supplies` — distribute to each store |
 | 8 | Manager | `POST /auth/sign-in/email` — daily sign-in |
 
 **Before creating a branch manager:** store must exist and be **active**.
@@ -126,22 +127,25 @@ flowchart TD
 
 ---
 
-### 3.2 Stocking a store (admin)
+### 3.2 Distributing stock to a store (admin)
+
+Stock is first **purchased** into the organization's central **warehouse** (`POST /purchases`), then **distributed** from the warehouse to a store (`POST /stock-supplies`).
 
 ```mermaid
 flowchart LR
   P[Product active] --> S[Store active]
-  S --> SUP[POST /stock-supplies]
-  SUP --> INV[Inventory quantity increases]
+  W[Warehouse has stock] --> SUP[POST /stock-supplies]
+  S --> SUP
+  SUP --> INV[Store inventory ↑, warehouse ↓]
   SUP --> AUD[Audit: STOCK_SUPPLIED + INVENTORY_UPDATED]
 ```
 
 | Step | Before | Action | Then |
 |------|--------|--------|------|
 | 1 | Product `isActive: true` | Choose product | — |
-| 2 | Store `isActive: true` | Choose store | — |
-| 3 | Quantity > 0 | `POST /stock-supplies` | Supply row created; inventory increases (or row created) |
-| 4 | — | Optional `unitPurchasePrice` | Defaults to product's current `purchasePrice` if omitted |
+| 2 | Store `isActive: true` (not the warehouse) | Choose store | — |
+| 3 | Warehouse has enough stock (from purchases) | `POST /stock-supplies` | Units move warehouse → store; store inventory increases (or row created), warehouse decreases |
+| 4 | — | `unitPurchasePrice` recorded automatically | Reference snapshot of `averageCost`; not an input, not a cost source |
 
 **You cannot** edit or delete a supply row. Mistakes use **correction** endpoints (§3.5).
 
@@ -350,7 +354,7 @@ List/get return **active** stores only.
 
 | Action | Before | Blocks |
 |--------|--------|--------|
-| Create | Valid `categoryId`; prices > 0; `sellingPrice ≥ purchasePrice` | Name clash among active products |
+| Create | Valid `categoryId`; `sellingPrice > 0` (cost set later by purchases) | Name clash among active products |
 | Update | Product exists | Same price/name rules on effective values |
 | Deactivate | No stock > 0 unless `force: true` | See §3.6 |
 | Reactivate | Product inactive; unique active name | — |
@@ -443,9 +447,10 @@ Used in services after `@CurrentUser()` is available:
 
 | Rule | Detail |
 |------|--------|
-| Product create/update | `sellingPrice ≥ purchasePrice` (break-even allowed) |
-| Sale | Snapshots `sellingPrice` → `unitPrice`, `purchasePrice` → `unitPurchasePrice` |
-| Supply | Snapshots cost → `unitPurchasePrice` (optional override on POST) |
+| Product create/update | `sellingPrice > 0`. No product-level cost check; selling-below-cost is checked at purchase time |
+| Purchase | Recomputes `product.averageCost` (moving weighted average); may also update `sellingPrice` |
+| Sale | Snapshots `sellingPrice` → `unitPrice`, `averageCost` → `unitPurchasePrice` |
+| Supply (distribute) | Moves warehouse → store; records reference `unitPurchasePrice` = `averageCost` (no cost input) |
 | Correction | Sale `unitPrice` never changes; only `quantitySold` and `totalAmount` |
 
 ### Date rules (`APP_TIMEZONE`, default `Africa/Mogadishu`)
@@ -490,11 +495,11 @@ Read-only. No export endpoints (JSON only).
 | Metric | Definition |
 |--------|------------|
 | Revenue | Sum `sale.totalAmount` for `active` + `corrected` sales in period (by `saleDate`) |
-| COGS | Sum `quantitySold × unitPurchasePrice` per sale |
+| COGS | Sum `quantitySold × unitPurchasePrice` per sale (weighted-average cost snapshot) |
 | Gross profit | Revenue − COGS |
 | Net profit | Gross profit − expenses (in period) |
-| Stock investment | Sum `supply.quantity × unitPurchasePrice` where `createdAt` in period |
-| Current stock value | Sum `inventory.quantity × product.purchasePrice` today (**active** products/stores only) |
+| Stock investment | Sum `purchase.totalCost` where `purchaseDate` in period |
+| Current stock value | Sum `inventory.quantity × product.averageCost` today (**active** products/stores only) |
 | Low stock count | Rows: active product/store, `qty > 0`, `qty ≤ threshold` |
 | Out of stock count | Rows: active product/store, `qty = 0` |
 
