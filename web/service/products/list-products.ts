@@ -12,8 +12,6 @@ function toQueryString(params: ProductListQuery = {}): string {
   if (params.search) search.set("search", params.search);
   if (params.categoryId != null)
     search.set("categoryId", String(params.categoryId));
-  if (params.missingOpeningCost === true)
-    search.set("missingOpeningCost", "true");
 
   const qs = search.toString();
   return qs ? `?${qs}` : "";
