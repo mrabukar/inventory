@@ -5,6 +5,7 @@ import {
   createStockCorrectionAdd,
   createStockCorrectionSubtract,
 } from "@/service/stock-supplies/create-stock-correction";
+import { invalidateReportQueries } from "@/lib/reports/invalidate-report-queries";
 import type { CreateStockCorrectionInput } from "@/types/stock-supplies/stock-supply";
 
 export function useCreateStockCorrectionAdd() {
@@ -16,6 +17,8 @@ export function useCreateStockCorrectionAdd() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stock-supplies"] });
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-inventory"] });
+      invalidateReportQueries(queryClient);
     },
   });
 }
@@ -29,6 +32,8 @@ export function useCreateStockCorrectionSubtract() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stock-supplies"] });
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-inventory"] });
+      invalidateReportQueries(queryClient);
     },
   });
 }
