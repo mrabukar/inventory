@@ -103,7 +103,8 @@
   --ring: var(--brand-indigo);
 
   /* Sidebar — bold brand indigo (matches expense breakdown chart) */
-  --sidebar-bg: #4338ca;
+  /* --sidebar-bg: #4338ca; */
+  --sidebar-bg: #08256B;
   --sidebar-border: rgba(255, 255, 255, 0.1);
   --sidebar-fg: #ffffff;
   --sidebar-fg-muted: rgba(255, 255, 255, 0.88);
