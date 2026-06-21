@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from "@nestjs/common";
 import { UserRole } from "@prisma/client";
 import {
   CurrentUser,
@@ -8,12 +8,32 @@ import { Roles } from "../../common/decorators/roles.decorator";
 import { InventoryAlertQueryDto } from "./dto/inventory-alert-query.dto";
 import { InventoryQueryDto } from "./dto/inventory-query.dto";
 import { UpdateInventoryThresholdDto } from "./dto/update-inventory-threshold.dto";
+import { WarehouseStockWriteOffDto } from "./dto/warehouse-stock-write-off.dto";
 import { InventoryService } from "./inventory.service";
 
 @Roles(UserRole.admin, UserRole.branch_manager)
 @Controller("inventory")
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
+
+  @Get("warehouse")
+  @Roles(UserRole.admin)
+  findWarehouse(
+    @Query() query: InventoryQueryDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.inventoryService.findWarehouse(query, user);
+  }
+
+  @Post("warehouse/write-off")
+  @Roles(UserRole.admin)
+  @HttpCode(HttpStatus.OK)
+  writeOffWarehouseStock(
+    @Body() dto: WarehouseStockWriteOffDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.inventoryService.writeOffWarehouseStock(dto, user);
+  }
 
   @Get("low-stock")
   findLowStock(
