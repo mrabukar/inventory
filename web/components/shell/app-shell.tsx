@@ -12,10 +12,12 @@ import { ToastHost } from "@/components/ui/toast";
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/products": "Products",
+  "/purchases": "Purchases",
+  "/warehouse": "Warehouse",
   "/inventory": "Inventory",
   "/stock-report": "Stock Report",
   "/sales": "Sales",
-  "/supply": "Stock Supply",
+  "/supply": "Distribute to Store",
   "/expenses": "Expenses",
   "/financial": "Financial Summary",
   "/categories": "Categories",
