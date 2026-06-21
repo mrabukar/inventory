@@ -159,14 +159,14 @@ Sign-up validation (auth hooks):
 
 | Rule | Detail |
 |------|--------|
-| Create | Requires valid `categoryId`. `purchasePrice` and `sellingPrice` must be positive decimals (max 2 places). **`sellingPrice` must be ≥ `purchasePrice`** (break-even allowed). Name max 150 chars. |
+| Create | Requires valid `categoryId`. `sellingPrice` must be a positive decimal (max 2 places). **Cost is not set here** — new products start at `averageCost = 0` and gain a cost from their first **purchase**. Name max 150 chars. |
 | Name uniqueness | Among **active** products only, compared via normalized name (case/spacing insensitive). |
 | Update | Audited as `PRODUCT_UPDATED`. Renaming re-checks active-name uniqueness. |
 | Deactivate | Soft delete. Audited as `PRODUCT_DEACTIVATED`. **Blocked** if any store has `quantity > 0` unless body includes `{ "force": true }` (forced deactivations record remaining stock in audit). Rows with `quantity === 0` do not block. |
 | Reactivate | Allowed if no other **active** product has the same normalized name. Audited as `PRODUCT_REACTIVATED`. |
 | Active-only reads | `findOne` and supply/sale flows require `isActive: true`. Admin inventory and **correction subtract** may use inactive products (see [§5](#5-inventory)). |
 
-**Price validation:** `sellingPrice` must be **≥ `purchasePrice`** on create and update (evaluates the **effective** pair after a partial `PATCH`). Break-even (`selling === purchase`) is allowed. Historical sale/supply snapshots are unchanged.
+**Price validation:** `sellingPrice` must be a **positive** decimal on create and update. There is **no** product-level `sellingPrice ≥ purchasePrice` check anymore — cost is not stored on the product. The selling-below-cost guard now runs at **purchase** time, comparing the new selling price against the purchase unit cost (admin can confirm to override). Historical sale snapshots are unchanged.
 
 ---
 
@@ -237,7 +237,7 @@ See `src/common/utils/inventory-lock.util.ts`.
 
 ## 6. Stock supply
 
-Admin only. See [`stock-supply-design.md`](./stock-supply-design.md) for full detail.
+Admin only. Stock supply is **distribution** — it moves stock from the organization's central **warehouse** to a store (the warehouse is filled by purchases). Cost is set at **purchase** time, not here. See [`stock-supply-design.md`](./stock-supply-design.md) for full detail.
 
 ### Supply types
 
@@ -256,7 +256,8 @@ Admin only. See [`stock-supply-design.md`](./stock-supply-design.md) for full de
 | Quantity | Must be **non-zero**. Normal/correction DTOs require **positive** input; subtract endpoint negates internally. |
 | Note | **Optional** on normal supply. **Required** on corrections (max 500 chars). |
 | `correctsSupplyId` | Optional on corrections. If provided, referenced supply must exist and match the **same product and store**. |
-| `unitPurchasePrice` | Optional. Defaults to product’s current `purchasePrice`. Admin may override (cost snapshot at supply time). |
+| `unitPurchasePrice` | **Reference only** — recorded as the product’s current `averageCost` at distribution time. Not a cost source for profit and not admin-editable; cost is set at **purchase** time. |
+| Warehouse stock | A distribution is rejected if the warehouse has fewer units than requested. The destination store may **not** be the warehouse itself. |
 | Audit | Each supply writes `STOCK_SUPPLIED` plus `INVENTORY_UPDATED`. |
 
 Negative inventory adjustments are **only** allowed through `correction_subtract`, not through the normal supply endpoint.
@@ -291,7 +292,7 @@ Negative inventory adjustments are **only** allowed through `correction_subtract
 | Quantity | Integer, **positive** (`@IsPositive`). |
 | Stock check | Rejected if `quantitySold > inventory.quantity`. |
 | Sale date | **Today** or up to **7 days in the past** (inclusive), using `APP_TIMEZONE`. Future dates rejected. |
-| Price snapshot | `unitPrice` = product’s current `sellingPrice`; `unitPurchasePrice` = product’s current `purchasePrice`. Stored on the sale row permanently. |
+| Price snapshot | `unitPrice` = product’s current `sellingPrice`; `unitPurchasePrice` = product’s current `averageCost` (weighted-average cost). Stored on the sale row permanently. |
 | `totalAmount` | `unitPrice × quantitySold`. |
 | Status | Created as `active`. |
 | Audit | `SALE_CREATED` and `INVENTORY_UPDATED`. |
@@ -359,11 +360,11 @@ All report endpoints are **read-only**. No PDF/Excel export (see [§12](#12-gaps
 | Metric | Definition |
 |--------|------------|
 | Revenue | Sum of `sales.totalAmount` for active + corrected sales in period (by `saleDate`) |
-| COGS | Sum of `quantitySold × unitPurchasePrice` (snapshot on sale row) |
+| COGS | Sum of `quantitySold × unitPurchasePrice` — the weighted-average cost (`averageCost`) snapshotted on each sale row |
 | Gross profit | Revenue − COGS |
 | Expenses | By `expenseDate`; store filter applies per rules above |
-| Stock investment (period) | Sum of `stock_supply.quantity × unitPurchasePrice` where `createdAt` falls in period |
-| Current stock value (live) | Sum of `inventory.quantity × product.purchasePrice` using **today’s catalog cost**, not supply snapshots |
+| Stock investment (period) | Sum of `purchase.totalCost` where `purchaseDate` falls in period (money paid to vendors) |
+| Current stock value (live) | Sum of `inventory.quantity × product.averageCost` (moving weighted-average cost × on-hand qty) |
 | Low stock count | Inventory rows where `quantity > 0` and `quantity <= lowStockThreshold` (active products/stores) |
 | Out of stock count | Inventory rows where `quantity = 0` (active products/stores; row must exist) |
 
@@ -506,9 +507,9 @@ Deactivate blocked when active branch managers are assigned or when the store ha
 
 Sign-in is **not** blocked when the assigned store is inactive. Managers can log in and view dashboard / sales history; they cannot submit or correct sales until the store is reactivated or they are reassigned (see [§13.2](#132-store-deactivate-without-guard-rails)).
 
-### ~~13.5 No validation that selling price ≥ purchase price~~ ✓ Resolved
+### ~~13.5 No validation that selling price ≥ purchase price~~ ✓ Resolved (now enforced at purchase time)
 
-`POST /products` and `PATCH /products/:id` reject when effective `sellingPrice < purchasePrice` (`400`). Break-even is allowed.
+Product create/update no longer compares selling price to a product cost (products have no cost field). The selling-below-cost guard runs at **purchase** time: recording a purchase — or updating the selling price from the purchase screen — rejects a selling price below the purchase unit cost unless the admin confirms the override.
 
 ### ~~13.6 No `GET /sales/:id` detail endpoint~~ ✓ Resolved
 
