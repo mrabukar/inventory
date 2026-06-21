@@ -7,23 +7,22 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { useProducts } from "@/hooks/products/use-products";
+import { useInventory } from "@/hooks/inventory/use-inventory";
+import { useWarehouseStore } from "@/hooks/stores/use-warehouse-store";
 import { cn } from "@/lib/utils";
 import { formatProductLabel } from "@/lib/products/format";
-import { formatPriceInput } from "@/lib/reports/format";
 import type { CreateStockSupplyInput } from "@/types/stock-supplies/stock-supply";
 
 interface SupplyFormValues {
   storeId: string;
   productId: string;
   quantity: string;
-  unitPurchasePrice: string;
   note: string;
 }
 
 interface SupplyModalProps {
   open: boolean;
   storeItems: { value: string; label: string }[];
-  hideStoreField?: boolean;
   onClose: () => void;
   onSave: (data: CreateStockSupplyInput) => void;
   isSaving: boolean;
@@ -63,12 +62,12 @@ const inputClassName =
 export function SupplyModal({
   open,
   storeItems,
-  hideStoreField = false,
   onClose,
   onSave,
   isSaving,
 }: SupplyModalProps) {
   const { data: productsData } = useProducts({ limit: 100 });
+  const { data: warehouse } = useWarehouseStore();
   const products = useMemo(
     () => productsData?.data ?? [],
     [productsData?.data],
@@ -87,41 +86,39 @@ export function SupplyModal({
     storeId: storeItems[0]?.value ?? "",
     productId: "",
     quantity: "",
-    unitPurchasePrice: "",
     note: "",
   });
   const [err, setErr] = useState<Partial<SupplyFormValues>>({});
 
+  const { data: warehouseInventory } = useInventory(
+    {
+      storeId: warehouse?.id,
+      productId: form.productId || undefined,
+      limit: 1,
+    },
+    "all",
+  );
+
+  const warehouseStock = warehouseInventory?.data[0]?.quantity ?? 0;
+
   const set = (key: keyof SupplyFormValues, value: string) =>
     setForm((state) => ({ ...state, [key]: value }));
 
-  const selectProduct = (productId: string | undefined) => {
-    const product = products.find((p) => p.id === productId);
-    setForm((state) => ({
-      ...state,
-      productId: productId ?? "",
-      unitPurchasePrice: product
-        ? formatPriceInput(product.purchasePrice)
-        : state.unitPurchasePrice,
-    }));
-  };
-
   const save = () => {
     const next: Partial<SupplyFormValues> = {};
-    if (!hideStoreField && !form.storeId) next.storeId = "Store is required";
+    if (!form.storeId) next.storeId = "Store is required";
     if (!form.productId) next.productId = "Product is required";
     if (!form.quantity || +form.quantity <= 0)
       next.quantity = "Enter a positive quantity";
-    if (!form.unitPurchasePrice || +form.unitPurchasePrice <= 0)
-      next.unitPurchasePrice = "Enter a unit cost";
+    else if (+form.quantity > warehouseStock)
+      next.quantity = `Only ${warehouseStock} units available in warehouse`;
     setErr(next);
     if (Object.keys(next).length) return;
 
     onSave({
-      ...(hideStoreField ? {} : { storeId: form.storeId }),
+      storeId: form.storeId,
       productId: form.productId,
       quantity: Number(form.quantity),
-      unitPurchasePrice: Number(form.unitPurchasePrice),
       note: form.note.trim() || undefined,
     });
   };
@@ -144,35 +141,32 @@ export function SupplyModal({
         >
           <div className="flex flex-col gap-1.5 text-left">
             <Dialog.Title className="text-lg font-semibold leading-none tracking-tight">
-              New Supply
+              Distribute to Store
             </Dialog.Title>
             <Dialog.Description className="text-sm text-muted-foreground">
-              {hideStoreField
-                ? "Add stock to your organization inventory. Unit cost defaults to the product purchase price."
-                : "Send stock to a store. Unit cost defaults to the product purchase price."}
+              Move stock from the organization warehouse to a store. Cost was
+              set when the product was purchased.
             </Dialog.Description>
           </div>
 
           <div className="grid gap-4 py-2">
-            {!hideStoreField ? (
-              <FormField label="Store" required error={err.storeId}>
-                <Combobox
-                  value={form.storeId || undefined}
-                  onValueChange={(value) => set("storeId", value ?? "")}
-                  items={storeItems}
-                  placeholder="Select store"
-                  searchPlaceholder="Search stores…"
-                  emptyText="No stores found."
-                  className="w-full"
-                  popoverClassName="z-[200]"
-                />
-              </FormField>
-            ) : null}
+            <FormField label="Store" required error={err.storeId}>
+              <Combobox
+                value={form.storeId || undefined}
+                onValueChange={(value) => set("storeId", value ?? "")}
+                items={storeItems}
+                placeholder="Select store"
+                searchPlaceholder="Search stores…"
+                emptyText="No stores found."
+                className="w-full"
+                popoverClassName="z-[200]"
+              />
+            </FormField>
 
             <FormField label="Product" required error={err.productId}>
               <Combobox
                 value={form.productId || undefined}
-                onValueChange={selectProduct}
+                onValueChange={(value) => set("productId", value ?? "")}
                 items={productItems}
                 placeholder="Select product"
                 searchPlaceholder="Search products…"
@@ -182,6 +176,13 @@ export function SupplyModal({
               />
             </FormField>
 
+            {form.productId ? (
+              <p className="text-sm text-muted-foreground">
+                Warehouse stock available:{" "}
+                <strong>{warehouseStock}</strong> units
+              </p>
+            ) : null}
+
             <FormField label="Quantity" required error={err.quantity}>
               <input
                 className={cn(
@@ -190,28 +191,10 @@ export function SupplyModal({
                 )}
                 type="number"
                 min={1}
+                max={warehouseStock || undefined}
                 value={form.quantity}
                 onChange={(e) => set("quantity", e.target.value)}
                 placeholder="e.g. 50"
-              />
-            </FormField>
-
-            <FormField
-              label="Unit cost"
-              required
-              error={err.unitPurchasePrice}
-              helper="Taken from the product purchase price."
-            >
-              <input
-                className={cn(
-                  inputClassName,
-                  err.unitPurchasePrice && "border-destructive",
-                )}
-                type="number"
-                value={form.unitPurchasePrice}
-                // onChange={(e) => set("unitPurchasePrice", e.target.value)}
-                disabled
-                placeholder="0.00"
               />
             </FormField>
 
@@ -220,7 +203,7 @@ export function SupplyModal({
                 className={cn(inputClassName, "min-h-[80px] resize-y py-2")}
                 value={form.note}
                 onChange={(e) => set("note", e.target.value)}
-                placeholder="Optional note about this supply"
+                placeholder="Optional note about this distribution"
               />
             </FormField>
           </div>
@@ -235,7 +218,7 @@ export function SupplyModal({
               Cancel
             </Button>
             <Button type="button" onClick={save} disabled={isSaving}>
-              {isSaving ? "Saving…" : "Save Supply"}
+              {isSaving ? "Saving…" : "Distribute"}
             </Button>
           </div>
 
