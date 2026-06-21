@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import Link from "next/link";
 import { Plus, Wrench } from "lucide-react";
 
 import { SupplyDetailSheet } from "./components/supply-detail-sheet";
@@ -51,6 +52,34 @@ interface FixFormState {
 }
 
 export default function SupplyPage() {
+  const addToast = useAppStore((s) => s.addToast);
+  const addErrorToast = useAppStore((s) => s.addErrorToast);
+  const hasStores = useAppStore((s) => s.user?.hasStores ?? true);
+
+  if (!hasStores) {
+    return (
+      <>
+        <PageHeader
+          title="Distribute to Store"
+          desc="Distribution is only available for organizations with stores"
+        />
+        <div className="rounded-md border border-border bg-muted/30 p-6 text-sm">
+          <p style={{ marginBottom: 12 }}>
+            Your organization sells directly from organization inventory. Record
+            purchases instead of distributing to stores.
+          </p>
+          <Button asChild>
+            <Link href="/purchases">Go to Purchases</Link>
+          </Button>
+        </div>
+      </>
+    );
+  }
+
+  return <SupplyPageContent />;
+}
+
+function SupplyPageContent() {
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const hasStores = useAppStore((s) => s.user?.hasStores ?? true);
@@ -165,7 +194,7 @@ export default function SupplyPage() {
   const handleCreateSupply = async (input: CreateStockSupplyInput) => {
     try {
       await createSupply.mutateAsync(input);
-      addToast({ title: "Stock supplied successfully" });
+      addToast({ title: "Stock distributed successfully" });
       setShowCreate(false);
     } catch (e) {
       addErrorToast({
@@ -262,21 +291,17 @@ export default function SupplyPage() {
   return (
     <>
       <PageHeader
-        title="Stock Supply"
-        desc={
-          hasStores
-            ? "Inbound stock to each store"
-            : "Inbound stock to organization inventory"
-        }
+        title="Distribute to Store"
+        desc="Move stock from the organization warehouse to a store"
         action={
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Button variant="outline" onClick={() => setFixChooser({})}>
               <Wrench className="size-4" />
-              Fix a supply mistake
+              Fix a distribution mistake
             </Button>
             <Button onClick={() => setShowCreate(true)}>
               <Plus className="size-4" />
-              New Supply
+              Distribute
             </Button>
           </div>
         }
@@ -326,7 +351,6 @@ export default function SupplyPage() {
         key={showCreate ? "open" : "closed"}
         open={showCreate}
         storeItems={storeItems}
-        hideStoreField={!hasStores}
         onClose={() => setShowCreate(false)}
         onSave={(form) => void handleCreateSupply(form)}
         isSaving={createSupply.isPending}
