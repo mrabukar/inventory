@@ -15,6 +15,7 @@ import {
   type CurrentUserPayload,
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { CreateStoreDto } from "./dto/create-store.dto";
 import { StoreQueryDto } from "./dto/store-query.dto";
 import { UpdateStoreDto } from "./dto/update-store.dto";
@@ -28,6 +29,12 @@ export class StoresController {
   @Get()
   findAll(@Query() query: StoreQueryDto) {
     return this.storesService.findAll(query);
+  }
+
+  @Get("warehouse")
+  getWarehouse(@CurrentUser() user: CurrentUserPayload) {
+    const organizationId = requireOrganizationId(user);
+    return this.storesService.ensureOrgWarehouse(organizationId);
   }
 
   @Get(":id")
