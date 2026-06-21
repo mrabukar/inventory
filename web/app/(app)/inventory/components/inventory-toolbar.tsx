@@ -28,6 +28,7 @@ interface InventoryToolbarProps {
   onStatusChange: (status: InventoryStatusFilter) => void;
   view: InventoryView;
   onViewChange: (view: InventoryView) => void;
+  showStatusFilter?: boolean;
 }
 
 export function InventoryToolbar({
@@ -44,6 +45,7 @@ export function InventoryToolbar({
   onStatusChange,
   view,
   onViewChange,
+  showStatusFilter = true,
 }: InventoryToolbarProps) {
   return (
     <div className="filterbar">
@@ -74,15 +76,17 @@ export function InventoryToolbar({
         clearOption={{ label: "All categories" }}
         className="min-w-[160px]"
       />
-      <Combobox
-        value={status}
-        onValueChange={(value) =>
-          onStatusChange((value as InventoryStatusFilter | undefined) ?? "All")
-        }
-        items={STATUS_ITEMS}
-        placeholder="All status"
-        className="min-w-[160px]"
-      />
+      {showStatusFilter ? (
+        <Combobox
+          value={status}
+          onValueChange={(value) =>
+            onStatusChange((value as InventoryStatusFilter | undefined) ?? "All")
+          }
+          items={STATUS_ITEMS}
+          placeholder="All status"
+          className="min-w-[160px]"
+        />
+      ) : null}
       <span className="spacer" />
       <div className="view-toggle">
         <button
