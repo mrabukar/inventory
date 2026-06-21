@@ -24,13 +24,13 @@ export function useSession() {
     refetchOnMount: (query) => query.state.data !== null,
   });
 
-  const user = query.isSuccess && query.data ? query.data : null;
+  const user = query.status === "success" && query.data ? query.data : null;
 
   return {
     user,
     isLoading: query.isPending,
     isFetched: query.isFetched,
-    isAuthenticated: query.isSuccess && !!query.data,
+    isAuthenticated: query.status === "success" && !!query.data,
     error: query.error,
   };
 }
