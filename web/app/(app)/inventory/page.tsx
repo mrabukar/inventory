@@ -111,8 +111,8 @@ export default function InventoryPage() {
         title="Inventory"
         desc={
           hasStores
-            ? "Live stock levels per store"
-            : "Live organization-wide stock levels"
+            ? "Live stock levels at branch stores"
+            : "Branch store stock — organization-wide stock is on the Warehouse page"
         }
       />
 
