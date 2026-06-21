@@ -1,6 +1,6 @@
 # Purchasing & Weighted-Average Cost — Design Document
 
-> **Status:** Design complete — implementation not started.
+> **Status:** Implemented (phased rollout complete 2026-06-21).
 > **Last updated:** 2026-06-20
 > **Purpose:** Single source of truth for the purchasing/procurement feature and moving weighted-average costing. Reference phase by phase and tick off items as completed. Companion to `MULTITENANT_DESIGN.md`.
 
