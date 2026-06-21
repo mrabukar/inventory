@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -12,6 +13,7 @@ import {
 import { MUTATION_TRANSACTION_OPTIONS } from "../../common/constants/prisma-transaction.constants";
 import { lockInventoryForMutation } from "../../common/utils/inventory-lock.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
+import { productUnitCost } from "../../common/utils/product-unit-cost.util";
 import { withOrganizationId } from "../../common/utils/with-organization-id.util";
 import { TenantStoreResolver } from "../../common/tenant/tenant-store-resolver.service";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -39,7 +41,6 @@ interface RecordStockChangeInput {
   productId: string;
   storeId?: string;
   signedQuantity: number;
-  unitPurchasePrice?: number;
   note?: string;
   correctsSupplyId?: string;
   type: StockSupplyTypeValue;
@@ -121,12 +122,13 @@ export class StockSuppliesService {
     dto: CreateStockSupplyDto,
     user: CurrentUserPayload,
   ): Promise<StockSupplyWithDetails> {
+    await this.assertDistributionAllowed(user);
+
     return this.recordStockChange(
       {
         productId: dto.productId,
         storeId: dto.storeId,
         signedQuantity: dto.quantity,
-        unitPurchasePrice: dto.unitPurchasePrice,
         note: dto.note,
         type: "supply",
       },
@@ -138,12 +140,13 @@ export class StockSuppliesService {
     dto: CreateStockCorrectionDto,
     user: CurrentUserPayload,
   ): Promise<StockSupplyWithDetails> {
+    await this.assertDistributionAllowed(user);
+
     return this.recordStockChange(
       {
         productId: dto.productId,
         storeId: dto.storeId,
         signedQuantity: dto.quantity,
-        unitPurchasePrice: dto.unitPurchasePrice,
         note: dto.note,
         correctsSupplyId: dto.correctsSupplyId,
         type: "correction_add",
@@ -156,12 +159,13 @@ export class StockSuppliesService {
     dto: CreateStockCorrectionDto,
     user: CurrentUserPayload,
   ): Promise<StockSupplyWithDetails> {
+    await this.assertDistributionAllowed(user);
+
     return this.recordStockChange(
       {
         productId: dto.productId,
         storeId: dto.storeId,
         signedQuantity: -dto.quantity,
-        unitPurchasePrice: dto.unitPurchasePrice,
         note: dto.note,
         correctsSupplyId: dto.correctsSupplyId,
         type: "correction_subtract",
@@ -169,6 +173,26 @@ export class StockSuppliesService {
       user,
       { allowInactiveProduct: true },
     );
+  }
+
+  private async assertDistributionAllowed(
+    user: CurrentUserPayload,
+  ): Promise<void> {
+    const organizationId = requireOrganizationId(user);
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { hasStores: true },
+    });
+
+    if (!org) {
+      throw new ForbiddenException("Organization not found");
+    }
+
+    if (!org.hasStores) {
+      throw new BadRequestException(
+        "Distribution is not available for organizations without stores. Record purchases instead.",
+      );
+    }
   }
 
   private async recordStockChange(
@@ -179,7 +203,6 @@ export class StockSuppliesService {
     const {
       productId,
       signedQuantity,
-      unitPurchasePrice,
       note,
       correctsSupplyId,
       type,
@@ -194,6 +217,16 @@ export class StockSuppliesService {
       throw new BadRequestException("Quantity must not be zero");
     }
 
+    const organizationId = requireOrganizationId(user);
+    const warehouse =
+      await this.storesService.ensureOrgWarehouse(organizationId);
+
+    if (storeId === warehouse.id) {
+      throw new BadRequestException(
+        "Cannot distribute to the organization warehouse. Select a store.",
+      );
+    }
+
     const [, product] = await Promise.all([
       this.storesService.findOne(storeId),
       options?.allowInactiveProduct
@@ -202,26 +235,42 @@ export class StockSuppliesService {
       this.assertCorrectsSupply(correctsSupplyId, productId, storeId),
     ]);
 
-    const resolvedPrice = unitPurchasePrice ?? Number(product.purchasePrice);
-
-    const organizationId = requireOrganizationId(user);
+    const referencePrice = productUnitCost(product);
 
     const supplyId = await this.prisma.$transaction(async (tx) => {
-      const inventory = await lockInventoryForMutation(
+      const warehouseInventory = await lockInventoryForMutation(
+        tx,
+        organizationId,
+        productId,
+        warehouse.id,
+      );
+      const storeInventory = await lockInventoryForMutation(
         tx,
         organizationId,
         productId,
         storeId,
       );
 
-      const previousQty = inventory?.quantity ?? 0;
-      const newQty = previousQty + signedQuantity;
+      const warehouseQty = warehouseInventory?.quantity ?? 0;
+      const storeQty = storeInventory?.quantity ?? 0;
 
-      if (newQty < 0) {
-        throw new BadRequestException(
-          `Insufficient stock: current quantity is ${previousQty}, cannot remove ${Math.abs(signedQuantity)} units`,
-        );
+      if (signedQuantity > 0) {
+        if (warehouseQty < signedQuantity) {
+          throw new BadRequestException(
+            `Insufficient warehouse stock: ${warehouseQty} available, ${signedQuantity} requested`,
+          );
+        }
+      } else {
+        const removeFromStore = Math.abs(signedQuantity);
+        if (storeQty < removeFromStore) {
+          throw new BadRequestException(
+            `Insufficient store stock: ${storeQty} available, cannot remove ${removeFromStore} units`,
+          );
+        }
       }
+
+      const newWarehouseQty = warehouseQty - signedQuantity;
+      const newStoreQty = storeQty + signedQuantity;
 
       const stockSupply = await tx.stockSupply.create({
         data: withOrganizationId(
@@ -229,7 +278,7 @@ export class StockSuppliesService {
             productId,
             storeId,
             quantity: signedQuantity,
-            unitPurchasePrice: resolvedPrice,
+            unitPurchasePrice: referencePrice,
             type,
             correctsSupplyId,
             suppliedById: user.id,
@@ -239,14 +288,28 @@ export class StockSuppliesService {
         ),
       });
 
-      const updatedInventory = inventory
+      const updatedWarehouse = warehouseInventory
         ? await tx.inventory.update({
-            where: { productId_storeId: { productId, storeId } },
-            data: { quantity: newQty },
+            where: {
+              productId_storeId: { productId, storeId: warehouse.id },
+            },
+            data: { quantity: newWarehouseQty },
           })
         : await tx.inventory.create({
             data: withOrganizationId(
-              { productId, storeId, quantity: newQty },
+              { productId, storeId: warehouse.id, quantity: newWarehouseQty },
+              organizationId,
+            ),
+          });
+
+      const updatedStore = storeInventory
+        ? await tx.inventory.update({
+            where: { productId_storeId: { productId, storeId } },
+            data: { quantity: newStoreQty },
+          })
+        : await tx.inventory.create({
+            data: withOrganizationId(
+              { productId, storeId, quantity: newStoreQty },
               organizationId,
             ),
           });
@@ -263,8 +326,9 @@ export class StockSuppliesService {
             id: stockSupply.id,
             productId,
             storeId,
+            warehouseId: warehouse.id,
             quantity: signedQuantity,
-            unitPurchasePrice: resolvedPrice,
+            unitPurchasePrice: referencePrice,
             type,
             correctsSupplyId,
             note,
@@ -278,10 +342,30 @@ export class StockSuppliesService {
           organizationId,
           action: "INVENTORY_UPDATED",
           entityType: "inventory",
-          entityId: updatedInventory.id,
-          oldValue: { quantity: previousQty, productId, storeId },
+          entityId: updatedWarehouse.id,
+          oldValue: {
+            quantity: warehouseQty,
+            productId,
+            storeId: warehouse.id,
+          },
           newValue: {
-            quantity: newQty,
+            quantity: newWarehouseQty,
+            productId,
+            storeId: warehouse.id,
+          },
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          organizationId,
+          action: "INVENTORY_UPDATED",
+          entityType: "inventory",
+          entityId: updatedStore.id,
+          oldValue: { quantity: storeQty, productId, storeId },
+          newValue: {
+            quantity: newStoreQty,
             productId,
             storeId,
           },
