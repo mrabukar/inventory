@@ -10,6 +10,7 @@ export interface InventoryProduct {
   categoryId: number;
   description: string | null;
   purchasePrice: number | string;
+  averageCost?: number | string;
   sellingPrice: number | string;
   isActive: boolean;
   createdById: string;
@@ -38,6 +39,7 @@ export interface InventoryListQuery {
   search?: string;
   categoryId?: number;
   storeId?: string;
+  productId?: string;
 }
 
 export type InventoryListResponse = PaginatedResponse<Inventory>;
