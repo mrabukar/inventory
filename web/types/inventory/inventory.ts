@@ -9,7 +9,6 @@ export interface InventoryProduct {
   model: string | null;
   categoryId: number;
   description: string | null;
-  purchasePrice: number | string;
   averageCost?: number | string;
   sellingPrice: number | string;
   isActive: boolean;
