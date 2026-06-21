@@ -15,7 +15,7 @@ import { DeactivateProductDto } from "./dto/deactivate-product.dto";
 import { ProductQueryDto } from "./dto/product-query.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
 import { normalizeProductName } from "./product-name.util";
-import { assertSellingPriceNotBelowPurchase } from "./product-price.util";
+import { assertPositiveSellingPrice } from "./product-price.util";
 
 export type ProductWithCategory = Prisma.ProductGetPayload<{
   include: { category: true };
@@ -28,14 +28,20 @@ export class ProductsService {
   async findAll(
     query: ProductQueryDto,
   ): Promise<PaginatedResult<ProductWithCategory>> {
-    const { page, limit, search, categoryId } = query;
+    const { page, limit, search, categoryId, missingOpeningCost } = query;
     const skip = (page - 1) * limit;
 
     const where: Prisma.ProductWhereInput = {
-      isActive: true,
+      ...(missingOpeningCost ? undefined : { isActive: true }),
       ...(categoryId ? { categoryId } : undefined),
       ...(search
         ? { name: { contains: search, mode: "insensitive" } }
+        : undefined),
+      ...(missingOpeningCost
+        ? {
+            averageCost: { lte: 0 },
+            inventory: { some: { quantity: { gt: 0 } } },
+          }
         : undefined),
     };
 
@@ -106,7 +112,7 @@ export class ProductsService {
       organizationId,
     );
 
-    assertSellingPriceNotBelowPurchase(dto.purchasePrice, dto.sellingPrice);
+    assertPositiveSellingPrice(dto.sellingPrice);
 
     let product: ProductWithCategory;
     try {
@@ -119,7 +125,8 @@ export class ProductsService {
             normalizedModel,
             categoryId: dto.categoryId,
             description: dto.description,
-            purchasePrice: dto.purchasePrice,
+            purchasePrice: 0,
+            averageCost: 0,
             sellingPrice: dto.sellingPrice,
             createdById: user.id,
           },
@@ -205,17 +212,8 @@ export class ProductsService {
       (data as any).normalizedModel = incomingNormalizedModel;
     }
 
-    const purchasePrice =
-      dto.purchasePrice !== undefined
-        ? dto.purchasePrice
-        : Number(existing.purchasePrice);
-    const sellingPrice =
-      dto.sellingPrice !== undefined
-        ? dto.sellingPrice
-        : Number(existing.sellingPrice);
-
-    if (dto.purchasePrice !== undefined || dto.sellingPrice !== undefined) {
-      assertSellingPriceNotBelowPurchase(purchasePrice, sellingPrice);
+    if (dto.sellingPrice !== undefined) {
+      assertPositiveSellingPrice(dto.sellingPrice);
     }
 
     const product = await this.prisma.product
