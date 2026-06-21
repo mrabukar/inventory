@@ -3,6 +3,5 @@ export interface CreateProductInput {
   categoryId: number;
   model?: string;
   description?: string;
-  purchasePrice: number;
   sellingPrice: number;
 }
