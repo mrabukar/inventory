@@ -16,6 +16,10 @@ export class InventoryQueryDto extends PaginationQueryDto {
 
   @IsOptional()
   @IsString()
+  productId?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(150)
   search?: string;
 
