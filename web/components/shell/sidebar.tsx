@@ -75,8 +75,8 @@ function buildAdminNav(hasStores: boolean): AdminNavEntry[] {
       label: "Purchase",
       icon: ShoppingBag,
       children: [
-        { href: "/products", label: "Products", icon: Package },
         { href: "/categories", label: "Categories", icon: Tag },
+        { href: "/products", label: "Products", icon: Package },
         { href: "/purchases", label: "Purchases", icon: Receipt },
         ...(hasStores
           ? [{ href: "/supply", label: "Distribute to Store", icon: Truck }]
