@@ -1,5 +1,5 @@
 model Category {
-  id             Int          @id @default(autoincrement())
+  id             String       @id @default(cuid())
   name           String
   description    String?
   organizationId String
@@ -19,7 +19,7 @@ model Product {
   normalizedName String
   model          String?
   normalizedModel String?
-  categoryId     Int
+  categoryId     String
   category       Category     @relation(fields: [categoryId], references: [id])
   description    String?
   averageCost    Decimal      @default(0) @db.Decimal(10, 2)
