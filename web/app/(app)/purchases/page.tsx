@@ -44,7 +44,7 @@ export default function PurchasesPage() {
       page: pageIndex + 1,
       limit: pageSize,
       search: debouncedSearch || undefined,
-      categoryId: categoryId ? Number(categoryId) : undefined,
+      categoryId: categoryId || undefined,
       invoiceNumber: debouncedInvoice || undefined,
       fromDate,
       toDate,
