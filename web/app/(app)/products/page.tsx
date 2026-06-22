@@ -66,7 +66,7 @@ export default function ProductsPage() {
       page: pageIndex + 1,
       limit: pageSize,
       search: debouncedSearch || undefined,
-      categoryId: categoryId ? Number(categoryId) : undefined,
+      categoryId: categoryId || undefined,
       // missingOpeningCost: missingOpeningCostOnly || undefined,
     }),
     [pageIndex, pageSize, debouncedSearch, categoryId],
@@ -243,7 +243,7 @@ export default function ProductsPage() {
         page,
         limit,
         search: debouncedSearch || undefined,
-        categoryId: categoryId ? Number(categoryId) : undefined,
+        categoryId: categoryId || undefined,
       });
       rows.push(...response.data);
       totalPages = response.meta.totalPages;
@@ -256,7 +256,7 @@ export default function ProductsPage() {
   const saveProduct = async (form: ProductFormValues) => {
     const payload = {
       name: form.name.trim(),
-      categoryId: Number(form.categoryId),
+      categoryId: form.categoryId,
       model: form.model.trim() || undefined,
       description: form.description.trim() || undefined,
       sellingPrice: Number(form.sellingPrice),
