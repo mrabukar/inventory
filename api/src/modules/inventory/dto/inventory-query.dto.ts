@@ -2,6 +2,7 @@ import { Transform, Type } from "class-transformer";
 import {
   IsBoolean,
   IsInt,
+  IsNotEmpty,
   IsOptional,
   IsPositive,
   IsString,
@@ -24,10 +25,9 @@ export class InventoryQueryDto extends PaginationQueryDto {
   search?: string;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @IsPositive()
-  categoryId?: number;
+  @IsString()
+  @IsNotEmpty()
+  categoryId?: string;
 
   @IsOptional()
   @Transform(
