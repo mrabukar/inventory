@@ -6,8 +6,8 @@ import { Combobox } from "@/components/ui/combobox";
 
 interface CategoryFilterProps {
   filters?: ReportFilters;
-  value?: number;
-  onValueChange?: (categoryId: number | undefined) => void;
+  value?: string;
+  onValueChange?: (categoryId: string | undefined) => void;
   allowClear?: boolean;
   disabled?: boolean;
 }
@@ -36,7 +36,7 @@ export function CategoryFilter({
         selectedCategoryId != null ? String(selectedCategoryId) : undefined
       }
       onValueChange={(nextValue) => {
-        const categoryId = nextValue ? Number(nextValue) : undefined;
+        const categoryId = nextValue || undefined;
         if (onValueChange) {
           onValueChange(categoryId);
           return;
