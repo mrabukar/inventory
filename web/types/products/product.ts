@@ -13,7 +13,7 @@ export interface Product {
   name: string;
   normalizedName: string;
   model: string | null;
-  categoryId: number;
+  categoryId: string;
   category: ProductCategory;
   description: string | null;
   averageCost: number | string;
@@ -28,7 +28,7 @@ export interface ProductListQuery {
   page?: number;
   limit?: number;
   search?: string;
-  categoryId?: number;
+  categoryId?: string;
 }
 
 export type ProductListResponse = PaginatedResponse<Product>;
