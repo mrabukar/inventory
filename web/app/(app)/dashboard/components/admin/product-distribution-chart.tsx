@@ -21,7 +21,7 @@ interface Props {
 export function AdminProductDistributionChart({ filters }: Props) {
   const { query: reportQuery } = filters;
   const { data: categories = [] } = useCategories();
-  const [categoryId, setCategoryId] = useState<number | undefined>();
+  const [categoryId, setCategoryId] = useState<string | undefined>();
   const activeCategoryId = categoryId ?? categories[0]?.id;
   const monthRange = getCurrentMonthRange();
   const monthLabel = getCurrentMonthLabel();
