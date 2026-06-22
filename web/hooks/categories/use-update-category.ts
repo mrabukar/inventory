@@ -9,7 +9,7 @@ export function useUpdateCategory() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, input }: { id: number; input: UpdateCategoryInput }) =>
+    mutationFn: ({ id, input }: { id: string; input: UpdateCategoryInput }) =>
       updateCategory(id, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: categoriesQueryKey });
