@@ -301,7 +301,7 @@ export class InventoryService {
 
   private buildProductSearchFilter(
     search?: string,
-    categoryId?: number,
+    categoryId?: string,
   ): Prisma.ProductWhereInput {
     return {
       ...(categoryId ? { categoryId } : undefined),
@@ -314,7 +314,7 @@ export class InventoryService {
   private buildInventoryWhere(
     storeId: string | undefined,
     user: CurrentUserPayload,
-    filters: { search?: string; categoryId?: number; productId?: string },
+    filters: { search?: string; categoryId?: string; productId?: string },
     lowStockFilter: Prisma.InventoryWhereInput,
   ): Prisma.InventoryWhereInput {
     const productSearch = this.buildProductSearchFilter(
@@ -512,7 +512,7 @@ export class InventoryService {
 
   private buildOutOfStockWhere(
     storeId: string | undefined,
-    filters: { search?: string; categoryId?: number },
+    filters: { search?: string; categoryId?: string },
   ): Prisma.InventoryWhereInput {
     const productSearch = this.buildProductSearchFilter(
       filters.search,
