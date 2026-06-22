@@ -115,9 +115,9 @@
   --sidebar-panel-bg: rgba(255, 255, 255, 0.08);
   --sidebar-panel-border: rgba(255, 255, 255, 0.18);
 
-  /* Dashboard page header band */
-  --page-head-band-bg: #eef2ff;
-  --page-head-band-border: #e0e7ff;
+  /* Dashboard page header band + main content tint */
+  --page-head-band-bg: #e0e7ff;
+  --page-head-band-border: #c7d2fe;
 }
 
 /* Dark theme */
