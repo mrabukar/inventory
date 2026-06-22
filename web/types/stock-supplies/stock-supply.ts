@@ -45,7 +45,7 @@ export interface StockSupplyListQuery {
   search?: string;
   storeId?: string;
   productId?: string;
-  categoryId?: number;
+  categoryId?: string;
   type?: StockSupplyType;
   fromDate?: string;
   toDate?: string;
