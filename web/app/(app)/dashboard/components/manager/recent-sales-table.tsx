@@ -116,7 +116,7 @@ export function ManagerRecentSalesTable({ sales }: Props) {
   return (
     <Card
       className="dash-card-embed mb-16"
-      title="My Recent Sales"
+      title="Today's Sales"
       link="View all"
       onLink={() => router.push("/sales-history")}
     >
@@ -134,8 +134,8 @@ export function ManagerRecentSalesTable({ sales }: Props) {
         enableColumnVisibility={false}
         enableExport={false}
         getRowId={(row) => row.id}
-        emptyTitle="No sales yet"
-        emptyDescription="Submit your first sale to see it here."
+        emptyTitle="No sales today"
+        emptyDescription="Submit a sale today to see it here."
       />
     </Card>
   );
