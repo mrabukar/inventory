@@ -1,6 +1,6 @@
 import { Type } from "class-transformer";
 import {
-  IsInt,
+  IsNotEmpty,
   IsOptional,
   IsPositive,
   IsString,
@@ -15,8 +15,7 @@ export class ProductQueryDto extends PaginationQueryDto {
   search?: string;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @IsPositive()
-  categoryId?: number;
+  @IsString()
+  @IsNotEmpty()
+  categoryId?: string;
 }
