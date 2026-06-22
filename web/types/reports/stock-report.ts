@@ -5,6 +5,7 @@ export interface StockReportProduct {
   productId: string;
   productName: string;
   productModel: string | null;
+  averageCost: number;
   purchaseDevices: number;
   inStock: number;
   salesDevices: number;
