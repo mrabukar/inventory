@@ -2,6 +2,7 @@ import { Type } from "class-transformer";
 import {
   IsIn,
   IsInt,
+  IsNotEmpty,
   IsOptional,
   IsPositive,
   IsString,
@@ -27,10 +28,9 @@ export class StockSupplyQueryDto extends PaginationQueryDto {
   type?: StockSupplyTypeValue;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @IsPositive()
-  categoryId?: number;
+  @IsString()
+  @IsNotEmpty()
+  categoryId?: string;
 
   @IsOptional()
   @IsString()
