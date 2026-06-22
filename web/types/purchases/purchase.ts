@@ -8,12 +8,16 @@ export interface PurchaseUser {
   email: string;
 }
 
+export type PurchaseType = "purchase" | "correction";
+
 export interface Purchase {
   id: string;
   productId: string;
   quantity: number;
   unitPurchasePrice: number | string;
   totalCost: number | string;
+  type: PurchaseType;
+  correctsPurchaseId: string | null;
   invoiceNumber: string | null;
   purchaseDate: string;
   note: string | null;
@@ -21,6 +25,8 @@ export interface Purchase {
   createdAt: string;
   product: Product & { category: ProductCategory };
   purchasedBy: PurchaseUser;
+  /** Units still available to reverse on this purchase row (purchase type only). */
+  reversibleQuantity?: number;
 }
 
 export interface PurchaseListQuery {
@@ -45,6 +51,11 @@ export interface CreatePurchaseInput {
   note?: string;
   newSellingPrice?: number;
   acceptSellingBelowCost?: boolean;
+}
+
+export interface CorrectPurchaseInput {
+  quantity: number;
+  reason: string;
 }
 
 export function purchaseTotal(purchase: Purchase): number {
