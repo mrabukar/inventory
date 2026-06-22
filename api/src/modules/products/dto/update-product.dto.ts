@@ -17,10 +17,9 @@ export class UpdateProductDto {
   name?: string;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @IsPositive()
-  categoryId?: number;
+  @IsString()
+  @IsNotEmpty()
+  categoryId?: string;
 
   @IsOptional()
   @IsString()
