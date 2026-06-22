@@ -61,7 +61,7 @@ type TopProductRow = {
 type TopStoreRow = { storeId: string; storeName: string; revenue: number };
 type DailyRevenueRow = { date: string; revenue: number };
 type CategoryStockRow = {
-  categoryId: number;
+  categoryId: string;
   categoryName: string;
   units: number;
 };
@@ -422,7 +422,7 @@ export class ReportsService {
   private buildSaleWhere(
     range: ReportDateRange,
     storeId?: string,
-    categoryId?: number,
+    categoryId?: string,
   ): Prisma.SaleWhereInput {
     return {
       ...(storeId ? { storeId } : undefined),
@@ -441,9 +441,9 @@ export class ReportsService {
     };
   }
 
-  private requireCategoryId(value: unknown): number {
-    if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
-      throw new BadRequestException("categoryId must be a positive integer");
+  private requireCategoryId(value: unknown): string {
+    if (typeof value !== "string" || value.trim().length === 0) {
+      throw new BadRequestException("categoryId must be a non-empty string");
     }
 
     return value;
@@ -543,7 +543,7 @@ export class ReportsService {
       product &&
       typeof product === "object" &&
       "categoryId" in product &&
-      typeof product.categoryId === "number"
+      typeof product.categoryId === "string"
     ) {
       parts.push(
         Prisma.sql`AND EXISTS (
@@ -827,7 +827,7 @@ export class ReportsService {
   private async fetchProductDistributionTrend(
     range: ReportDateRange,
     storeId: string | undefined,
-    categoryId: number,
+    categoryId: string,
     products: Array<{
       productId: string;
       productName: string;
@@ -1021,7 +1021,7 @@ export class ReportsService {
   private async fetchStockReportRows(
     range: ReportDateRange,
     storeId?: string,
-    categoryId?: number,
+    categoryId?: string,
   ): Promise<
     Array<{
       productId: string;
