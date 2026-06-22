@@ -24,7 +24,7 @@ const dialogContentClassName = cn(
 interface Props {
   open: boolean;
   onClose: () => void;
-  initialCategoryId?: number;
+  initialCategoryId?: string;
   initialStoreId?: string;
 }
 
@@ -40,7 +40,7 @@ export function ProductDistributionModal({
 
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [categoryId, setCategoryId] = useState<number | undefined>();
+  const [categoryId, setCategoryId] = useState<string | undefined>();
   const [storeId, setStoreId] = useState<string | undefined>();
 
   useEffect(() => {
@@ -118,7 +118,7 @@ export function ProductDistributionModal({
             <Combobox
               value={categoryId != null ? String(categoryId) : undefined}
               onValueChange={(value) => {
-                setCategoryId(value ? Number(value) : undefined);
+                setCategoryId(value || undefined);
               }}
               items={categoryItems}
               placeholder="Category"
