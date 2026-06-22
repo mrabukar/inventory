@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CheckCircle2, Store, User } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Store, User } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,7 +14,6 @@ import { formatProductLabel } from "@/lib/products/format";
 import { toNumber } from "@/lib/reports/format";
 import { cn, fmt } from "@/lib/utils";
 import { useAppStore } from "@/store/app";
-import type { Sale } from "@/types/sales/sale";
 
 const inputClassName =
   "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
@@ -44,6 +44,7 @@ function FormField({
 }
 
 export default function SubmitSalePage() {
+  const router = useRouter();
   const user = useAppStore((s) => s.user);
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
@@ -74,7 +75,6 @@ export default function SubmitSalePage() {
   const [qty, setQty] = useState("");
   const [saleDate, setSaleDate] = useState(todayYmd());
   const [note, setNote] = useState("");
-  const [done, setDone] = useState<Sale | null>(null);
 
   const selected = inStock.find((row) => row.productId === productId);
   const avail = selected?.quantity ?? 0;
@@ -101,14 +101,11 @@ export default function SubmitSalePage() {
         saleDate,
         note: note.trim() || undefined,
       });
-      setDone(sale);
       addToast({
         title: "Sale recorded successfully",
         sub: `${q} × ${formatProductLabel(sale.product.name, sale.product.model)} — ${fmt(toNumber(sale.totalAmount))}`,
       });
-      setProductId(undefined);
-      setQty("");
-      setNote("");
+      router.push("/dashboard");
     } catch (e) {
       addErrorToast({
         title: "Failed to record sale",
@@ -120,30 +117,6 @@ export default function SubmitSalePage() {
   return (
     <div className="submit-sale-page mx-auto w-full max-w-3xl">
       <PageHeader title="Submit Sale" desc={locationLabel} />
-
-      {done && (
-        <div
-          className="card mb-4 flex items-center gap-3 px-4 py-3"
-          style={{
-            background: "var(--tint-emerald)",
-            borderColor:
-              "color-mix(in srgb, var(--status-emerald) 25%, transparent)",
-          }}
-        >
-          <CheckCircle2
-            size={20}
-            style={{ color: "var(--status-emerald)", flexShrink: 0 }}
-          />
-          <p className="text-sm">
-            You recorded{" "}
-            <b>
-              {done.quantitySold} ×{" "}
-              {formatProductLabel(done.product.name, done.product.model)}
-            </b>{" "}
-            — <b>{fmt(toNumber(done.totalAmount))}</b>
-          </p>
-        </div>
-      )}
 
       <Card bodyClass="px-5 py-4">
         <div className="grid gap-4">
