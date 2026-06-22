@@ -35,7 +35,7 @@ export interface NetProfitTrendRow {
 }
 
 export interface ExpenseBreakdownRow {
-  categoryId: number;
+  categoryId: string;
   categoryName: string;
   amount: number;
 }
@@ -71,7 +71,7 @@ export interface AdminDashboardResponse {
 }
 
 export interface AdminDashboardQuery extends ReportQuery {
-  categoryId?: number;
+  categoryId?: string;
 }
 
 export type { DashboardRecentSale } from "./common";
