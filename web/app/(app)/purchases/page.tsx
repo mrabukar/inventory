@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 
+import { CorrectPurchaseModal } from "./components/correct-purchase-modal";
 import { PurchaseModal } from "./components/purchase-modal";
 import { PurchaseTable } from "./components/purchase-table";
 import { Combobox } from "@/components/ui/combobox";
@@ -11,11 +12,16 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { useCategories } from "@/hooks/categories/use-categories";
 import { useCreatePurchase } from "@/hooks/purchases/use-create-purchase";
+import { useCorrectPurchase } from "@/hooks/purchases/use-correct-purchase";
 import { usePurchases } from "@/hooks/purchases/use-purchases";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { getCurrentMonthRange } from "@/lib/filters/dates";
 import { useAppStore } from "@/store/app";
-import type { CreatePurchaseInput } from "@/types/purchases/purchase";
+import type {
+  CorrectPurchaseInput,
+  CreatePurchaseInput,
+  Purchase,
+} from "@/types/purchases/purchase";
 
 export default function PurchasesPage() {
   const addToast = useAppStore((s) => s.addToast);
@@ -29,6 +35,7 @@ export default function PurchasesPage() {
   const [fromDate, setFromDate] = useState(defaultRange.fromDate);
   const [toDate, setToDate] = useState(defaultRange.toDate);
   const [showCreate, setShowCreate] = useState(false);
+  const [correctTarget, setCorrectTarget] = useState<Purchase | null>(null);
   const debouncedSearch = useDebouncedValue(search, 300);
   const debouncedInvoice = useDebouncedValue(invoiceNumber, 300);
 
@@ -57,6 +64,7 @@ export default function PurchasesPage() {
   const { data, isPending, isFetching, isError, error } =
     usePurchases(listQuery);
   const createPurchase = useCreatePurchase();
+  const correctPurchase = useCorrectPurchase();
 
   const rows = data?.data ?? [];
   const rowCount = data?.meta.total ?? 0;
@@ -81,6 +89,23 @@ export default function PurchasesPage() {
     } catch (e) {
       addErrorToast({
         title: "Failed to record purchase",
+        sub: e instanceof Error ? e.message : "Something went wrong",
+      });
+    }
+  };
+
+  const handleCorrect = async (input: CorrectPurchaseInput) => {
+    if (!correctTarget) return;
+    try {
+      await correctPurchase.mutateAsync({
+        purchaseId: correctTarget.id,
+        input,
+      });
+      addToast({ title: "Purchase corrected" });
+      setCorrectTarget(null);
+    } catch (e) {
+      addErrorToast({
+        title: "Failed to correct purchase",
         sub: e instanceof Error ? e.message : "Something went wrong",
       });
     }
@@ -167,6 +192,7 @@ export default function PurchasesPage() {
         }}
         isLoading={isLoading}
         toolbarExtra={toolbarExtra}
+        onCorrect={setCorrectTarget}
       />
 
       <PurchaseModal
@@ -175,6 +201,15 @@ export default function PurchasesPage() {
         onClose={() => setShowCreate(false)}
         onSave={(form) => void handleCreate(form)}
         isSaving={createPurchase.isPending}
+      />
+
+      <CorrectPurchaseModal
+        key={correctTarget?.id ?? "correct-closed"}
+        open={correctTarget !== null}
+        purchase={correctTarget}
+        onClose={() => setCorrectTarget(null)}
+        onSave={(form) => void handleCorrect(form)}
+        isSaving={correctPurchase.isPending}
       />
     </>
   );
