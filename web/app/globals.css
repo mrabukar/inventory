@@ -266,6 +266,7 @@ button {
 .app-content {
   flex: 1;
   overflow-y: auto;
+  background: var(--page-head-band-bg);
 }
 .app-content-inner {
   width: 100%;
@@ -2638,13 +2639,16 @@ table.tbl {
   border-spacing: 0;
 }
 .stock-report-col-product {
-  width: 30%;
+  width: 26%;
 }
 .stock-report-col-model {
+  width: 12%;
+}
+.stock-report-col-cost {
   width: 14%;
 }
 .stock-report-col-num {
-  width: 18.66%;
+  width: 16%;
 }
 .stock-report-table thead th {
   padding: 12px 20px;
@@ -2661,6 +2665,7 @@ table.tbl {
   background: color-mix(in srgb, var(--input-bg) 70%, var(--surface));
   border-bottom: 1px solid var(--border);
 }
+.stock-report-columns-row th.stock-report-th-cost,
 .stock-report-columns-row th.stock-report-th-purchase,
 .stock-report-columns-row th.stock-report-th-instock,
 .stock-report-columns-row th.stock-report-th-sales {
@@ -2706,6 +2711,16 @@ table.tbl {
   text-align: left;
   color: var(--fg3);
   word-break: break-word;
+}
+.stock-report-cost {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.stock-report-table tbody td.stock-report-cost {
+  text-align: center;
 }
 .stock-report-num {
   white-space: nowrap;
