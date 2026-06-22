@@ -1,12 +1,17 @@
 import ExcelJS from "exceljs";
 import type { Content, TableCell } from "pdfmake/interfaces";
-import { buildExportFilename, formatExportNumber } from "./export-format.util";
+import {
+  buildExportFilename,
+  formatExportMoney,
+  formatExportNumber,
+} from "./export-format.util";
 import {
   applyMetaRows,
   applyNoticeRow,
   applyWorksheetTitle,
   centerTableRows,
   freezeHeaderAndFilter,
+  setCurrencyCell,
   setIntegerCell,
   styleTableHeaderRow,
 } from "./excel-export.util";
@@ -29,7 +34,7 @@ type StockReportData = Awaited<
   ReturnType<import("../reports.service").ReportsService["getStockReport"]>
 >;
 
-const COLUMN_COUNT = 5;
+const COLUMN_COUNT = 6;
 
 function addSheetHeader(
   sheet: ExcelJS.Worksheet,
@@ -82,11 +87,25 @@ function addProductsSheet(
   addSheetHeader(sheet, context, showEmptyNotice);
 
   const headerRow = sheet.rowCount + 1;
-  sheet.addRow(["Product", "Model", "Purchased", "In Stock", "Sold"]);
+  sheet.addRow([
+    "Product",
+    "Model",
+    "Avg unit cost",
+    "Purchased",
+    "In Stock",
+    "Sold",
+  ]);
   styleTableHeaderRow(sheet, headerRow, COLUMN_COUNT, "center");
 
   if (showEmptyNotice) {
-    const emptyRow = sheet.addRow([STOCK_EMPTY_NOTICE, null, null, null, null]);
+    const emptyRow = sheet.addRow([
+      STOCK_EMPTY_NOTICE,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
     sheet.mergeCells(emptyRow.number, 1, emptyRow.number, COLUMN_COUNT);
     centerTableRows(sheet, emptyRow.number, emptyRow.number, COLUMN_COUNT);
   } else {
@@ -98,23 +117,26 @@ function addProductsSheet(
         null,
         null,
         null,
+        null,
       ]);
-      setIntegerCell(excelRow.getCell(3), row.purchaseDevices);
-      setIntegerCell(excelRow.getCell(4), row.inStock);
-      setIntegerCell(excelRow.getCell(5), row.salesDevices);
+      setCurrencyCell(excelRow.getCell(3), row.averageCost);
+      setIntegerCell(excelRow.getCell(4), row.purchaseDevices);
+      setIntegerCell(excelRow.getCell(5), row.inStock);
+      setIntegerCell(excelRow.getCell(6), row.salesDevices);
     }
 
-    const totalsRow = sheet.addRow(["Totals", "—", null, null, null]);
+    const totalsRow = sheet.addRow(["Totals", "—", "—", null, null, null]);
     totalsRow.font = { bold: true };
-    setIntegerCell(totalsRow.getCell(3), data.totals.purchaseDevices);
-    setIntegerCell(totalsRow.getCell(4), data.totals.inStock);
-    setIntegerCell(totalsRow.getCell(5), data.totals.salesDevices);
+    setIntegerCell(totalsRow.getCell(4), data.totals.purchaseDevices);
+    setIntegerCell(totalsRow.getCell(5), data.totals.inStock);
+    setIntegerCell(totalsRow.getCell(6), data.totals.salesDevices);
     centerTableRows(sheet, firstDataRow, sheet.rowCount, COLUMN_COUNT);
   }
 
   sheet.columns = [
     { width: 28 },
     { width: 18 },
+    { width: 16 },
     { width: 14 },
     { width: 14 },
     { width: 14 },
@@ -162,6 +184,7 @@ function productPdfRows(data: StockReportData): TableCell[][] {
         "",
         "",
         "",
+        "",
       ],
     ];
   }
@@ -169,6 +192,7 @@ function productPdfRows(data: StockReportData): TableCell[][] {
   const rows: TableCell[][] = data.products.map((row) => [
     row.productName,
     productModelDisplay(row.productModel),
+    formatExportMoney(row.averageCost),
     formatExportNumber(row.purchaseDevices),
     formatExportNumber(row.inStock),
     formatExportNumber(row.salesDevices),
@@ -176,6 +200,7 @@ function productPdfRows(data: StockReportData): TableCell[][] {
 
   rows.push([
     { text: "Totals", bold: true },
+    { text: "—", bold: true },
     { text: "—", bold: true },
     { text: formatExportNumber(data.totals.purchaseDevices), bold: true },
     { text: formatExportNumber(data.totals.inStock), bold: true },
@@ -222,9 +247,16 @@ export async function buildStockPdf(
     buildPdfSection(
       "By Product",
       buildPdfDataTable(
-        ["Product", "Model", "Purchased", "In Stock", "Sold"],
+        [
+          "Product",
+          "Model",
+          "Avg unit cost",
+          "Purchased",
+          "In Stock",
+          "Sold",
+        ],
         productPdfRows(data),
-        ["*", "*", 80, 80, 80],
+        ["*", "*", 80, 80, 80, 80],
         "center",
       ),
     ),
