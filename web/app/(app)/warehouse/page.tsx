@@ -10,28 +10,29 @@ import {
   InventoryToolbar,
   type InventoryView,
 } from "../inventory/components/inventory-toolbar";
-import { WarehouseWriteOffModal } from "./components/warehouse-write-off-modal";
+// Warehouse write-off — disabled for now; use Purchases → Reverse for mistaken buys.
+// import { WarehouseWriteOffModal } from "./components/warehouse-write-off-modal";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { useCategories } from "@/hooks/categories/use-categories";
-import { useWriteOffWarehouseStock } from "@/hooks/inventory/use-write-off-warehouse-stock";
+// import { useWriteOffWarehouseStock } from "@/hooks/inventory/use-write-off-warehouse-stock";
 import { useWarehouseInventory } from "@/hooks/inventory/use-warehouse-inventory";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { listWarehouseInventory } from "@/service/inventory/list-warehouse-inventory";
 import { useAppStore } from "@/store/app";
 import type { Inventory } from "@/types/inventory/inventory";
-import type { WarehouseStockWriteOffInput } from "@/service/inventory/write-off-warehouse-stock";
+// import type { WarehouseStockWriteOffInput } from "@/service/inventory/write-off-warehouse-stock";
 
 export default function WarehousePage() {
   const hasStores = useAppStore((s) => s.user?.hasStores ?? true);
-  const addToast = useAppStore((s) => s.addToast);
-  const addErrorToast = useAppStore((s) => s.addErrorToast);
+  // const addToast = useAppStore((s) => s.addToast);
+  // const addErrorToast = useAppStore((s) => s.addErrorToast);
   const [view, setView] = useState<InventoryView>("table");
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(20);
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState<string | undefined>();
-  const [writeOffRow, setWriteOffRow] = useState<Inventory | null>(null);
+  // const [writeOffRow, setWriteOffRow] = useState<Inventory | null>(null);
   const debouncedSearch = useDebouncedValue(search, 300);
 
   const listQuery = useMemo(
@@ -45,7 +46,7 @@ export default function WarehousePage() {
   );
 
   const { data: categories = [] } = useCategories();
-  const writeOffStock = useWriteOffWarehouseStock();
+  // const writeOffStock = useWriteOffWarehouseStock();
   const { data, isPending, isFetching, isError, error } =
     useWarehouseInventory(listQuery);
 
@@ -65,18 +66,18 @@ export default function WarehousePage() {
 
   const resetPage = () => setPageIndex(0);
 
-  const handleWriteOff = async (input: WarehouseStockWriteOffInput) => {
-    try {
-      await writeOffStock.mutateAsync(input);
-      addToast({ title: "Warehouse stock removed" });
-      setWriteOffRow(null);
-    } catch (err) {
-      addErrorToast({
-        title: "Failed to remove warehouse stock",
-        sub: err instanceof Error ? err.message : undefined,
-      });
-    }
-  };
+  // const handleWriteOff = async (input: WarehouseStockWriteOffInput) => {
+  //   try {
+  //     await writeOffStock.mutateAsync(input);
+  //     addToast({ title: "Warehouse stock removed" });
+  //     setWriteOffRow(null);
+  //   } catch (err) {
+  //     addErrorToast({
+  //       title: "Failed to remove warehouse stock",
+  //       sub: err instanceof Error ? err.message : undefined,
+  //     });
+  //   }
+  // };
 
   const handleExportAll = useCallback(async () => {
     const limit = 100;
@@ -159,7 +160,7 @@ export default function WarehousePage() {
           }}
           isLoading={isLoading}
           onExportAll={handleExportAll}
-          onWriteOffStock={(row) => setWriteOffRow(row)}
+          // onWriteOffStock={(row) => setWriteOffRow(row)}
         />
       ) : (
         <>
@@ -182,13 +183,14 @@ export default function WarehousePage() {
         </>
       )}
 
-      <WarehouseWriteOffModal
+      {/* <WarehouseWriteOffModal
+        key={writeOffRow?.id ?? "writeoff-closed"}
         open={writeOffRow !== null}
         row={writeOffRow}
         onClose={() => setWriteOffRow(null)}
         onSave={(input) => void handleWriteOff(input)}
         isSaving={writeOffStock.isPending}
-      />
+      /> */}
     </>
   );
 }
