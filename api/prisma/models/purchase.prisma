@@ -1,21 +1,32 @@
+enum PurchaseType {
+  purchase
+  correction
+}
+
 model Purchase {
-  id                String       @id @default(cuid())
-  productId         String
-  product           Product      @relation(fields: [productId], references: [id])
-  organizationId    String
-  organization      Organization @relation(fields: [organizationId], references: [id])
-  quantity          Int
-  unitPurchasePrice Decimal      @db.Decimal(10, 2)
-  totalCost         Decimal      @db.Decimal(10, 2)
-  invoiceNumber     String?
-  purchaseDate      DateTime     @db.Date
-  note              String?
-  purchasedById     String
-  purchasedBy       User         @relation("PurchasesCreatedBy", fields: [purchasedById], references: [id])
-  createdAt         DateTime     @default(now())
+  id                 String       @id @default(cuid())
+  productId          String
+  product            Product      @relation(fields: [productId], references: [id])
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id])
+  quantity           Int
+  unitPurchasePrice  Decimal      @db.Decimal(10, 2)
+  totalCost          Decimal      @db.Decimal(10, 2)
+  type               PurchaseType @default(purchase)
+  correctsPurchaseId String?
+  correctsPurchase   Purchase?    @relation("PurchaseCorrection", fields: [correctsPurchaseId], references: [id])
+  corrections        Purchase[]   @relation("PurchaseCorrection")
+  invoiceNumber      String?
+  purchaseDate       DateTime     @db.Date
+  note               String?
+  purchasedById      String
+  purchasedBy        User         @relation("PurchasesCreatedBy", fields: [purchasedById], references: [id])
+  createdAt          DateTime     @default(now())
 
   @@index([productId])
   @@index([organizationId])
   @@index([purchaseDate])
+  @@index([type])
+  @@index([correctsPurchaseId])
   @@map("purchase")
 }
