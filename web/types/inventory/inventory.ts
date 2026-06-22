@@ -7,7 +7,7 @@ export interface InventoryProduct {
   name: string;
   normalizedName: string;
   model: string | null;
-  categoryId: number;
+  categoryId: string;
   description: string | null;
   averageCost?: number | string;
   sellingPrice: number | string;
@@ -36,7 +36,7 @@ export interface InventoryListQuery {
   page?: number;
   limit?: number;
   search?: string;
-  categoryId?: number;
+  categoryId?: string;
   storeId?: string;
   productId?: string;
 }
