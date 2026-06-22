@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsInt, IsOptional, IsPositive, IsString } from "class-validator";
+import { IsNotEmpty, IsOptional, IsPositive, IsString } from "class-validator";
 
 export class ReportQueryDto {
   @IsOptional()
@@ -15,8 +15,7 @@ export class ReportQueryDto {
   storeId?: string;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @IsPositive()
-  categoryId?: number;
+  @IsString()
+  @IsNotEmpty()
+  categoryId?: string;
 }
