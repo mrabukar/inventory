@@ -16,6 +16,23 @@ export function computeWeightedAverageCost(
   return roundMoney(newValue / newOnHand);
 }
 
+/** Client-side preview of the average cost after reversing part of a purchase. */
+export function reverseWeightedAverageCost(
+  onHand: number,
+  currentAverageCost: number,
+  reverseQty: number,
+  originalUnitCost: number,
+): number {
+  if (reverseQty <= 0 || reverseQty > onHand) {
+    return roundMoney(currentAverageCost);
+  }
+  const newOnHand = onHand - reverseQty;
+  if (newOnHand <= 0) return 0;
+  const newValue = onHand * currentAverageCost - reverseQty * originalUnitCost;
+  if (newValue <= 0) return 0;
+  return roundMoney(newValue / newOnHand);
+}
+
 export function grossMarginPercent(
   sellingPrice: number,
   averageCost: number,
