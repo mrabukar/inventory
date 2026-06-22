@@ -7,7 +7,10 @@ import { Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { TenantStoreResolver } from "../../common/tenant/tenant-store-resolver.service";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
-import { productUnitCostSql } from "../../common/utils/product-unit-cost.util";
+import {
+  productUnitCost,
+  productUnitCostSql,
+} from "../../common/utils/product-unit-cost.util";
 import {
   requireManagerStore,
 } from "../../common/utils/store-scope.util";
@@ -302,7 +305,13 @@ export class ReportsService {
       this.countOutOfStock(storeId, organizationId),
       this.fetchDailyRevenue(storeId, trendStart, today, organizationId),
       this.fetchStockByCategory(storeId, organizationId),
-      this.fetchRecentSales({ storeId }),
+      this.fetchRecentSales({
+        storeId,
+        saleDate: {
+          gte: calendarDateToDbDate(today),
+          lte: calendarDateToDbDate(today),
+        },
+      }),
     ]);
 
     return {
@@ -1018,6 +1027,7 @@ export class ReportsService {
       productId: string;
       productName: string;
       productModel: string | null;
+      averageCost: number;
       purchaseDevices: number;
       inStock: number;
       salesDevices: number;
@@ -1093,7 +1103,7 @@ export class ReportsService {
 
     const products = await this.prisma.product.findMany({
       where: { id: { in: productIds } },
-      select: { id: true, name: true, model: true },
+      select: { id: true, name: true, model: true, averageCost: true },
       orderBy: { name: "asc" },
     });
 
@@ -1101,6 +1111,7 @@ export class ReportsService {
       productId: product.id,
       productName: product.name,
       productModel: product.model,
+      averageCost: productUnitCost(product),
       purchaseDevices: purchaseByProduct.get(product.id) ?? 0,
       inStock: stockByProduct.get(product.id) ?? 0,
       salesDevices: salesByProduct.get(product.id) ?? 0,
