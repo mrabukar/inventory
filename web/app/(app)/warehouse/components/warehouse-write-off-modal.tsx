@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Dialog } from "radix-ui";
 import { X } from "lucide-react";
 
@@ -56,16 +56,13 @@ export function WarehouseWriteOffModal({
   onSave,
   isSaving,
 }: WarehouseWriteOffModalProps) {
-  const [quantity, setQuantity] = useState("");
+  // The page remounts this modal via `key` per row, so state starts fresh;
+  // pre-fill the full warehouse quantity from the row.
+  const [quantity, setQuantity] = useState(() =>
+    row ? String(row.quantity) : "",
+  );
   const [note, setNote] = useState("");
   const [err, setErr] = useState<{ quantity?: string; note?: string }>({});
-
-  useEffect(() => {
-    if (!open || !row) return;
-    setQuantity(String(row.quantity));
-    setNote("");
-    setErr({});
-  }, [open, row]);
 
   const save = () => {
     if (!row) return;
@@ -107,11 +104,13 @@ export function WarehouseWriteOffModal({
         >
           <div className="flex flex-col gap-1.5 text-left">
             <Dialog.Title className="text-lg font-semibold leading-none tracking-tight">
-              Remove warehouse stock
+              Write off lost or damaged stock
             </Dialog.Title>
             <Dialog.Description className="text-sm text-muted-foreground">
-              Reduce central stock without distributing to stores. Use this to
-              clear mistaken purchases before deactivating a product.
+              Reduce central stock for a genuine loss (damaged, lost, stolen).
+              Bought by mistake? Use “Correct” on the purchase in Purchases
+              instead, so the purchased count, stock investment, and average
+              cost all update.
             </Dialog.Description>
           </div>
 
@@ -169,7 +168,7 @@ export function WarehouseWriteOffModal({
                   )}
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  placeholder="e.g. Wrong product created — clearing stock before deactivation"
+                  placeholder="e.g. 2 units damaged in transit"
                 />
               </FormField>
             </div>
