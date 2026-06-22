@@ -40,7 +40,7 @@ export function ProductDistributionContent({
     fromDate: query?.fromDate ?? "",
     toDate: query?.toDate ?? "",
     storeId: query?.storeId,
-    categoryId: -1,
+    categoryId: "",
   };
 
   const { data, isLoading, isError, error } = useProductDistribution(
