@@ -21,7 +21,7 @@ export interface ProductFormValues {
 
 interface ProductSheetProps {
   initial?: Product;
-  categories: { id: number; name: string }[];
+  categories: { id: string; name: string }[];
   onClose: () => void;
   onSave: (data: ProductFormValues) => void;
   isSaving: boolean;
