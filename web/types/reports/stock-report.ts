@@ -19,7 +19,7 @@ export interface StockReportTotals {
 
 export interface StockReportFilters {
   storeId: string | null;
-  categoryId: number | null;
+  categoryId: string | null;
 }
 
 export interface StockReportResponse {
