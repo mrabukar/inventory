@@ -35,7 +35,7 @@ export interface PurchaseListQuery {
   search?: string;
   productId?: string;
   invoiceNumber?: string;
-  categoryId?: number;
+  categoryId?: string;
   fromDate?: string;
   toDate?: string;
 }
