@@ -40,7 +40,7 @@ export default function WarehousePage() {
       page: pageIndex + 1,
       limit: pageSize,
       search: debouncedSearch || undefined,
-      categoryId: categoryId ? Number(categoryId) : undefined,
+      categoryId: categoryId || undefined,
     }),
     [pageIndex, pageSize, debouncedSearch, categoryId],
   );
@@ -90,7 +90,7 @@ export default function WarehousePage() {
         page,
         limit,
         search: debouncedSearch || undefined,
-        categoryId: categoryId ? Number(categoryId) : undefined,
+        categoryId: categoryId || undefined,
       });
       exported.push(...response.data);
       totalPages = response.meta.totalPages;
