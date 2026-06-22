@@ -23,14 +23,14 @@ export function ManagerDashboard({ user }: { user: AppUser }) {
       className="page-head--band"
       title={`Dashboard — ${label}`}
       desc="Your store at a glance"
-      action={
-        <ReportExportMenu
-          reports={["financial-summary", "stock-report"]}
-          params={exportRange}
-          disabled={exportBusy}
-          onBusyChange={setExportBusy}
-        />
-      }
+      // action={
+      //   <ReportExportMenu
+      //     reports={["financial-summary", "stock-report"]}
+      //     params={exportRange}
+      //     disabled={exportBusy}
+      //     onBusyChange={setExportBusy}
+      //   />
+      // }
     />
   );
 
