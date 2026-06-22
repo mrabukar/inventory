@@ -46,7 +46,7 @@ export interface SaleListQuery {
   limit?: number;
   search?: string;
   storeId?: string;
-  categoryId?: number;
+  categoryId?: string;
   status?: SaleStatus;
   fromDate?: string;
   toDate?: string;
