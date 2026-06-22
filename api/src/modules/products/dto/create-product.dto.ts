@@ -1,6 +1,5 @@
 import { Type } from "class-transformer";
 import {
-  IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -15,10 +14,9 @@ export class CreateProductDto {
   @MaxLength(150)
   name!: string;
 
-  @Type(() => Number)
-  @IsInt()
-  @IsPositive()
-  categoryId!: number;
+  @IsString()
+  @IsNotEmpty()
+  categoryId!: string;
 
   @IsOptional()
   @IsString()
