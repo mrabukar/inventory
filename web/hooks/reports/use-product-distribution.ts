@@ -11,6 +11,6 @@ export function useProductDistribution(params: ProductDistributionQuery) {
   return useQuery({
     queryKey: productDistributionQueryKey(params),
     queryFn: () => getProductDistribution(params),
-    enabled: params.categoryId != null && params.categoryId > 0,
+    enabled: Boolean(params.categoryId?.trim()),
   });
 }
