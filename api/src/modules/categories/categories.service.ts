@@ -12,7 +12,7 @@ import { CreateCategoryDto } from "./dto/create-category.dto";
 import { UpdateCategoryDto } from "./dto/update-category.dto";
 
 export type CategoryWithCount = {
-  id: number;
+  id: string;
   name: string;
   description: string | null;
   createdAt: Date;
@@ -41,7 +41,7 @@ export class CategoriesService {
     });
   }
 
-  async findOne(id: number): Promise<CategoryWithCount> {
+  async findOne(id: string): Promise<CategoryWithCount> {
     const category = await this.prisma.category.findUnique({
       where: { id },
       ...categoryWithProductCount,
@@ -69,7 +69,7 @@ export class CategoriesService {
     });
   }
 
-  async update(id: number, dto: UpdateCategoryDto): Promise<CategoryWithCount> {
+  async update(id: string, dto: UpdateCategoryDto): Promise<CategoryWithCount> {
     if (Object.keys(dto).length === 0) {
       throw new BadRequestException("At least one field must be provided");
     }
@@ -89,7 +89,7 @@ export class CategoriesService {
     });
   }
 
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     await this.findOne(id);
     const productCount = await this.prisma.product.count({
       where: { categoryId: id },
@@ -104,7 +104,7 @@ export class CategoriesService {
 
   private async assertUniqueName(
     name: string,
-    excludeId?: number,
+    excludeId?: string,
   ): Promise<void> {
     const existing = await this.prisma.category.findFirst({
       where: { name: { equals: name.trim(), mode: "insensitive" } },
