@@ -43,7 +43,7 @@ export default function MyStockPage() {
       page: pageIndex + 1,
       limit: pageSize,
       search: debouncedSearch || undefined,
-      categoryId: categoryId ? Number(categoryId) : undefined,
+      categoryId: categoryId || undefined,
     }),
     [pageIndex, pageSize, debouncedSearch, categoryId],
   );
@@ -53,7 +53,7 @@ export default function MyStockPage() {
       page: 1,
       limit: 100,
       search: debouncedSearch || undefined,
-      categoryId: categoryId ? Number(categoryId) : undefined,
+      categoryId: categoryId || undefined,
     }),
     [debouncedSearch, categoryId],
   );
