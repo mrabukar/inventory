@@ -324,7 +324,7 @@ export class ProductsService {
     return product;
   }
 
-  private async assertCategoryExists(categoryId: number): Promise<void> {
+  private async assertCategoryExists(categoryId: string): Promise<void> {
     const category = await this.prisma.category.findUnique({
       where: { id: categoryId },
     });
