@@ -22,7 +22,7 @@ export interface ProductDistributionTrend {
 }
 
 export interface ProductDistributionFilters {
-  categoryId: number;
+  categoryId: string;
   categoryName: string;
   storeId: string | null;
 }
@@ -36,5 +36,5 @@ export interface ProductDistributionResponse {
 }
 
 export interface ProductDistributionQuery extends ReportQuery {
-  categoryId: number;
+  categoryId: string;
 }
