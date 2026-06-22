@@ -58,7 +58,7 @@ export interface DashboardRecentSale {
 }
 
 export interface StockByCategoryRow {
-  categoryId: number;
+  categoryId: string;
   categoryName: string;
   units: number;
 }
