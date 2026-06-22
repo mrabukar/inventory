@@ -1,13 +1,16 @@
 "use client";
 
 import { useMemo } from "react";
+import { Undo2 } from "lucide-react";
 import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
+import { Button } from "@/components/ui/button";
 import { formatDisplayDate } from "@/lib/filters/dates";
 import { toNumber } from "@/lib/reports/format";
 import { fmt } from "@/lib/utils";
+import { purchaseReversibleQuantity } from "@/lib/purchases/reversible-quantity";
 import type { Purchase } from "@/types/purchases/purchase";
 
 interface PurchaseTableProps {
@@ -20,6 +23,7 @@ interface PurchaseTableProps {
   onPaginationChange: (state: PaginationState) => void;
   isLoading?: boolean;
   toolbarExtra?: React.ReactNode;
+  onCorrect?: (purchase: Purchase) => void;
 }
 
 export function PurchaseTable({
@@ -32,6 +36,7 @@ export function PurchaseTable({
   onPaginationChange,
   isLoading = false,
   toolbarExtra,
+  onCorrect,
 }: PurchaseTableProps) {
   const columns = useMemo<ColumnDef<Purchase>[]>(
     () => [
@@ -61,7 +66,14 @@ export function PurchaseTable({
           <DataTableColumnHeader column={column} title="Product" />
         ),
         cell: ({ row }) => (
-          <span className="strong">{row.original.product.name}</span>
+          <span className="strong">
+            {row.original.product.name}
+            {row.original.type === "correction" ? (
+              <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+                Reversal
+              </span>
+            ) : null}
+          </span>
         ),
       },
       {
@@ -145,8 +157,37 @@ export function PurchaseTable({
           <span className="muted">{row.original.purchasedBy.name}</span>
         ),
       },
+      ...(onCorrect
+        ? [
+            {
+              id: "actions",
+              meta: { export: false, align: "center" as const },
+              header: "Actions",
+              enableSorting: false,
+              cell: ({ row }) =>
+                row.original.type === "purchase" &&
+                purchaseReversibleQuantity(row.original) > 0 ? (
+                  <div className="dt-actions">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 shrink-0"
+                      title="Reverse units that were never really bought"
+                      onClick={() => onCorrect(row.original)}
+                    >
+                      <Undo2 />
+                      Reverse
+                    </Button>
+                  </div>
+                ) : (
+                  <span className="muted">—</span>
+                ),
+            } satisfies ColumnDef<Purchase>,
+          ]
+        : []),
     ],
-    [],
+    [onCorrect],
   );
 
   return (
