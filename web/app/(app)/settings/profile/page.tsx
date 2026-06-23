@@ -104,9 +104,9 @@ export default function ProfileSettingsPage() {
                 disabled
                 tabIndex={-1}
               />
-              <p className="text-xs text-muted-foreground">
+              {/* <p className="text-xs text-muted-foreground">
                 Contact an administrator to change your email.
-              </p>
+              </p> */}
             </div>
 
             <div className="grid gap-2">
