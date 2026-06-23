@@ -6,6 +6,7 @@ import { createAuth } from "./auth.config";
 import { MeController } from "./auth.controller";
 import { MeService } from "./me.service";
 import {
+  AuthChangePasswordHook,
   AuthSignInHook,
   AuthSignUpHook,
   AuthUserDatabaseHook,
@@ -27,6 +28,12 @@ import {
     }),
   ],
   controllers: [MeController],
-  providers: [AuthSignInHook, AuthSignUpHook, AuthUserDatabaseHook, MeService],
+  providers: [
+    AuthSignInHook,
+    AuthSignUpHook,
+    AuthChangePasswordHook,
+    AuthUserDatabaseHook,
+    MeService,
+  ],
 })
 export class BetterAuthNestModule {}
