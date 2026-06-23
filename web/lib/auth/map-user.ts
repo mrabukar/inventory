@@ -13,6 +13,7 @@ export function mapApiUserToAppUser(apiUser: ApiUser): AppUser {
     id: apiUser.id,
     name: apiUser.name,
     email: apiUser.email,
+    phone: apiUser.phone ?? null,
     role,
     storeId: apiUser.storeId,
     store: apiUser.store?.name ?? null,
