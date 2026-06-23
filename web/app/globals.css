@@ -2531,33 +2531,33 @@ table.tbl {
   box-shadow: none;
   overflow: hidden;
 }
-.stock-report-kpi--amber {
-  background: linear-gradient(135deg, #f43f5e 0%, #e11d48 55%, #be123c 100%);
-  border-color: #9f1239;
+.stock-report-kpi--purchase {
+  background: linear-gradient(135deg, #0a4a7a 0%, #073863 55%, #052a4a 100%);
+  border-color: #052a4a;
 }
-.stock-report-kpi--teal {
-  background: linear-gradient(135deg, #0284c7 0%, #0369a1 55%, #075985 100%);
-  border-color: #0c4a6e;
+.stock-report-kpi--instock {
+  background: linear-gradient(135deg, #ff8a33 0%, #ff6d00 55%, #e56200 100%);
+  border-color: #cc5800;
 }
-.stock-report-kpi--indigo {
-  background: linear-gradient(135deg, #a855f7 0%, #9333ea 55%, #7e22ce 100%);
-  border-color: #6b21a8;
+.stock-report-kpi--sales {
+  background: linear-gradient(135deg, #1a6578 0%, #144f5d 55%, #0f3d49 100%);
+  border-color: #0f3d49;
 }
-.stock-report-kpi--amber .stat-val,
-.stock-report-kpi--teal .stat-val,
-.stock-report-kpi--indigo .stat-val {
+.stock-report-kpi--purchase .stat-val,
+.stock-report-kpi--instock .stat-val,
+.stock-report-kpi--sales .stat-val {
   color: #ffffff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
-.stock-report-kpi--amber .stat-lbl,
-.stock-report-kpi--teal .stat-lbl,
-.stock-report-kpi--indigo .stat-lbl {
+.stock-report-kpi--purchase .stat-lbl,
+.stock-report-kpi--instock .stat-lbl,
+.stock-report-kpi--sales .stat-lbl {
   color: rgba(255, 255, 255, 0.95);
   font-weight: 600;
 }
-.stock-report-kpi--amber .stat-ic,
-.stock-report-kpi--teal .stat-ic,
-.stock-report-kpi--indigo .stat-ic {
+.stock-report-kpi--purchase .stat-ic,
+.stock-report-kpi--instock .stat-ic,
+.stock-report-kpi--sales .stat-ic {
   width: 44px;
   height: 44px;
   border-radius: var(--r-sm);
@@ -2630,19 +2630,19 @@ table.tbl {
   text-align: center;
 }
 .stock-report-th-purchase {
-  color: #be123c;
-  background: color-mix(in srgb, #fecdd3 50%, var(--surface));
-  border-bottom-color: color-mix(in srgb, #f43f5e 35%, var(--border));
+  color: #073863;
+  background: color-mix(in srgb, #073863 14%, var(--surface));
+  border-bottom-color: color-mix(in srgb, #073863 35%, var(--border));
 }
 .stock-report-th-instock {
-  color: #075985;
-  background: color-mix(in srgb, #bae6fd 50%, var(--surface));
-  border-bottom-color: color-mix(in srgb, #0284c7 35%, var(--border));
+  color: #c45a00;
+  background: color-mix(in srgb, #ff6d00 20%, var(--surface));
+  border-bottom-color: color-mix(in srgb, #ff6d00 35%, var(--border));
 }
 .stock-report-th-sales {
-  color: #7e22ce;
-  background: color-mix(in srgb, #e9d5ff 50%, var(--surface));
-  border-bottom-color: color-mix(in srgb, #a855f7 35%, var(--border));
+  color: #144f5d;
+  background: color-mix(in srgb, #144f5d 14%, var(--surface));
+  border-bottom-color: color-mix(in srgb, #144f5d 35%, var(--border));
 }
 .stock-report-table tbody td {
   padding: 14px 20px;
@@ -2718,11 +2718,11 @@ table.tbl {
   color: #ffffff;
 }
 .stock-report-total-card--purchase {
-  background: linear-gradient(135deg, #f43f5e 0%, #e11d48 55%, #be123c 100%);
+  background: linear-gradient(135deg, #0a4a7a 0%, #073863 55%, #052a4a 100%);
 }
 .stock-report-total-card--instock {
-  background: linear-gradient(135deg, #0284c7 0%, #0369a1 55%, #075985 100%);
+  background: linear-gradient(135deg, #ff8a33 0%, #ff6d00 55%, #e56200 100%);
 }
 .stock-report-total-card--sales {
-  background: linear-gradient(135deg, #a855f7 0%, #9333ea 55%, #7e22ce 100%);
+  background: linear-gradient(135deg, #1a6578 0%, #144f5d 55%, #0f3d49 100%);
 }

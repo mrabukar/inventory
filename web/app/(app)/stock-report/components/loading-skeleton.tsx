@@ -36,9 +36,9 @@ export function StockReportLoadingSkeleton() {
   return (
     <div className="stock-report" aria-busy="true" aria-label="Loading stock report">
       <div className="stock-report-summary">
-        <KpiCardSkeleton tintClass="stock-report-kpi--amber" />
-        <KpiCardSkeleton tintClass="stock-report-kpi--teal" />
-        <KpiCardSkeleton tintClass="stock-report-kpi--indigo" />
+        <KpiCardSkeleton tintClass="stock-report-kpi--purchase" />
+        <KpiCardSkeleton tintClass="stock-report-kpi--instock" />
+        <KpiCardSkeleton tintClass="stock-report-kpi--sales" />
       </div>
 
       <div className="card stock-report-card">

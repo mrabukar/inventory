@@ -21,7 +21,7 @@ export function StockReportTable({ totals, products }: Props) {
   return (
     <div className="stock-report">
       <div className="stock-report-summary">
-        <div className="stock-report-kpi stock-report-kpi--amber">
+        <div className="stock-report-kpi stock-report-kpi--purchase">
           <StatCard
             icon={Truck}
             color="amber"
@@ -29,7 +29,7 @@ export function StockReportTable({ totals, products }: Props) {
             label="Purchase devices"
           />
         </div>
-        <div className="stock-report-kpi stock-report-kpi--teal">
+        <div className="stock-report-kpi stock-report-kpi--instock">
           <StatCard
             icon={Package}
             color="teal"
@@ -37,7 +37,7 @@ export function StockReportTable({ totals, products }: Props) {
             label="In stock (now)"
           />
         </div>
-        <div className="stock-report-kpi stock-report-kpi--indigo">
+        <div className="stock-report-kpi stock-report-kpi--sales">
           <StatCard
             icon={ShoppingCart}
             color="indigo"
