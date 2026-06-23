@@ -20,9 +20,17 @@ export const PROTECTED_ROUTE_PREFIXES = [
   "/my-stock",
   "/sales-history",
   "/settings/organization",
+  "/settings/profile",
+  "/settings/password",
 ] as const;
 
 export const SUPER_ADMIN_ROUTE_PREFIXES = ["/super-admin"] as const;
+
+/** Account settings — all authenticated roles including super_admin. */
+export const ACCOUNT_SETTINGS_ROUTE_PREFIXES = [
+  "/settings/profile",
+  "/settings/password",
+] as const;
 
 /** Admin-only routes — branch managers must not access these. */
 export const ADMIN_ONLY_ROUTE_PREFIXES = [
@@ -53,6 +61,12 @@ export const PUBLIC_ROUTE_PREFIXES = ["/login"] as const;
 
 function matchesPrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+export function isAccountSettingsPath(pathname: string): boolean {
+  return ACCOUNT_SETTINGS_ROUTE_PREFIXES.some((prefix) =>
+    matchesPrefix(pathname, prefix),
+  );
 }
 
 export function isSuperAdminPath(pathname: string): boolean {
@@ -86,7 +100,7 @@ export function isRouteAllowedForRole(
   options?: { hasStores?: boolean | null },
 ): boolean {
   if (role === "super_admin") {
-    return isSuperAdminPath(pathname);
+    return isSuperAdminPath(pathname) || isAccountSettingsPath(pathname);
   }
 
   if (isSuperAdminPath(pathname)) {
