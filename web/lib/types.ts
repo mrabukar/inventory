@@ -19,6 +19,7 @@ export interface AppUser {
   id: string;
   name: string;
   email: string;
+  phone: string | null;
   role: Role;
   storeId: string | null;
   store: string | null;
