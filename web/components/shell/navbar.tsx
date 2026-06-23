@@ -1,12 +1,19 @@
 "use client";
-import { useRef, useState, useEffect } from "react";
 import { useTheme } from "next-themes";
-import { PanelLeft, Sun, Moon, LogOut } from "lucide-react";
+import { PanelLeft, Sun, Moon, LogOut, User } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSignOut } from "@/hooks/auth/sign-out";
 import { useAppStore } from "@/store/app";
 import { appRoleLabel } from "@/lib/types";
 import { initials } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Props {
   title: string;
@@ -19,19 +26,8 @@ export function Navbar({ title, collapsed, onToggle }: Props) {
   const router = useRouter();
   const signOut = useSignOut();
   const user = useAppStore((s) => s.user);
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
 
   const handleLogout = () => {
-    setOpen(false);
     void signOut.mutateAsync().then(() => {
       router.replace("/login");
     });
@@ -57,20 +53,45 @@ export function Navbar({ title, collapsed, onToggle }: Props) {
           {theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}
         </button>
 
-        <div className="av-menu" ref={ref}>
-          <button className="avatar" onClick={() => setOpen((o) => !o)}>{ini}</button>
-          {open && (
-            <div className="av-dropdown">
-              <div className="av-who">
-                <div className="av-name">{user?.name}</div>
-                <div className="av-role">{appRoleLabel(user?.role)}</div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="avatar" type="button" aria-label="Account menu">
+              {ini}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" sideOffset={8} className="w-56">
+            <div className="px-2 py-2">
+              <div className="flex items-center gap-2.5">
+                <div className="avatar avatar-sm shrink-0">{ini}</div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold leading-tight">
+                    {user?.name}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {appRoleLabel(user?.role)}
+                  </p>
+                </div>
               </div>
-              <button className="danger" onClick={handleLogout}>
-                <LogOut size={16} />Log out
-              </button>
+              {user?.email ? (
+                <p className="mt-2 truncate px-0.5 text-xs text-muted-foreground">
+                  {user.email}
+                </p>
+              ) : null}
             </div>
-          )}
-        </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/settings/profile">
+                <User />
+                Profile
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onSelect={handleLogout}>
+              <LogOut />
+              Log out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );
