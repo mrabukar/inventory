@@ -1,8 +1,4 @@
-import {
-  Package,
-  ShoppingCart,
-  Truck,
-} from "lucide-react";
+import { Package, ShoppingCart, Truck } from "lucide-react";
 
 import { StatCard } from "@/app/(app)/dashboard/components/stat-card";
 import { toNumber } from "@/lib/reports/format";
@@ -103,7 +99,7 @@ export function StockReportTable({ totals, products }: Props) {
                   Avg unit cost
                 </th>
                 <th scope="col" className="stock-report-th-purchase">
-                  Purchase devices
+                  Purchase count
                 </th>
                 <th scope="col" className="stock-report-th-instock">
                   In stock
