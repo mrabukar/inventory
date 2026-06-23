@@ -441,6 +441,22 @@ export class ReportsService {
     };
   }
 
+  /** Units distributed to a store in the period (net of supply corrections). */
+  private buildStockSupplyWhere(
+    range: ReportDateRange,
+    storeId: string,
+    categoryId?: string,
+  ): Prisma.StockSupplyWhereInput {
+    return {
+      storeId,
+      ...(categoryId ? { product: { categoryId, isActive: true } } : undefined),
+      createdAt: {
+        gte: range.fromTimestamp,
+        lte: range.toTimestamp,
+      },
+    };
+  }
+
   private requireCategoryId(value: unknown): string {
     if (typeof value !== "string" || value.trim().length === 0) {
       throw new BadRequestException("categoryId must be a non-empty string");
@@ -1038,17 +1054,23 @@ export class ReportsService {
       : { isActive: true as const };
 
     const [purchaseRows, salesRows, inventoryRows] = await Promise.all([
-      this.prisma.purchase.groupBy({
-        by: ["productId"],
-        where: {
-          product: productFilter,
-          purchaseDate: {
-            gte: range.fromDate,
-            lte: range.toDate,
-          },
-        },
-        _sum: { quantity: true },
-      }),
+      storeId
+        ? this.prisma.stockSupply.groupBy({
+            by: ["productId"],
+            where: this.buildStockSupplyWhere(range, storeId, categoryId),
+            _sum: { quantity: true },
+          })
+        : this.prisma.purchase.groupBy({
+            by: ["productId"],
+            where: {
+              product: productFilter,
+              purchaseDate: {
+                gte: range.fromDate,
+                lte: range.toDate,
+              },
+            },
+            _sum: { quantity: true },
+          }),
       this.prisma.sale.groupBy({
         by: ["productId"],
         where: this.buildSaleWhere(range, storeId, categoryId),
