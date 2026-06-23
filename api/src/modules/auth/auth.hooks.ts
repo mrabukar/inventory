@@ -293,6 +293,20 @@ export class AuthSignInHook {
   }
 }
 
+@Hook()
+@Injectable()
+export class AuthChangePasswordHook {
+  @BeforeHook("/change-password")
+  validateChangePassword(ctx: AuthHookContext): void {
+    const newPassword = (ctx.body as { newPassword?: string })?.newPassword;
+    if (newPassword && !isStrongPassword(newPassword)) {
+      throw new APIError("BAD_REQUEST", {
+        message: STRONG_PASSWORD_MESSAGE,
+      });
+    }
+  }
+}
+
 @DatabaseHook()
 @Injectable()
 export class AuthUserDatabaseHook {
