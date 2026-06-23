@@ -844,53 +844,11 @@ button {
   border: none;
   cursor: pointer;
 }
-.av-menu {
-  position: relative;
-}
-.av-dropdown {
-  position: absolute;
-  right: 0;
-  top: 42px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-lg);
-  width: 220px;
-  padding: 6px;
-  z-index: 50;
-}
-.av-who {
-  padding: 10px 10px 8px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
-}
-.av-who .av-name {
-  font-size: 14px;
-  font-weight: 600;
-}
-.av-who .av-role {
-  font-size: 12px;
-  color: var(--fg3);
-}
-.av-dropdown button {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  border: none;
-  background: transparent;
-  padding: 9px 10px;
-  border-radius: var(--r-sm);
-  font-size: 14px;
-  color: var(--fg1);
-  text-align: left;
-}
-.av-dropdown button:hover {
-  background: var(--row-hover);
-}
-.av-dropdown button.danger:hover {
-  background: var(--tint-rose);
-  color: var(--status-rose);
+.avatar.avatar-sm {
+  width: 32px;
+  height: 32px;
+  font-size: 11px;
+  cursor: default;
 }
 
 /* ============================================================================
