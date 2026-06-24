@@ -5,35 +5,10 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { buildLoginUrl } from "@/lib/auth/redirect";
 import { isRouteAllowedForRole } from "@/lib/auth/routes";
 import { useAppStore } from "@/store/app";
+import { formatDocumentTitle, resolvePageTitle } from "@/lib/page-title";
 import { Sidebar } from "./sidebar";
 import { Navbar } from "./navbar";
 import { ToastHost } from "@/components/ui/toast";
-
-const PAGE_TITLES: Record<string, string> = {
-  "/dashboard": "Dashboard",
-  "/products": "Products",
-  "/purchases": "Purchases",
-  "/warehouse": "Warehouse",
-  "/inventory": "Inventory",
-  "/stock-report": "Stock Report",
-  "/sales": "Sales",
-  "/supply": "Distribute to Store",
-  "/expenses": "Expenses",
-  "/financial": "Financial Summary",
-  "/categories": "Categories",
-  "/stores": "Stores",
-  "/users": "Users",
-  "/audit": "Audit Log",
-  "/submit-sale": "Submit Sale",
-  "/my-stock": "My Stock",
-  "/sales-history": "Sales History",
-  "/settings/profile": "Profile",
-  "/settings/password": "Change Password",
-  "/settings/organization": "Organization",
-  "/super-admin": "Platform",
-  "/super-admin/organizations": "Organizations",
-  "/super-admin/organizations/new": "New Organization",
-};
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -69,13 +44,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [roleDenied, router, user?.role]);
 
-  if (!isFetched || authLoading || !user || roleDenied) return null;
+  const title = resolvePageTitle(pathname);
 
-  const title =
-    PAGE_TITLES[pathname] ??
-    (pathname.startsWith("/super-admin/organizations/")
-      ? "Organization"
-      : "Dashboard");
+  useEffect(() => {
+    if (!isFetched || authLoading || !user || roleDenied) return;
+    document.title = formatDocumentTitle(title);
+  }, [title, isFetched, authLoading, user, roleDenied]);
+
+  if (!isFetched || authLoading || !user || roleDenied) return null;
 
   return (
     <div className="app-frame">
