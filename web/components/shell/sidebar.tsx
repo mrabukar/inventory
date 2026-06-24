@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Collapsible } from "radix-ui";
@@ -35,6 +35,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import type { Role } from "@/lib/types";
+import { fetchOrganizationLogoBlob } from "@/service/upload";
+import { useAppStore } from "@/store/app";
 
 interface NavLinkItem {
   href: string;
@@ -320,6 +322,85 @@ function SidebarNavGroup({ group, pathname, collapsed }: SidebarNavGroupProps) {
   );
 }
 
+function SidebarBrand({
+  role,
+  collapsed,
+}: {
+  role: Role;
+  collapsed: boolean;
+}) {
+  const organizationName = useAppStore((s) => s.user?.organizationName ?? null);
+  const organizationLogoKey = useAppStore(
+    (s) => s.user?.organizationLogoKey ?? null,
+  );
+  const organizationLogoUpdatedAt = useAppStore(
+    (s) => s.user?.organizationLogoUpdatedAt ?? null,
+  );
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const hasLogo = Boolean(organizationLogoKey);
+
+  useEffect(() => {
+    if (role === "super_admin" || !hasLogo) {
+      setLogoUrl(null);
+      return;
+    }
+
+    let active = true;
+    let objectUrl: string | null = null;
+
+    void fetchOrganizationLogoBlob(
+      "current",
+      undefined,
+      organizationLogoUpdatedAt,
+    ).then((url) => {
+      if (!active) {
+        if (url) URL.revokeObjectURL(url);
+        return;
+      }
+      objectUrl = url;
+      setLogoUrl(url);
+    });
+
+    return () => {
+      active = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [role, hasLogo, organizationLogoUpdatedAt]);
+
+  if (role === "super_admin") {
+    return (
+      <div className="sb-logo">
+        <LogoMark size={28} />
+        {!collapsed && <span className="wm">inventory</span>}
+      </div>
+    );
+  }
+
+  const displayName = organizationName ?? "Organization";
+
+  return (
+    <div className="sb-logo">
+      {hasLogo && logoUrl ? (
+        <div className="sb-org-logo">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={logoUrl} alt="" />
+        </div>
+      ) : hasLogo ? (
+        <div className="sb-org-logo sb-org-logo--loading" aria-hidden />
+      ) : (
+        <LogoMark size={28} />
+      )}
+      {!collapsed && (
+        <span className="wm" title={displayName}>
+          {displayName}
+        </span>
+      )}
+    </div>
+  );
+}
+
 interface Props {
   role: Role;
   collapsed: boolean;
@@ -338,10 +419,7 @@ export function Sidebar({
 
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
-      <div className="sb-logo">
-        <LogoMark size={28} />
-        {!collapsed && <span className="wm">inventory</span>}
-      </div>
+      <SidebarBrand role={role} collapsed={collapsed} />
 
       <nav className="sb-nav">
         {!collapsed && (
