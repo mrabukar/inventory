@@ -8,8 +8,14 @@ import { cn } from "@/lib/utils";
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
-  title: "inventory",
+  title: {
+    default: "inventory",
+    template: "%s · inventory",
+  },
   description: "Multi-location inventory management system",
+  icons: {
+    icon: "/logo-mark.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
