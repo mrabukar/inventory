@@ -324,6 +324,7 @@ button {
   height: 56px;
   padding: 0 16px;
   flex: none;
+  overflow: hidden;
   border-bottom: 1px solid var(--sidebar-border);
 }
 .sb-logo .wm {
@@ -331,7 +332,30 @@ button {
   font-weight: 800;
   letter-spacing: -0.4px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
   color: var(--sidebar-fg);
+}
+.sb-org-logo {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sb-org-logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.sb-org-logo--loading {
+  background: rgba(255, 255, 255, 0.2);
 }
 .sidebar.collapsed .sb-logo {
   justify-content: center;
