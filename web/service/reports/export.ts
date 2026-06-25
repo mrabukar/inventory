@@ -1,7 +1,6 @@
+import { getApiBaseUrl } from "@/lib/api-base-url";
 import { throwIfNotOk } from "@/service/client";
 import type { ReportQuery } from "@/types/reports/query";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export type ReportExportKind = "financial-summary" | "stock-report";
 export type ReportExportFormat = "xlsx" | "pdf";
@@ -40,7 +39,7 @@ export async function downloadReportExport(
   params: ReportQuery,
 ): Promise<void> {
   const query = toQueryString(params, format);
-  const res = await fetch(`${API_URL}/api/reports/${report}/export?${query}`, {
+  const res = await fetch(`${getApiBaseUrl()}/api/reports/${report}/export?${query}`, {
     credentials: "include",
   });
 

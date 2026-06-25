@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Add sanabil.mobilephoneinventory.com to nginx + Let's Encrypt SSL.
+# Prefer: sudo bash /var/www/inventory/scripts/setup-inventory-subdomains.sh
 # Run on the VPS as a user with sudo:
 #   sudo bash /var/www/inventory/scripts/setup-sanabil-subdomain.sh
 set -euo pipefail

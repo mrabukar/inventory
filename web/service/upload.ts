@@ -1,9 +1,8 @@
+import { getApiBaseUrl } from "@/lib/api-base-url";
 import { throwIfNotOk } from "@/service/client";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
 export async function apiDelete<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
     method: "DELETE",
     credentials: "include",
   });
@@ -22,7 +21,7 @@ export async function apiUpload<T>(
   formData: FormData,
   init?: Omit<RequestInit, "body">,
 ): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
     ...init,
     method: init?.method ?? "POST",
     credentials: "include",
@@ -43,11 +42,12 @@ export function organizationLogoUrl(
   organizationId?: string,
   logoUpdatedAt?: string | null,
 ): string | null {
+  const apiBase = getApiBaseUrl();
   const base =
     scope === "current"
-      ? `${API_URL}/api/organization/logo`
+      ? `${apiBase}/api/organization/logo`
       : organizationId
-        ? `${API_URL}/api/organizations/${organizationId}/logo`
+        ? `${apiBase}/api/organizations/${organizationId}/logo`
         : null;
 
   if (!base) return null;

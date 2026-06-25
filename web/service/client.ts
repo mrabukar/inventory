@@ -1,6 +1,5 @@
+import { getApiBaseUrl } from "@/lib/api-base-url";
 import { notifyUnauthorized } from "@/lib/auth/unauthorized";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export class ApiError extends Error {
   constructor(
@@ -31,7 +30,7 @@ export async function throwIfNotOk(res: Response): Promise<void> {
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
     ...init,
     credentials: "include",
     headers: {
