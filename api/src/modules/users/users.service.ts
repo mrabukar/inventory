@@ -7,6 +7,7 @@ import {
 import { AuditAction, Prisma, User, UserRole } from "@prisma/client";
 import { hashPassword } from "better-auth/crypto";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
+import { orderByUpdatedAtDesc } from "../../common/utils/list-order.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { PaginatedResult } from "../stores/stores.service";
 import { UpdateUserDto } from "./dto/update-user.dto";
@@ -44,7 +45,7 @@ export class UsersService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: "desc" },
+        orderBy: orderByUpdatedAtDesc,
         include: {
           store: { select: { id: true, name: true } },
         },
