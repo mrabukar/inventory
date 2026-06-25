@@ -7,6 +7,7 @@ import {
 import { AuditAction, Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
+import { orderByUpdatedAtDesc } from "../../common/utils/list-order.util";
 import { withOrganizationId } from "../../common/utils/with-organization-id.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { PaginatedResult } from "../stores/stores.service";
@@ -44,7 +45,7 @@ export class ProductsService {
         where,
         skip,
         take: limit,
-        orderBy: { updatedAt: "desc" },
+        orderBy: orderByUpdatedAtDesc,
         include: { category: true },
       }),
       this.prisma.product.count({ where }),
