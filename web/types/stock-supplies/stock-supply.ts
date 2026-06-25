@@ -90,3 +90,20 @@ export function formatSupplyPickerLabel(supply: StockSupply): string {
   const date = supply.createdAt.slice(0, 10);
   return `${date} · ${formatProductLabel(supply.product.name, supply.product.model)} · ${supply.store.name} · ${qty} units`;
 }
+
+/** Product label for supply fix flows — shows current on-hand stock at the store. */
+export function formatSupplyFixProductLabel(
+  supply: StockSupply,
+  stockQty: number,
+): string {
+  const date = supply.createdAt.slice(0, 10);
+  return `${formatProductLabel(supply.product.name, supply.product.model)} · ${date} · ${stockQty} in stock`;
+}
+
+export function formatSupplyFixContextLabel(
+  supply: StockSupply,
+  stockQty: number,
+): string {
+  const date = supply.createdAt.slice(0, 10);
+  return `${date} · ${formatProductLabel(supply.product.name, supply.product.model)} · ${supply.store.name} · ${stockQty} in stock`;
+}
