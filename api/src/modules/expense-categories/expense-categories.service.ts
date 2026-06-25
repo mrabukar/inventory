@@ -7,6 +7,7 @@ import {
 import { ExpenseCategory } from "@prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
+import { orderByUpdatedAtDesc } from "../../common/utils/list-order.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { withOrganizationId } from "../../common/utils/with-organization-id.util";
 import { CreateExpenseCategoryDto } from "./dto/create-expense-category.dto";
@@ -18,7 +19,7 @@ export class ExpenseCategoriesService {
 
   async findAll(): Promise<ExpenseCategory[]> {
     return this.prisma.expenseCategory.findMany({
-      orderBy: { name: "asc" },
+      orderBy: orderByUpdatedAtDesc,
     });
   }
 
