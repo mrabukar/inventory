@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { AuditAction, Organization, Prisma, UserRole } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
+import { orderByUpdatedAtDesc } from "../../common/utils/list-order.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { StoresService } from "../stores/stores.service";
@@ -55,7 +56,7 @@ export class OrganizationsService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: "desc" },
+        orderBy: orderByUpdatedAtDesc,
       }),
       this.prisma.organization.count({ where }),
     ]);
@@ -112,7 +113,7 @@ export class OrganizationsService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: "desc" },
+        orderBy: orderByUpdatedAtDesc,
         select: {
           id: true,
           name: true,
