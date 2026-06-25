@@ -315,41 +315,144 @@ export class PurchasesService {
   }
 
   /**
-   * Reverse (void) part or all of a purchase: records a negative `correction`
-   * purchase row, removes the units from the warehouse, and recomputes the
-   * product's weighted-average cost. See PURCHASE_CORRECTION_DESIGN.md.
+   * @deprecated Use {@link correctSubtract} — kept for backward compatibility.
    */
   async correct(
     purchaseId: string,
     dto: CorrectPurchaseDto,
     user: CurrentUserPayload,
   ): Promise<PurchaseCreateResult> {
+    return this.correctSubtract(purchaseId, dto, user);
+  }
+
+  /**
+   * Record units that were bought but under-counted on the original purchase.
+   */
+  async correctAdd(
+    purchaseId: string,
+    dto: CorrectPurchaseDto,
+    user: CurrentUserPayload,
+  ): Promise<PurchaseCreateResult> {
     const organizationId = requireOrganizationId(user);
+    const original = await this.loadCorrectablePurchase(purchaseId);
+    const productId = original.productId;
+    const originalUnitCost = Number(original.unitPurchasePrice);
+    const addValue = toMoneyNumber(originalUnitCost * dto.quantity);
+    const warehouse =
+      await this.storesService.ensureOrgWarehouse(organizationId);
+    const reason = dto.reason.trim();
 
-    const original = await this.prisma.purchase.findUnique({
-      where: { id: purchaseId },
-      include: purchaseInclude,
-    });
-    if (!original) {
-      throw new NotFoundException(`Purchase with id "${purchaseId}" not found`);
-    }
-    if (original.type !== PurchaseType.purchase) {
-      throw new BadRequestException("Only purchases can be corrected");
-    }
+    const correctionId = await this.prisma.$transaction(async (tx) => {
+      const warehouseInventory = await lockInventoryForMutation(
+        tx,
+        organizationId,
+        productId,
+        warehouse.id,
+      );
+      const warehouseQty = warehouseInventory?.quantity ?? 0;
 
-    // Corrections store negative quantity; remaining = original − already reversed.
-    const priorAgg = await this.prisma.purchase.aggregate({
-      where: {
-        correctsPurchaseId: purchaseId,
-        type: PurchaseType.correction,
-      },
-      _sum: { quantity: true },
-    });
-    const alreadyCorrected = Math.abs(priorAgg._sum.quantity ?? 0);
-    const remaining = original.quantity - alreadyCorrected;
-    if (dto.quantity > remaining) {
+      const onHandAgg = await tx.inventory.aggregate({
+        where: { productId, organizationId },
+        _sum: { quantity: true },
+      });
+      const onHand = onHandAgg._sum.quantity ?? 0;
+
+      const { averageCost: lockedAverageCost } =
+        await tx.product.findUniqueOrThrow({
+          where: { id: productId },
+          select: { averageCost: true },
+        });
+      const currentAverage = Number(lockedAverageCost);
+      const newAverage = computeWeightedAverageCost(
+        onHand,
+        currentAverage,
+        dto.quantity,
+        originalUnitCost,
+      );
+
+      const correction = await tx.purchase.create({
+        data: withOrganizationId(
+          {
+            productId,
+            quantity: dto.quantity,
+            unitPurchasePrice: originalUnitCost,
+            totalCost: addValue,
+            type: PurchaseType.correction,
+            correctsPurchaseId: purchaseId,
+            invoiceNumber: original.invoiceNumber,
+            purchaseDate: original.purchaseDate,
+            note: reason,
+            purchasedById: user.id,
+          },
+          organizationId,
+        ),
+      });
+
+      const newWarehouseQty = warehouseQty + dto.quantity;
+      const updatedInventory = warehouseInventory
+        ? await tx.inventory.update({
+            where: { productId_storeId: { productId, storeId: warehouse.id } },
+            data: { quantity: newWarehouseQty },
+          })
+        : await tx.inventory.create({
+            data: withOrganizationId(
+              {
+                productId,
+                storeId: warehouse.id,
+                quantity: newWarehouseQty,
+              },
+              organizationId,
+            ),
+          });
+
+      await tx.product.update({
+        where: { id: productId },
+        data: { averageCost: newAverage },
+      });
+
+      await this.writeCorrectionAuditLogs(tx, {
+        userId: user.id,
+        organizationId,
+        correction,
+        original,
+        purchaseId,
+        productId,
+        quantity: dto.quantity,
+        direction: "add",
+        unitPurchasePrice: originalUnitCost,
+        totalCost: addValue,
+        reason,
+        currentAverage,
+        newAverage,
+        warehouseQty,
+        newWarehouseQty,
+        warehouseId: warehouse.id,
+        updatedInventoryId: updatedInventory.id,
+      });
+
+      return correction.id;
+    }, MUTATION_TRANSACTION_OPTIONS);
+
+    return this.loadCorrectionResult(correctionId, productId);
+  }
+
+  /**
+   * Remove units that were over-counted on the original purchase.
+   */
+  async correctSubtract(
+    purchaseId: string,
+    dto: CorrectPurchaseDto,
+    user: CurrentUserPayload,
+  ): Promise<PurchaseCreateResult> {
+    const organizationId = requireOrganizationId(user);
+    const original = await this.loadCorrectablePurchase(purchaseId);
+    const removable = await this.getRemovableQuantity(
+      purchaseId,
+      original.quantity,
+    );
+    if (dto.quantity > removable) {
       throw new BadRequestException(
-        `Cannot reverse ${dto.quantity} units: only ${remaining} of this purchase remain uncorrected`,
+        `Cannot remove ${dto.quantity} units: only ${removable} remain on this purchase after prior corrections`,
       );
     }
 
@@ -370,7 +473,7 @@ export class PurchasesService {
       const warehouseQty = warehouseInventory?.quantity ?? 0;
       if (warehouseQty < dto.quantity) {
         throw new BadRequestException(
-          `Cannot reverse ${dto.quantity} units: only ${warehouseQty} are in the warehouse. Units already distributed or sold must be returned first.`,
+          `Cannot remove ${dto.quantity} units: only ${warehouseQty} are in the warehouse. Units already distributed or sold must be returned first.`,
         );
       }
 
@@ -423,66 +526,71 @@ export class PurchasesService {
         data: { averageCost: newAverage },
       });
 
-      await tx.auditLog.create({
-        data: {
-          userId: user.id,
-          organizationId,
-          action: AuditAction.PURCHASE_CORRECTED,
-          entityType: "purchase",
-          entityId: correction.id,
-          oldValue: Prisma.JsonNull,
-          newValue: {
-            id: correction.id,
-            correctsPurchaseId: purchaseId,
-            productId,
-            productName: original.product.name,
-            reversedQuantity: dto.quantity,
-            unitPurchasePrice: originalUnitCost,
-            totalCost: -reverseValue,
-            reason,
-            previousAverageCost: currentAverage,
-            newAverageCost: newAverage,
-          },
-        },
+      await this.writeCorrectionAuditLogs(tx, {
+        userId: user.id,
+        organizationId,
+        correction,
+        original,
+        purchaseId,
+        productId,
+        quantity: dto.quantity,
+        direction: "subtract",
+        unitPurchasePrice: originalUnitCost,
+        totalCost: -reverseValue,
+        reason,
+        currentAverage,
+        newAverage,
+        warehouseQty,
+        newWarehouseQty,
+        warehouseId: warehouse.id,
+        updatedInventoryId: updatedInventory.id,
       });
-
-      await tx.auditLog.create({
-        data: {
-          userId: user.id,
-          organizationId,
-          action: AuditAction.INVENTORY_UPDATED,
-          entityType: "inventory",
-          entityId: updatedInventory.id,
-          oldValue: {
-            quantity: warehouseQty,
-            productId,
-            storeId: warehouse.id,
-          },
-          newValue: {
-            quantity: newWarehouseQty,
-            productId,
-            storeId: warehouse.id,
-          },
-        },
-      });
-
-      if (newAverage !== currentAverage) {
-        await tx.auditLog.create({
-          data: {
-            userId: user.id,
-            organizationId,
-            action: AuditAction.PRODUCT_COST_RECALCULATED,
-            entityType: "product",
-            entityId: productId,
-            oldValue: { averageCost: currentAverage },
-            newValue: { averageCost: newAverage },
-          },
-        });
-      }
 
       return correction.id;
     }, MUTATION_TRANSACTION_OPTIONS);
 
+    return this.loadCorrectionResult(correctionId, productId);
+  }
+
+  private async loadCorrectablePurchase(
+    purchaseId: string,
+  ): Promise<PurchaseWithDetails> {
+    const original = await this.prisma.purchase.findUnique({
+      where: { id: purchaseId },
+      include: purchaseInclude,
+    });
+    if (!original) {
+      throw new NotFoundException(`Purchase with id "${purchaseId}" not found`);
+    }
+    if (original.type !== PurchaseType.purchase) {
+      throw new BadRequestException("Only purchases can be corrected");
+    }
+    return original;
+  }
+
+  private async getNetCorrectionQuantity(purchaseId: string): Promise<number> {
+    const priorAgg = await this.prisma.purchase.aggregate({
+      where: {
+        correctsPurchaseId: purchaseId,
+        type: PurchaseType.correction,
+      },
+      _sum: { quantity: true },
+    });
+    return priorAgg._sum.quantity ?? 0;
+  }
+
+  private async getRemovableQuantity(
+    purchaseId: string,
+    originalQuantity: number,
+  ): Promise<number> {
+    const netCorrection = await this.getNetCorrectionQuantity(purchaseId);
+    return Math.max(0, originalQuantity + netCorrection);
+  }
+
+  private async loadCorrectionResult(
+    correctionId: string,
+    productId: string,
+  ): Promise<PurchaseCreateResult> {
     const correction = await this.prisma.purchase.findUniqueOrThrow({
       where: { id: correctionId },
       include: purchaseInclude,
@@ -495,6 +603,107 @@ export class PurchasesService {
     return { ...correction, product: updatedProduct };
   }
 
+  private async writeCorrectionAuditLogs(
+    tx: Prisma.TransactionClient,
+    input: {
+      userId: string;
+      organizationId: string;
+      correction: { id: string };
+      original: PurchaseWithDetails;
+      purchaseId: string;
+      productId: string;
+      quantity: number;
+      direction: "add" | "subtract";
+      unitPurchasePrice: number;
+      totalCost: number;
+      reason: string;
+      currentAverage: number;
+      newAverage: number;
+      warehouseQty: number;
+      newWarehouseQty: number;
+      warehouseId: string;
+      updatedInventoryId: string;
+    },
+  ): Promise<void> {
+    const {
+      userId,
+      organizationId,
+      correction,
+      original,
+      purchaseId,
+      productId,
+      quantity,
+      direction,
+      unitPurchasePrice,
+      totalCost,
+      reason,
+      currentAverage,
+      newAverage,
+      warehouseQty,
+      newWarehouseQty,
+      warehouseId,
+      updatedInventoryId,
+    } = input;
+
+    await tx.auditLog.create({
+      data: {
+        userId,
+        organizationId,
+        action: AuditAction.PURCHASE_CORRECTED,
+        entityType: "purchase",
+        entityId: correction.id,
+        oldValue: Prisma.JsonNull,
+        newValue: {
+          id: correction.id,
+          correctsPurchaseId: purchaseId,
+          productId,
+          productName: original.product.name,
+          direction,
+          correctedQuantity: quantity,
+          unitPurchasePrice,
+          totalCost,
+          reason,
+          previousAverageCost: currentAverage,
+          newAverageCost: newAverage,
+        },
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        userId,
+        organizationId,
+        action: AuditAction.INVENTORY_UPDATED,
+        entityType: "inventory",
+        entityId: updatedInventoryId,
+        oldValue: {
+          quantity: warehouseQty,
+          productId,
+          storeId: warehouseId,
+        },
+        newValue: {
+          quantity: newWarehouseQty,
+          productId,
+          storeId: warehouseId,
+        },
+      },
+    });
+
+    if (newAverage !== currentAverage) {
+      await tx.auditLog.create({
+        data: {
+          userId,
+          organizationId,
+          action: AuditAction.PRODUCT_COST_RECALCULATED,
+          entityType: "product",
+          entityId: productId,
+          oldValue: { averageCost: currentAverage },
+          newValue: { averageCost: newAverage },
+        },
+      });
+    }
+  }
+
   private async attachReversibleQuantities(
     purchases: PurchaseWithDetails[],
   ): Promise<PurchaseListItem[]> {
@@ -502,7 +711,7 @@ export class PurchasesService {
       .filter((row) => row.type === PurchaseType.purchase)
       .map((row) => row.id);
 
-    const reversedByPurchase = new Map<string, number>();
+    const netCorrectionByPurchase = new Map<string, number>();
     if (purchaseIds.length > 0) {
       const priorCorrections = await this.prisma.purchase.groupBy({
         by: ["correctsPurchaseId"],
@@ -515,9 +724,9 @@ export class PurchasesService {
 
       for (const row of priorCorrections) {
         if (!row.correctsPurchaseId) continue;
-        reversedByPurchase.set(
+        netCorrectionByPurchase.set(
           row.correctsPurchaseId,
-          Math.abs(row._sum.quantity ?? 0),
+          row._sum.quantity ?? 0,
         );
       }
     }
@@ -527,10 +736,10 @@ export class PurchasesService {
         return { ...purchase, reversibleQuantity: 0 };
       }
 
-      const alreadyReversed = reversedByPurchase.get(purchase.id) ?? 0;
+      const netCorrection = netCorrectionByPurchase.get(purchase.id) ?? 0;
       return {
         ...purchase,
-        reversibleQuantity: Math.max(0, purchase.quantity - alreadyReversed),
+        reversibleQuantity: Math.max(0, purchase.quantity + netCorrection),
       };
     });
   }
