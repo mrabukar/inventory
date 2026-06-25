@@ -11,6 +11,7 @@ import {
 } from "../../common/utils/app-timezone.util";
 import { MUTATION_TRANSACTION_OPTIONS } from "../../common/constants/prisma-transaction.constants";
 import { lockInventoryForMutation } from "../../common/utils/inventory-lock.util";
+import { orderByCreatedAtDesc } from "../../common/utils/list-order.util";
 import { toMoneyNumber } from "../../common/utils/money.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { withOrganizationId } from "../../common/utils/with-organization-id.util";
@@ -107,7 +108,7 @@ export class PurchasesService {
         where,
         skip,
         take: limit,
-        orderBy: { purchaseDate: "desc" },
+        orderBy: orderByCreatedAtDesc,
         include: purchaseInclude,
       }),
       this.prisma.purchase.count({ where }),
