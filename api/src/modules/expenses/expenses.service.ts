@@ -9,6 +9,7 @@ import {
   parseDateColumnRangeEnd,
   parseDateColumnRangeStart,
 } from "../../common/utils/app-timezone.util";
+import { orderByUpdatedAtDesc } from "../../common/utils/list-order.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { withOrganizationId } from "../../common/utils/with-organization-id.util";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -67,7 +68,7 @@ export class ExpensesService {
         where,
         skip,
         take: query.limit,
-        orderBy: { expenseDate: "desc" },
+        orderBy: orderByUpdatedAtDesc,
         include: expenseInclude,
       }),
       this.prisma.expense.count({ where }),
