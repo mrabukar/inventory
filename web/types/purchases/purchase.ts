@@ -25,7 +25,7 @@ export interface Purchase {
   createdAt: string;
   product: Product & { category: ProductCategory };
   purchasedBy: PurchaseUser;
-  /** Units still available to reverse on this purchase row (purchase type only). */
+  /** Units still available to remove on this purchase row after prior corrections. */
   reversibleQuantity?: number;
 }
 
