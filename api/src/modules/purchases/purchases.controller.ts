@@ -38,6 +38,26 @@ export class PurchasesController {
     return this.purchasesService.create(dto, user);
   }
 
+  @Post(":id/correct/add")
+  @HttpCode(HttpStatus.CREATED)
+  correctAdd(
+    @Param("id") id: string,
+    @Body() dto: CorrectPurchaseDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.purchasesService.correctAdd(id, dto, user);
+  }
+
+  @Post(":id/correct/subtract")
+  @HttpCode(HttpStatus.CREATED)
+  correctSubtract(
+    @Param("id") id: string,
+    @Body() dto: CorrectPurchaseDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.purchasesService.correctSubtract(id, dto, user);
+  }
+
   @Post(":id/correct")
   @HttpCode(HttpStatus.CREATED)
   correct(
