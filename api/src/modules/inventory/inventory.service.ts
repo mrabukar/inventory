@@ -3,6 +3,7 @@ import { AuditAction, Prisma, UserRole } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { MUTATION_TRANSACTION_OPTIONS } from "../../common/constants/prisma-transaction.constants";
 import { lockInventoryForMutation } from "../../common/utils/inventory-lock.util";
+import { orderByUpdatedAtDesc } from "../../common/utils/list-order.util";
 import { TenantStoreResolver } from "../../common/tenant/tenant-store-resolver.service";
 import { assertStoreAccess } from "../../common/utils/store-scope.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
@@ -97,20 +98,12 @@ export class InventoryService {
       lowStockFilter,
     );
 
-    const orderBy: Prisma.InventoryOrderByWithRelationInput[] = storeId
-      ? [{ product: { name: "asc" } }, { updatedAt: "desc" }]
-      : [
-          { store: { name: "asc" } },
-          { product: { name: "asc" } },
-          { updatedAt: "desc" },
-        ];
-
     const [data, total] = await Promise.all([
       this.prisma.inventory.findMany({
         where,
         skip,
         take: limit,
-        orderBy,
+        orderBy: orderByUpdatedAtDesc,
         include: inventoryInclude,
       }),
       this.prisma.inventory.count({ where }),
@@ -429,7 +422,7 @@ export class InventoryService {
           where,
           skip,
           take: limit,
-          orderBy: [{ product: { name: "asc" } }, { updatedAt: "desc" }],
+          orderBy: orderByUpdatedAtDesc,
           include: inventoryInclude,
         }),
         this.prisma.inventory.count({ where }),
@@ -476,7 +469,7 @@ export class InventoryService {
           ${storeId ? Prisma.sql`AND i."storeId" = ${storeId}` : Prisma.sql`AND st."isOrgWarehouse" = false`}
           ${categoryId ? Prisma.sql`AND p."categoryId" = ${categoryId}` : Prisma.empty}
           ${searchPattern ? Prisma.sql`AND p.name ILIKE ${searchPattern}` : Prisma.empty}
-        ORDER BY i.quantity ASC, p.name ASC
+        ORDER BY i."updatedAt" DESC
         LIMIT ${limit} OFFSET ${skip}
       `,
     ]);
