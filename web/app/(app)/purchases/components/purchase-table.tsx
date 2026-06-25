@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Undo2 } from "lucide-react";
+import { Wrench } from "lucide-react";
 import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 
 import { DataTable } from "@/components/data-table/data-table";
@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { formatDisplayDate } from "@/lib/filters/dates";
 import { toNumber } from "@/lib/reports/format";
 import { fmt } from "@/lib/utils";
-import { purchaseReversibleQuantity } from "@/lib/purchases/reversible-quantity";
 import type { Purchase } from "@/types/purchases/purchase";
 
 interface PurchaseTableProps {
@@ -70,7 +69,7 @@ export function PurchaseTable({
             {row.original.product.name}
             {row.original.type === "correction" ? (
               <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
-                Reversal
+                {row.original.quantity > 0 ? "Fix (added)" : "Fix (removed)"}
               </span>
             ) : null}
           </span>
@@ -99,7 +98,14 @@ export function PurchaseTable({
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Qty" />
         ),
-        cell: ({ row }) => <span>{row.original.quantity}</span>,
+        cell: ({ row }) => {
+          const qty = row.original.quantity;
+          const label =
+            row.original.type === "correction" && qty > 0
+              ? `+${qty}`
+              : String(qty);
+          return <span>{label}</span>;
+        },
       },
       {
         id: "unitCost",
@@ -165,19 +171,18 @@ export function PurchaseTable({
               header: "Actions",
               enableSorting: false,
               cell: ({ row }) =>
-                row.original.type === "purchase" &&
-                purchaseReversibleQuantity(row.original) > 0 ? (
+                row.original.type === "purchase" ? (
                   <div className="dt-actions">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       className="h-8 shrink-0"
-                      title="Reverse units that were never really bought"
+                      title="Fix a purchase quantity mistake"
                       onClick={() => onCorrect(row.original)}
                     >
-                      <Undo2 />
-                      Reverse
+                      <Wrench />
+                      Correct
                     </Button>
                   </div>
                 ) : (
