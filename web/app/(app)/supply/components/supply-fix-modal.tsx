@@ -8,15 +8,17 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { listStockSupplies } from "@/service/stock-supplies/list-stock-supplies";
+import { listInventory } from "@/service/inventory/list-inventory";
 import { stockSuppliesQueryKey } from "@/hooks/stock-supplies/use-stock-supplies";
 import { cn } from "@/lib/utils";
-import { formatProductLabel } from "@/lib/products/format";
 import {
-  formatSupplyPickerLabel,
+  formatSupplyFixContextLabel,
+  formatSupplyFixProductLabel,
   type CreateStockCorrectionInput,
   type StockSupply,
 } from "@/types/stock-supplies/stock-supply";
 import type { SupplyFixMode } from "./supply-fix-chooser-modal";
+import type { Inventory } from "@/types/inventory/inventory";
 
 interface SupplyFixModalProps {
   open: boolean;
@@ -85,10 +87,35 @@ const COPY = {
   },
 } as const;
 
-function productLabelFromSupply(row: StockSupply): string {
-  const qty =
-    row.quantity > 0 ? `+${row.quantity}` : String(row.quantity);
-  return `${formatProductLabel(row.product.name, row.product.model)} · ${row.createdAt.slice(0, 10)} · ${qty} units`;
+async function fetchStoreInventoryRows(
+  storeId?: string,
+  productId?: string,
+): Promise<Inventory[]> {
+  if (productId) {
+    const response = await listInventory(
+      {
+        ...(storeId ? { storeId } : {}),
+        productId,
+        limit: 1,
+      },
+      "all",
+    );
+    return response.data;
+  }
+
+  const rows: Inventory[] = [];
+  let page = 1;
+  let totalPages = 1;
+  const base = { ...(storeId ? { storeId } : {}), limit: 100 };
+
+  do {
+    const response = await listInventory({ ...base, page }, "all");
+    rows.push(...response.data);
+    totalPages = response.meta.totalPages;
+    page += 1;
+  } while (page <= totalPages);
+
+  return rows;
 }
 
 export function SupplyFixModal({
@@ -115,6 +142,31 @@ export function SupplyFixModal({
     note?: string;
   }>({});
 
+  const effectiveStoreId =
+    initialSupply?.storeId ?? (hideStoreField ? undefined : storeId || undefined);
+
+  const { data: inventoryRows = [], isFetching: isLoadingStock } = useQuery({
+    queryKey: [
+      "supply-fix-stock",
+      effectiveStoreId ?? "org-wide",
+      fromDetail ? initialSupply?.productId : "picker",
+    ] as const,
+    queryFn: () =>
+      fetchStoreInventoryRows(
+        effectiveStoreId,
+        fromDetail ? initialSupply?.productId : undefined,
+      ),
+    enabled: open && (Boolean(effectiveStoreId) || hideStoreField),
+  });
+
+  const stockByProductId = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of inventoryRows) {
+      map.set(row.productId, row.quantity);
+    }
+    return map;
+  }, [inventoryRows]);
+
   const { data: storeSuppliesData, isFetching: isLoadingProducts } = useQuery({
     queryKey: stockSuppliesQueryKey({ page: 1, limit: 100, storeId }),
     queryFn: () =>
@@ -138,14 +190,17 @@ export function SupplyFixModal({
       if (byProduct.has(row.productId)) continue;
       byProduct.set(row.productId, {
         value: row.productId,
-        label: productLabelFromSupply(row),
+        label: formatSupplyFixProductLabel(
+          row,
+          stockByProductId.get(row.productId) ?? 0,
+        ),
         supplyId: row.id,
         keywords: [row.product.name, row.product.model ?? "", row.createdAt.slice(0, 10)],
       });
     }
 
     return Array.from(byProduct.values());
-  }, [storeSupplies]);
+  }, [storeSupplies, stockByProductId]);
 
   const selectedProductMeta = useMemo(
     () => productItems.find((item) => item.value === productId),
@@ -219,7 +274,10 @@ export function SupplyFixModal({
               <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm">
                 <span className="font-medium">Fixing: </span>
                 <span className="text-muted-foreground">
-                  {formatSupplyPickerLabel(initialSupply)}
+                  {formatSupplyFixContextLabel(
+                    initialSupply,
+                    stockByProductId.get(initialSupply.productId) ?? 0,
+                  )}
                 </span>
               </div>
             ) : (
@@ -260,7 +318,11 @@ export function SupplyFixModal({
                         ? "No supplied products found."
                         : "Select a store first."
                     }
-                    disabled={(!hideStoreField && !storeId) || isLoadingProducts}
+                    disabled={
+                      (!hideStoreField && !storeId) ||
+                      isLoadingProducts ||
+                      isLoadingStock
+                    }
                     className="w-full"
                     popoverClassName="z-[200]"
                   />
