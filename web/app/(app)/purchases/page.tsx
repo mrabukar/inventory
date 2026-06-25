@@ -3,7 +3,11 @@
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 
-import { CorrectPurchaseModal } from "./components/correct-purchase-modal";
+import {
+  PurchaseFixChooserModal,
+  type PurchaseFixMode,
+} from "./components/purchase-fix-chooser-modal";
+import { PurchaseFixModal } from "./components/purchase-fix-modal";
 import { PurchaseModal } from "./components/purchase-modal";
 import { PurchaseTable } from "./components/purchase-table";
 import { Combobox } from "@/components/ui/combobox";
@@ -12,7 +16,10 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { useCategories } from "@/hooks/categories/use-categories";
 import { useCreatePurchase } from "@/hooks/purchases/use-create-purchase";
-import { useCorrectPurchase } from "@/hooks/purchases/use-correct-purchase";
+import {
+  useCorrectPurchaseAdd,
+  useCorrectPurchaseSubtract,
+} from "@/hooks/purchases/use-correct-purchase";
 import { usePurchases } from "@/hooks/purchases/use-purchases";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { getCurrentMonthRange } from "@/lib/filters/dates";
@@ -22,6 +29,15 @@ import type {
   CreatePurchaseInput,
   Purchase,
 } from "@/types/purchases/purchase";
+
+interface FixChooserState {
+  purchase: Purchase;
+}
+
+interface FixFormState {
+  mode: PurchaseFixMode;
+  purchase: Purchase;
+}
 
 export default function PurchasesPage() {
   const addToast = useAppStore((s) => s.addToast);
@@ -35,7 +51,8 @@ export default function PurchasesPage() {
   const [fromDate, setFromDate] = useState(defaultRange.fromDate);
   const [toDate, setToDate] = useState(defaultRange.toDate);
   const [showCreate, setShowCreate] = useState(false);
-  const [correctTarget, setCorrectTarget] = useState<Purchase | null>(null);
+  const [fixChooser, setFixChooser] = useState<FixChooserState | null>(null);
+  const [fixForm, setFixForm] = useState<FixFormState | null>(null);
   const debouncedSearch = useDebouncedValue(search, 300);
   const debouncedInvoice = useDebouncedValue(invoiceNumber, 300);
 
@@ -64,7 +81,8 @@ export default function PurchasesPage() {
   const { data, isPending, isFetching, isError, error } =
     usePurchases(listQuery);
   const createPurchase = useCreatePurchase();
-  const correctPurchase = useCorrectPurchase();
+  const correctionAdd = useCorrectPurchaseAdd();
+  const correctionSubtract = useCorrectPurchaseSubtract();
 
   const rows = data?.data ?? [];
   const rowCount = data?.meta.total ?? 0;
@@ -94,15 +112,23 @@ export default function PurchasesPage() {
     }
   };
 
-  const handleCorrect = async (input: CorrectPurchaseInput) => {
-    if (!correctTarget) return;
+  const handleFix = async (input: CorrectPurchaseInput) => {
+    if (!fixForm) return;
+    const mutation =
+      fixForm.mode === "add" ? correctionAdd : correctionSubtract;
+
     try {
-      await correctPurchase.mutateAsync({
-        purchaseId: correctTarget.id,
+      await mutation.mutateAsync({
+        purchaseId: fixForm.purchase.id,
         input,
       });
-      addToast({ title: "Purchase corrected" });
-      setCorrectTarget(null);
+      addToast({
+        title:
+          fixForm.mode === "add"
+            ? "Missing units added"
+            : "Extra units removed",
+      });
+      setFixForm(null);
     } catch (e) {
       addErrorToast({
         title: "Failed to correct purchase",
@@ -192,7 +218,7 @@ export default function PurchasesPage() {
         }}
         isLoading={isLoading}
         toolbarExtra={toolbarExtra}
-        onCorrect={setCorrectTarget}
+        onCorrect={(purchase) => setFixChooser({ purchase })}
       />
 
       <PurchaseModal
@@ -203,13 +229,29 @@ export default function PurchasesPage() {
         isSaving={createPurchase.isPending}
       />
 
-      <CorrectPurchaseModal
-        key={correctTarget?.id ?? "correct-closed"}
-        open={correctTarget !== null}
-        purchase={correctTarget}
-        onClose={() => setCorrectTarget(null)}
-        onSave={(form) => void handleCorrect(form)}
-        isSaving={correctPurchase.isPending}
+      <PurchaseFixChooserModal
+        open={fixChooser !== null}
+        purchase={fixChooser?.purchase}
+        onClose={() => setFixChooser(null)}
+        onSelect={(mode) => {
+          if (!fixChooser) return;
+          setFixForm({ mode, purchase: fixChooser.purchase });
+          setFixChooser(null);
+        }}
+      />
+
+      <PurchaseFixModal
+        key={
+          fixForm
+            ? `${fixForm.purchase.id}-${fixForm.mode}`
+            : "purchase-fix-closed"
+        }
+        open={fixForm !== null}
+        mode={fixForm?.mode ?? "add"}
+        purchase={fixForm?.purchase ?? null}
+        onClose={() => setFixForm(null)}
+        onSave={(form) => void handleFix(form)}
+        isSaving={correctionAdd.isPending || correctionSubtract.isPending}
       />
     </>
   );
