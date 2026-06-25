@@ -7,6 +7,7 @@ import {
 import { PrismaService } from "../../prisma/prisma.service";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
+import { orderByUpdatedAtDesc } from "../../common/utils/list-order.util";
 import { withOrganizationId } from "../../common/utils/with-organization-id.util";
 import { CreateCategoryDto } from "./dto/create-category.dto";
 import { UpdateCategoryDto } from "./dto/update-category.dto";
@@ -36,7 +37,7 @@ export class CategoriesService {
 
   findAll(): Promise<CategoryWithCount[]> {
     return this.prisma.category.findMany({
-      orderBy: { name: "asc" },
+      orderBy: orderByUpdatedAtDesc,
       ...categoryWithProductCount,
     });
   }
