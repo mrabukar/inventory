@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/hooks/auth/session";
+import { useSessionRefresh } from "@/hooks/auth/use-session-refresh";
 import { buildLoginUrl } from "@/lib/auth/redirect";
 import { clearClientSession, clearTenantQueries } from "@/lib/auth/query-cache";
 import { registerUnauthorizedHandler } from "@/lib/auth/unauthorized";
@@ -38,6 +39,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setUser = useAppStore((s) => s.setUser);
   const clearUser = useAppStore((s) => s.clearUser);
   const tenantCacheKeyRef = useRef<string | null>(null);
+
+  useSessionRefresh(isAuthenticated);
 
   useEffect(() => {
     if (!isFetched) return;

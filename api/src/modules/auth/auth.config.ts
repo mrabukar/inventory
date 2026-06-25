@@ -74,6 +74,7 @@ export function createAuth(prisma: PrismaClient) {
 
     session: {
       expiresIn: 60 * 5,
+      updateAge: 60 * 2,
     },
 
     advanced: {
