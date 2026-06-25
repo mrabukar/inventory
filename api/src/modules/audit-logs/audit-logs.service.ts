@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { orderByCreatedAtDesc } from "../../common/utils/list-order.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { PaginatedResult } from "../stores/stores.service";
 import { AuditLogQueryDto } from "./dto/audit-log-query.dto";
@@ -63,7 +64,7 @@ export class AuditLogsService {
         where,
         skip,
         take: query.limit,
-        orderBy: { createdAt: "desc" },
+        orderBy: orderByCreatedAtDesc,
         include: auditLogInclude,
       }),
       this.prisma.auditLog.count({ where }),
