@@ -132,6 +132,16 @@ export function zonedDayEnd(value: string): Date {
     .toJSDate();
 }
 
+/** Inclusive start of a calendar day for timestamp columns (`createdAt`, etc.). */
+export function parseTimestampRangeStart(value: string): Date {
+  return zonedDayStart(extractCalendarDate(value));
+}
+
+/** Inclusive end of a calendar day for timestamp columns (`createdAt`, etc.). */
+export function parseTimestampRangeEnd(value: string): Date {
+  return zonedDayEnd(extractCalendarDate(value));
+}
+
 /** Iterate calendar dates inclusive from `from` through `to`. */
 export function eachCalendarDate(
   fromCalendarDate: string,
