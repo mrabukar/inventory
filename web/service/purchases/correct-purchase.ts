@@ -9,15 +9,36 @@ export type CorrectPurchaseResponse = Purchase & {
   product: Product;
 };
 
-export function correctPurchase(
+export function correctPurchaseSubtract(
   purchaseId: string,
   input: CorrectPurchaseInput,
 ): Promise<CorrectPurchaseResponse> {
   return apiFetch<CorrectPurchaseResponse>(
-    `/api/purchases/${purchaseId}/correct`,
+    `/api/purchases/${purchaseId}/correct/subtract`,
     {
       method: "POST",
       body: JSON.stringify(input),
     },
   );
+}
+
+export function correctPurchaseAdd(
+  purchaseId: string,
+  input: CorrectPurchaseInput,
+): Promise<CorrectPurchaseResponse> {
+  return apiFetch<CorrectPurchaseResponse>(
+    `/api/purchases/${purchaseId}/correct/add`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+/** @deprecated Use correctPurchaseSubtract */
+export function correctPurchase(
+  purchaseId: string,
+  input: CorrectPurchaseInput,
+): Promise<CorrectPurchaseResponse> {
+  return correctPurchaseSubtract(purchaseId, input);
 }
