@@ -7,8 +7,8 @@ import {
 import { Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import {
-  parseDateColumnRangeEnd,
-  parseDateColumnRangeStart,
+  parseTimestampRangeEnd,
+  parseTimestampRangeStart,
 } from "../../common/utils/app-timezone.util";
 import { MUTATION_TRANSACTION_OPTIONS } from "../../common/constants/prisma-transaction.constants";
 import { lockInventoryForMutation } from "../../common/utils/inventory-lock.util";
@@ -86,10 +86,10 @@ export class StockSuppliesService {
         ? {
             createdAt: {
               ...(fromDate
-                ? { gte: parseDateColumnRangeStart(fromDate) }
+                ? { gte: parseTimestampRangeStart(fromDate) }
                 : undefined),
               ...(toDate
-                ? { lte: parseDateColumnRangeEnd(toDate) }
+                ? { lte: parseTimestampRangeEnd(toDate) }
                 : undefined),
             },
           }
