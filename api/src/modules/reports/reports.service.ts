@@ -7,6 +7,7 @@ import { Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { TenantStoreResolver } from "../../common/tenant/tenant-store-resolver.service";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
+import { orderByUpdatedAtDesc } from "../../common/utils/list-order.util";
 import {
   productUnitCost,
   productUnitCostSql,
@@ -724,7 +725,7 @@ export class ReportsService {
 
     return this.prisma.sale.findMany({
       where: saleWhere,
-      orderBy: { createdAt: "desc" },
+      orderBy: orderByUpdatedAtDesc,
       take: 20,
       include: recentSaleInclude,
     });
@@ -1126,7 +1127,7 @@ export class ReportsService {
     const products = await this.prisma.product.findMany({
       where: { id: { in: productIds } },
       select: { id: true, name: true, model: true, averageCost: true },
-      orderBy: { name: "asc" },
+      orderBy: orderByUpdatedAtDesc,
     });
 
     return products.map((product) => ({
