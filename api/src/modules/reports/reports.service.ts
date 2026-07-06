@@ -32,6 +32,7 @@ import {
   subtractMoney,
   toMoneyNumber,
 } from "../../common/utils/money.util";
+import { sqlInclusiveDateRange } from "../../common/utils/sql-calendar-date.util";
 import {
   buildAdminPeriodComparison,
   buildManagerPeriodComparison,
@@ -108,11 +109,18 @@ export class ReportsService {
       stockByCategory,
       recentSales,
     ] = await Promise.all([
-      this.computePeriodSummary(saleWhere, expenseWhere, storeId, organizationId),
+      this.computePeriodSummary(
+        saleWhere,
+        expenseWhere,
+        storeId,
+        organizationId,
+        range,
+      ),
       this.computePeriodMetrics(
         previousSaleWhere,
         previousExpenseWhere,
         organizationId,
+        previousRange,
       ),
       this.fetchMonthlySales(saleWhere, range, organizationId),
       this.fetchMonthlyExpenses(expenseWhere, range, organizationId),
@@ -361,7 +369,13 @@ export class ReportsService {
       expenseByCategory,
       stockInvestment,
     ] = await Promise.all([
-      this.computePeriodSummary(saleWhere, expenseWhere, storeId, organizationId),
+      this.computePeriodSummary(
+        saleWhere,
+        expenseWhere,
+        storeId,
+        organizationId,
+        range,
+      ),
       this.fetchMonthlySales(saleWhere, range, organizationId),
       this.fetchMonthlyExpenses(expenseWhere, range, organizationId),
       this.fetchExpenseBreakdown(expenseWhere),
@@ -470,13 +484,14 @@ export class ReportsService {
     saleWhere: Prisma.SaleWhereInput,
     expenseWhere: Prisma.ExpenseWhereInput,
     organizationId: string,
+    dateRange: ReportDateRange,
   ) {
     const [salesAgg, cogs, expensesAgg] = await Promise.all([
       this.prisma.sale.aggregate({
         where: saleWhere,
         _sum: { totalAmount: true, quantitySold: true },
       }),
-      this.sumCogs(saleWhere, organizationId),
+      this.sumCogs(saleWhere, organizationId, dateRange),
       this.prisma.expense.aggregate({
         where: expenseWhere,
         _sum: { amount: true },
@@ -504,9 +519,15 @@ export class ReportsService {
     expenseWhere: Prisma.ExpenseWhereInput,
     storeId: string | undefined,
     organizationId: string,
+    dateRange: ReportDateRange,
   ) {
     const [metrics, stockMetrics] = await Promise.all([
-      this.computePeriodMetrics(saleWhere, expenseWhere, organizationId),
+      this.computePeriodMetrics(
+        saleWhere,
+        expenseWhere,
+        organizationId,
+        dateRange,
+      ),
       this.computeLiveStockMetrics(storeId, organizationId),
     ]);
 
@@ -522,11 +543,12 @@ export class ReportsService {
   private async sumCogs(
     where: Prisma.SaleWhereInput,
     organizationId: string,
+    dateRange: ReportDateRange,
   ): Promise<number> {
     const rows = await this.prisma.$queryRaw<{ cogs: unknown }[]>`
       SELECT COALESCE(SUM(s."quantitySold" * s."unitPurchasePrice"), 0)::numeric AS cogs
       FROM "sale" s
-      ${this.buildSaleSqlFilter(where, organizationId)}
+      ${this.buildSaleSqlFilter(where, organizationId, dateRange)}
     `;
 
     return parseRawMoney(rows[0]?.cogs);
@@ -535,24 +557,20 @@ export class ReportsService {
   private buildSaleSqlFilter(
     where: Prisma.SaleWhereInput,
     organizationId: string,
+    dateRange: ReportDateRange,
   ): Prisma.Sql {
     const parts: Prisma.Sql[] = [
       Prisma.sql`WHERE 1=1`,
       Prisma.sql`AND s."organizationId" = ${organizationId}`,
+      Prisma.sql`AND ${sqlInclusiveDateRange(
+        Prisma.sql`s."saleDate"`,
+        dateRange.fromCalendar,
+        dateRange.toCalendar,
+      )}`,
     ];
 
     if (where.storeId && typeof where.storeId === "string") {
       parts.push(Prisma.sql`AND s."storeId" = ${where.storeId}`);
-    }
-
-    const saleDate = where.saleDate;
-    if (saleDate && typeof saleDate === "object") {
-      if ("gte" in saleDate && saleDate.gte) {
-        parts.push(Prisma.sql`AND s."saleDate" >= ${saleDate.gte}`);
-      }
-      if ("lte" in saleDate && saleDate.lte) {
-        parts.push(Prisma.sql`AND s."saleDate" <= ${saleDate.lte}`);
-      }
     }
 
     const product = where.product;
@@ -584,13 +602,7 @@ export class ReportsService {
         COALESCE(SUM(s."totalAmount"), 0)::numeric AS revenue,
         COALESCE(SUM(s."quantitySold" * s."unitPurchasePrice"), 0)::numeric AS cogs
       FROM "sale" s
-      ${this.buildSaleSqlFilter(
-        {
-          ...where,
-          saleDate: { gte: range.fromDate, lte: range.toDate },
-        },
-        organizationId,
-      )}
+      ${this.buildSaleSqlFilter(where, organizationId, range)}
       GROUP BY 1
       ORDER BY 1
     `;
@@ -615,8 +627,11 @@ export class ReportsService {
         to_char(date_trunc('month', e."expenseDate"), 'YYYY-MM') AS month,
         COALESCE(SUM(e.amount), 0)::numeric AS amount
       FROM "expense" e
-      WHERE e."expenseDate" >= ${range.fromDate}
-        AND e."expenseDate" <= ${range.toDate}
+      WHERE ${sqlInclusiveDateRange(
+        Prisma.sql`e."expenseDate"`,
+        range.fromCalendar,
+        range.toCalendar,
+      )}
         AND e."organizationId" = ${organizationId}
         ${storeId ? Prisma.sql`AND e."storeId" = ${storeId}` : Prisma.empty}
       GROUP BY 1
@@ -813,9 +828,6 @@ export class ReportsService {
     toCalendar: string,
     organizationId: string,
   ): Promise<DailyRevenueRow[]> {
-    const fromDate = calendarDateToDbDate(fromCalendar);
-    const toDate = calendarDateToDbDate(toCalendar);
-
     const rows = await this.prisma.$queryRaw<
       { date: string; revenue: unknown }[]
     >`
@@ -825,8 +837,11 @@ export class ReportsService {
       FROM "sale" s
       WHERE s."storeId" = ${storeId}
         AND s."organizationId" = ${organizationId}
-        AND s."saleDate" >= ${fromDate}
-        AND s."saleDate" <= ${toDate}
+        AND ${sqlInclusiveDateRange(
+          Prisma.sql`s."saleDate"`,
+          fromCalendar,
+          toCalendar,
+        )}
       GROUP BY 1
       ORDER BY 1
     `;
@@ -876,8 +891,11 @@ export class ReportsService {
         COALESCE(SUM(s."quantitySold"), 0)::int AS units
       FROM "sale" s
       INNER JOIN "product" p ON p.id = s."productId"
-      WHERE s."saleDate" >= ${range.fromDate}
-        AND s."saleDate" <= ${range.toDate}
+      WHERE ${sqlInclusiveDateRange(
+        Prisma.sql`s."saleDate"`,
+        range.fromCalendar,
+        range.toCalendar,
+      )}
         AND s."organizationId" = ${organizationId}
         AND p."categoryId" = ${categoryId}
         ${storeId ? Prisma.sql`AND s."storeId" = ${storeId}` : Prisma.empty}
@@ -1027,8 +1045,11 @@ export class ReportsService {
     const rows = await this.prisma.$queryRaw<{ total: unknown }[]>`
       SELECT COALESCE(SUM(p."totalCost"), 0)::numeric AS total
       FROM "purchase" p
-      WHERE p."purchaseDate" >= ${range.fromDate}::date
-        AND p."purchaseDate" <= ${range.toDate}::date
+      WHERE ${sqlInclusiveDateRange(
+        Prisma.sql`p."purchaseDate"`,
+        range.fromCalendar,
+        range.toCalendar,
+      )}
         AND p."organizationId" = ${organizationId}
     `;
 
