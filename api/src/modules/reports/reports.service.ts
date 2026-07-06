@@ -74,6 +74,9 @@ const recentSaleInclude = {
   soldBy: { select: { id: true, name: true, email: true } },
 } satisfies Prisma.SaleInclude;
 
+/** Recent sales rows returned on admin/manager dashboard cards. */
+const DASHBOARD_RECENT_SALES_LIMIT = 7;
+
 @Injectable()
 export class ReportsService {
   constructor(
@@ -741,7 +744,7 @@ export class ReportsService {
     return this.prisma.sale.findMany({
       where: saleWhere,
       orderBy: orderByUpdatedAtDesc,
-      take: 20,
+      take: DASHBOARD_RECENT_SALES_LIMIT,
       include: recentSaleInclude,
     });
   }
