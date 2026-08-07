@@ -17,16 +17,28 @@ The client (organizations **without branches** — `hasStores = false`) needs to
 
 ---
 
-## 2. Scope — which features, which orgs
+## 2. Scope, Feature Gating & Enforcement
 
 | Feature | Applies to |
 |---------|-----------|
 | **Multi-item sales** | **All** organizations (branch stores too) |
-| **Customers** | All orgs (used wherever a customer is attached; required by the billing flow) |
-| **Invoices** | **No-branch orgs only** (`hasStores = false`) |
-| **Payments + balance** | **No-branch orgs only** |
+| **Customers** | All orgs (attached in the billing flow; required when a sale isn't fully paid) |
+| **Sale location (pick-list)** | **Billing-enabled** orgs (recorded on the sale, shown on the invoice) |
+| **Invoices** | **Billing-enabled** orgs |
+| **Payments + balance** | **Billing-enabled** orgs |
 
-**Layering:** `Sale` is the universal transaction (all orgs). `Invoice` + `Payment` are the **billing layer** that sits on top of a sale, only for no-branch orgs. This keeps `Sale` clean and confines billing complexity to where it's used.
+### 2.1 Gate billing on a capability flag, NOT on `hasStores`
+
+Billing (invoices, payments, balance, sale-location) is gated on a new per-org switch **`Organization.billingEnabled`** — **not** hardcoded to `hasStores`. Reason: *"has stores"* and *"can do billing"* are different questions that only happen to line up today. Coupling them would make it painful to give billing to a store-org later.
+
+- **Default:** at org creation `billingEnabled = !hasStores` (auto); existing orgs backfilled the same way. So **today** it behaves exactly like "billing = no-branch orgs" — no visible difference to the client.
+- **Future:** to enable billing for *any* org (even one with stores), a super-admin flips `billingEnabled` — **no code change**. (The billing *flow* is still designed around the no-branch admin-sale path; extending it to a manager/store flow is a smaller follow-on design when needed.)
+
+### 2.2 Enforcement: backend is the gate, frontend only mirrors it
+
+**Every billing endpoint enforces `billingEnabled` on the backend** (load the org, reject with **403** if off) — the same pattern the app already uses to gate by org type (`tenant-store-resolver`, `ensureOrgWarehouse`). The frontend **also** hides/disables billing UI for non-billing orgs, but that is **UX only, never the security boundary** — a frontend-only block is bypassable via devtools/curl and could corrupt data (balances, invoice numbers). **Backend enforced, frontend mirrored.**
+
+**Layering:** `Sale` is the universal transaction (all orgs). `Invoice` + `Payment` are the **billing layer** on top of a sale, only for billing-enabled orgs. This keeps `Sale` clean and confines billing complexity.
 
 ---
 
@@ -44,6 +56,9 @@ The client (organizations **without branches** — `hasStores = false`) needs to
 | 8 | Invoice | **Persisted + sequential number + printable** |
 | 9 | Profit vs cash | **Accrual unchanged** — revenue/COGS recognized at sale; payments are cash only and never touch profit |
 | 10 | Statement | **Included** — a per-customer statement (sales + payments + running balance) |
+| 11 | Feature gate | Billing gated on **`Organization.billingEnabled`** (defaulted from `!hasStores`), **not** on `hasStores` directly — independently flippable later by super-admin |
+| 12 | Enforcement | **Backend-enforced** (403 if off); frontend hides UI as a UX mirror only |
+| 13 | Sale location | **Pick-from-list** — a per-org locations lookup; chosen on the sale; printed on the invoice |
 
 ---
 
@@ -99,7 +114,9 @@ model Sale {
   storeId        String                  // selling store / warehouse (unchanged concept)
   soldById       String
   customerId     String?                 // optional; required by billing when not fully paid
-  customer       Customer?    @relation(fields: [customerId], references: [id])
+  customer       Customer?     @relation(fields: [customerId], references: [id])
+  locationId     String?                 // customer location (pick-list); billing orgs only
+  location       SaleLocation? @relation(fields: [locationId], references: [id])
   totalAmount    Decimal      @db.Decimal(10, 2) // = sum of line totals (denormalized)
   saleDate       DateTime     @db.Date
   note           String?
@@ -215,12 +232,15 @@ model Payment {
 ```prisma
 model Organization {
   // ... existing ...
-  phone         String?   // for invoice footer
-  paymentNumber String?   // the mobile-money number customers pay to
-  address       String?
+  billingEnabled Boolean @default(false) // gate for invoices/payments/balance/location
+  phone          String?   // for invoice footer
+  paymentNumber  String?   // the mobile-money number customers pay to
+  address        String?
   // logoKey already exists
 }
 ```
+
+- `billingEnabled` — set to `!hasStores` when an org is created; **backfilled** `= NOT hasStores` for existing orgs in the migration. Super-admin can toggle it later. All billing endpoints gate on it (§2.1–2.2).
 
 ### 5.7 New `AuditAction` values
 
@@ -234,9 +254,31 @@ enum AuditAction {
 }
 ```
 
-### 5.8 Tenant-scoping extension
+### 5.8 New `SaleLocation` (pick-list; billing orgs)
 
-Add `"Customer"`, `"SaleItem"`, `"Invoice"`, `"Payment"` to `TENANT_MODELS` in `tenant-scoping.extension.ts`.
+A small per-org lookup of customer locations/areas to pick from when recording a sale.
+
+```prisma
+model SaleLocation {
+  id             String       @id @default(cuid())
+  name           String       // e.g. "Downtown", "Airport Rd"
+  isActive       Boolean      @default(true)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+
+  sales Sale[]
+
+  @@unique([name, organizationId])
+  @@map("sale_location")
+}
+```
+
+Admin manages the list (add / rename / deactivate). The chosen location is stored on the `Sale` (`locationId`, §5.2) and printed on the invoice.
+
+### 5.9 Tenant-scoping extension
+
+Add `"Customer"`, `"SaleItem"`, `"Invoice"`, `"Payment"`, `"SaleLocation"` to `TENANT_MODELS` in `tenant-scoping.extension.ts`.
 
 ---
 
@@ -334,7 +376,7 @@ Do this as its **own phase with tests**, right after the sale restructure.
 ## 10. Invoice Document (print)
 
 A rendered, printable view (HTML → print / PDF), three sections:
-- **Top:** customer name, phone, address.
+- **Top:** customer name, phone, address, and **location** (the picked area).
 - **Center:** line items (product, qty, unit price, line total), subtotal/total, **amount paid**, **balance on this invoice**, and the customer's **overall balance**.
 - **Bottom:** organization **name, logo, phone, address, and the payment number** to send mobile money to; the invoice **number** and date.
 
@@ -347,9 +389,9 @@ Print via the browser (dedicated print stylesheet) or server-side PDF — decide
 - **Phase 1 — Customers:** `Customer` entity + CRUD + search + tenant scoping; `customerId` on `Sale` (optional). Customer profile (details + sales + balance placeholder).
 - **Phase 2 — Multi-item sales:** `Sale` header + `SaleItem`; multi-product transaction (lock each, per-line COGS); per-line `SaleCorrection`; **migration** (§8).
 - **Phase 3 — Report rewrite:** move all product/COGS aggregates to `SaleItem` (§9) + tests.
-- **Phase 4 — Org invoice info:** `phone`, `paymentNumber`, `address` on `Organization` + settings UI.
-- **Phase 5 — Invoices (no-branch):** `Invoice` entity + concurrency-safe numbering; auto-generated from a no-branch sale; printable document.
-- **Phase 6 — Payments & balance (no-branch):** "amount paid now" on the sale; `Payment` entity; later payments (oldest-unpaid default); invoice paid/remaining/status; **derived customer balance**; receivables list; **customer statement**.
+- **Phase 4 — Org billing gate & info:** `billingEnabled` on `Organization` (default from `!hasStores`, backfill existing) + a reusable **backend billing guard** (403 when off) + super-admin toggle; `phone`, `paymentNumber`, `address` + settings UI.
+- **Phase 5 — Invoices + sale location (billing orgs):** `Invoice` entity + concurrency-safe numbering, auto-generated from a billing-org sale, printable document; `SaleLocation` lookup + `locationId` on the sale + pick-list UI (shown on the invoice).
+- **Phase 6 — Payments & balance (billing orgs):** "amount paid now" on the sale; `Payment` entity; later payments (oldest-unpaid default); invoice paid/remaining/status; **derived customer balance**; receivables list; **customer statement**.
 - **Phase 7 — Test & verify** end-to-end.
 
 ---
@@ -364,6 +406,7 @@ Print via the browser (dedicated print stylesheet) or server-side PDF — decide
 6. **Manager cost-hiding moves to `SaleItem`.** Don't leak `unitPurchasePrice` in item responses to branch managers.
 7. **No overpay is enforced server-side** on every payment (`amount ≤ remaining`), including the "amount paid now" at sale.
 8. **Accrual stays accrual.** Never let a payment change revenue/COGS/profit — only `Invoice.paidAmount` + derived balance.
+9. **Billing gate is backend-enforced (§2.2).** Every invoice/payment/balance/location endpoint loads the org and rejects (403) when `billingEnabled` is off. Frontend hiding is UX only — never the security boundary. Gate on **`billingEnabled`**, never hardcode `hasStores`.
 
 ---
 
