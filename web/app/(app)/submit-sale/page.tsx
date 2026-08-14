@@ -2,13 +2,18 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Store, User } from "lucide-react";
+import { Plus, Store, Trash2, User } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Combobox } from "@/components/ui/combobox";
 import { useInventory } from "@/hooks/inventory/use-inventory";
 import { useCreateSale } from "@/hooks/sales/use-create-sale";
+import { useCustomers } from "@/hooks/customers/use-customers";
+import {
+  useCreateSaleLocation,
+  useSaleLocations,
+} from "@/hooks/sale-locations/use-sale-locations";
 import { todayYmd } from "@/lib/filters/dates";
 import { formatProductLabel } from "@/lib/products/format";
 import { toNumber } from "@/lib/reports/format";
@@ -18,16 +23,27 @@ import { useAppStore } from "@/store/app";
 const inputClassName =
   "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
+interface LineRow {
+  key: number;
+  productId?: string;
+  qty: string;
+}
+
+let nextKey = 1;
+const newRow = (): LineRow => ({ key: nextKey++, qty: "" });
+
 function FormField({
   label,
   required,
   error,
+  helper,
   children,
   className,
 }: {
   label: string;
   required?: boolean;
   error?: string;
+  helper?: string;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -38,7 +54,11 @@ function FormField({
         {required ? <span className="text-destructive"> *</span> : null}
       </label>
       {children}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? (
+        <p className="text-xs text-destructive">{error}</p>
+      ) : helper ? (
+        <p className="text-xs text-muted-foreground">{helper}</p>
+      ) : null}
     </div>
   );
 }
@@ -49,61 +69,151 @@ export default function SubmitSalePage() {
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const hasStores = user?.hasStores ?? true;
+  const billingEnabled = user?.billingEnabled ?? false;
   const locationLabel = hasStores
     ? (user?.store ?? "My Store")
     : (user?.organizationName ?? "Organization");
 
   const { data, isLoading } = useInventory({ limit: 100 });
   const createSale = useCreateSale();
+  const { data: customersData } = useCustomers({ limit: 100 });
+  const customers = useMemo(
+    () => customersData?.data ?? [],
+    [customersData?.data],
+  );
+  const { data: saleLocations } = useSaleLocations(billingEnabled);
+  const createLocation = useCreateSaleLocation();
 
   const inStock = useMemo(
     () => (data?.data ?? []).filter((row) => row.quantity > 0),
     [data],
   );
 
-  const productItems = useMemo(
-    () =>
-      inStock.map((row) => ({
-        value: row.productId,
-        label: `${formatProductLabel(row.product.name, row.product.model)} · ${row.product.category.name} · ${row.quantity} available`,
-        keywords: [row.product.name, row.product.model ?? "", row.product.category.name],
-      })),
-    [inStock],
-  );
-
-  const [productId, setProductId] = useState<string | undefined>();
-  const [qty, setQty] = useState("");
+  const [rows, setRows] = useState<LineRow[]>([newRow()]);
   const [saleDate, setSaleDate] = useState(todayYmd());
   const [note, setNote] = useState("");
+  const [customerId, setCustomerId] = useState<string | undefined>();
+  const [locationId, setLocationId] = useState<string | undefined>();
+  const [newLocation, setNewLocation] = useState("");
+  const [addingLocation, setAddingLocation] = useState(false);
+  const [paidNow, setPaidNow] = useState("");
 
-  const selected = inStock.find((row) => row.productId === productId);
-  const avail = selected?.quantity ?? 0;
-  const price = selected ? toNumber(selected.product.sellingPrice) : 0;
-  const q = qty === "" ? 0 : parseInt(qty, 10);
-  const over = q > avail;
-  const total = q * price;
+  const customerItems = useMemo(
+    () =>
+      customers.map((c) => ({
+        value: c.id,
+        label: c.phone ? `${c.name} · ${c.phone}` : c.name,
+        keywords: [c.name, c.phone ?? ""],
+      })),
+    [customers],
+  );
+  const locationItems = useMemo(
+    () => (saleLocations ?? []).map((l) => ({ value: l.id, label: l.name })),
+    [saleLocations],
+  );
 
-  const handleQtyChange = (value: string) => {
-    if (value === "") {
-      setQty("");
-      return;
+  const addLocation = async () => {
+    const name = newLocation.trim();
+    if (!name) return;
+    try {
+      const created = await createLocation.mutateAsync({ name });
+      setLocationId(created.id);
+      setNewLocation("");
+      setAddingLocation(false);
+    } catch (e) {
+      addErrorToast({
+        title: "Failed to add location",
+        sub: e instanceof Error ? e.message : "Something went wrong",
+      });
     }
-    setQty(value.replace(/\D/g, ""));
   };
 
-  const submit = async () => {
-    if (!productId || !qty || q < 1 || over) return;
+  const selectedIds = rows
+    .map((r) => r.productId)
+    .filter((id): id is string => Boolean(id));
 
+  const rowFor = (row: LineRow) =>
+    inStock.find((s) => s.productId === row.productId);
+
+  const productItemsFor = (row: LineRow) =>
+    inStock
+      .filter(
+        (s) =>
+          s.productId === row.productId || !selectedIds.includes(s.productId),
+      )
+      .map((s) => ({
+        value: s.productId,
+        label: `${formatProductLabel(s.product.name, s.product.model)} · ${s.product.category.name} · ${s.quantity} available`,
+        keywords: [
+          s.product.name,
+          s.product.model ?? "",
+          s.product.category.name,
+        ],
+      }));
+
+  const lineTotal = (row: LineRow) => {
+    const inv = rowFor(row);
+    const q = row.qty === "" ? 0 : parseInt(row.qty, 10);
+    return q * (inv ? toNumber(inv.product.sellingPrice) : 0);
+  };
+  const total = rows.reduce((sum, row) => sum + lineTotal(row), 0);
+
+  const rowOver = (row: LineRow) => {
+    const inv = rowFor(row);
+    const q = row.qty === "" ? 0 : parseInt(row.qty, 10);
+    return Boolean(inv) && q > (inv?.quantity ?? 0);
+  };
+
+  const validRows = rows.filter((row) => {
+    const q = row.qty === "" ? 0 : parseInt(row.qty, 10);
+    return row.productId && q >= 1 && !rowOver(row);
+  });
+
+  const parsedPaid =
+    paidNow.trim() === "" ? 0 : Number(paidNow);
+  const paidNowInvalid =
+    billingEnabled &&
+    (Number.isNaN(parsedPaid) || parsedPaid < 0 || parsedPaid > total + 0.001);
+  const balanceAfter = Math.max(0, total - (parsedPaid || 0));
+  // Billing orgs require a customer whenever the sale isn't fully paid.
+  const needsCustomer = billingEnabled && parsedPaid < total - 0.001;
+  const canSubmit =
+    validRows.length === rows.length &&
+    rows.length > 0 &&
+    !paidNowInvalid &&
+    (!needsCustomer || Boolean(customerId));
+
+  const updateRow = (key: number, patch: Partial<LineRow>) =>
+    setRows((state) =>
+      state.map((r) => (r.key === key ? { ...r, ...patch } : r)),
+    );
+
+  const removeRow = (key: number) =>
+    setRows((state) =>
+      state.length === 1 ? state : state.filter((r) => r.key !== key),
+    );
+
+  const submit = async () => {
+    if (!canSubmit) return;
     try {
-      const sale = await createSale.mutateAsync({
-        productId,
-        quantitySold: q,
+      await createSale.mutateAsync({
+        items: validRows.map((row) => ({
+          productId: row.productId!,
+          quantitySold: parseInt(row.qty, 10),
+        })),
         saleDate,
+        customerId: billingEnabled ? customerId : undefined,
+        locationId: billingEnabled ? locationId : undefined,
+        paidAmount: billingEnabled ? parsedPaid || 0 : undefined,
         note: note.trim() || undefined,
       });
+      const units = validRows.reduce(
+        (sum, row) => sum + parseInt(row.qty, 10),
+        0,
+      );
       addToast({
         title: "Sale recorded successfully",
-        sub: `${q} × ${formatProductLabel(sale.product.name, sale.product.model)} — ${fmt(toNumber(sale.totalAmount))}`,
+        sub: `${units} unit${units === 1 ? "" : "s"} — ${fmt(total)}`,
       });
       router.push("/dashboard");
     } catch (e) {
@@ -120,47 +230,203 @@ export default function SubmitSalePage() {
 
       <Card bodyClass="px-5 py-4">
         <div className="grid gap-4">
-          <FormField label="Product" required>
-            <Combobox
-              value={productId}
-              onValueChange={setProductId}
-              items={productItems}
-              placeholder="Select a product…"
-              searchPlaceholder="Search products…"
-              emptyText="No in-stock products found."
-              loading={isLoading}
-              disabled={isLoading}
-              className="h-9 w-full min-w-0"
+          <div className="grid gap-3">
+            {rows.map((row) => {
+              const over = rowOver(row);
+              return (
+                <div
+                  key={row.key}
+                  className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_120px_auto] sm:items-end"
+                >
+                  <FormField label="Product" required>
+                    <Combobox
+                      value={row.productId}
+                      onValueChange={(value) =>
+                        updateRow(row.key, { productId: value })
+                      }
+                      items={productItemsFor(row)}
+                      placeholder="Select a product…"
+                      searchPlaceholder="Search products…"
+                      emptyText="No in-stock products found."
+                      loading={isLoading}
+                      disabled={isLoading}
+                      className="h-9 w-full min-w-0"
+                    />
+                  </FormField>
+                  <FormField
+                    label="Qty"
+                    required
+                    error={
+                      over
+                        ? `Only ${rowFor(row)?.quantity ?? 0} available`
+                        : undefined
+                    }
+                  >
+                    <input
+                      className={cn(
+                        inputClassName,
+                        over && "border-destructive",
+                      )}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={row.qty}
+                      onChange={(e) =>
+                        updateRow(row.key, {
+                          qty: e.target.value.replace(/\D/g, ""),
+                        })
+                      }
+                      placeholder="0"
+                      disabled={!row.productId}
+                    />
+                  </FormField>
+                  <button
+                    type="button"
+                    className="dt-act mb-1 shrink-0"
+                    title="Remove item"
+                    onClick={() => removeRow(row.key)}
+                    disabled={rows.length === 1}
+                    style={rows.length === 1 ? { opacity: 0.35 } : undefined}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              );
+            })}
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-fit"
+              onClick={() => setRows((state) => [...state, newRow()])}
+            >
+              <Plus className="size-4" />
+              Add item
+            </Button>
+          </div>
+
+          <FormField label="Sale date" required className="sm:max-w-[220px]">
+            <input
+              className={inputClassName}
+              type="date"
+              value={saleDate}
+              onChange={(e) => setSaleDate(e.target.value)}
             />
           </FormField>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField
-              label="Quantity"
-              required
-              error={over ? `Only ${avail} units available` : undefined}
-            >
-              <input
-                className={cn(inputClassName, over && "border-destructive")}
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={qty}
-                onChange={(e) => handleQtyChange(e.target.value)}
-                placeholder="0"
-                disabled={!productId}
-              />
-            </FormField>
+          {billingEnabled ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <FormField label="Customer">
+                <Combobox
+                  value={customerId}
+                  onValueChange={setCustomerId}
+                  items={customerItems}
+                  placeholder="Select a customer…"
+                  searchPlaceholder="Search customers…"
+                  emptyText="No customers. Add one on the Customers page."
+                  className="h-9 w-full"
+                />
+              </FormField>
+              <FormField label="Location">
+                {addingLocation ? (
+                  <div className="flex gap-2">
+                    <input
+                      className={inputClassName}
+                      value={newLocation}
+                      onChange={(e) => setNewLocation(e.target.value)}
+                      placeholder="New location name"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void addLocation()}
+                      disabled={createLocation.isPending || !newLocation.trim()}
+                    >
+                      Add
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setAddingLocation(false);
+                        setNewLocation("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Combobox
+                      value={locationId}
+                      onValueChange={setLocationId}
+                      items={locationItems}
+                      placeholder="Select a location…"
+                      searchPlaceholder="Search locations…"
+                      emptyText="No locations yet."
+                      className="h-9 w-full min-w-0"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => setAddingLocation(true)}
+                    >
+                      <Plus className="size-4" />
+                      New
+                    </Button>
+                  </div>
+                )}
+              </FormField>
+            </div>
+          ) : null}
 
-            <FormField label="Sale date" required>
-              <input
-                className={inputClassName}
-                type="date"
-                value={saleDate}
-                onChange={(e) => setSaleDate(e.target.value)}
-              />
+          {billingEnabled ? (
+            <FormField
+              label="Amount paid now"
+              className="sm:max-w-[280px]"
+              error={
+                paidNowInvalid
+                  ? `Must be between 0 and ${fmt(total)}`
+                  : needsCustomer && !customerId
+                    ? "Customer is required when the sale isn't fully paid"
+                    : undefined
+              }
+              helper={
+                !paidNowInvalid && total > 0
+                  ? balanceAfter === 0
+                    ? "Fully paid — no balance"
+                    : `Balance ${fmt(balanceAfter)} will be added to the customer's outstanding.`
+                  : undefined
+              }
+            >
+              <div className="flex gap-2">
+                <input
+                  className={cn(
+                    inputClassName,
+                    paidNowInvalid && "border-destructive",
+                  )}
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={paidNow}
+                  onChange={(e) => setPaidNow(e.target.value)}
+                  placeholder="0.00"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={total <= 0}
+                  onClick={() => setPaidNow(String(total))}
+                >
+                  Full
+                </Button>
+              </div>
             </FormField>
-          </div>
+          ) : null}
 
           <FormField label="Note">
             <textarea
@@ -189,11 +455,7 @@ export default function SubmitSalePage() {
             style={{ background: "var(--tint-indigo)" }}
           >
             <div className="min-w-0">
-              <p className="text-sm text-muted-foreground">
-                {price
-                  ? `${fmt(price)} per unit`
-                  : "Select a product to see price"}
-              </p>
+              <p className="text-sm text-muted-foreground">Sale total</p>
               <p
                 className="num text-2xl font-bold leading-tight"
                 style={{ color: "var(--brand-indigo)" }}
@@ -206,9 +468,7 @@ export default function SubmitSalePage() {
               size="default"
               className="w-full shrink-0 sm:w-auto sm:min-w-[140px]"
               onClick={submit}
-              disabled={
-                !productId || !qty || q < 1 || over || createSale.isPending
-              }
+              disabled={!canSubmit || createSale.isPending}
             >
               {createSale.isPending ? "Recording…" : "Record Sale"}
             </Button>
