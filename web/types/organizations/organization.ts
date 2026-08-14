@@ -4,7 +4,11 @@ export interface Organization {
   id: string;
   name: string;
   hasStores: boolean;
+  billingEnabled: boolean;
   isActive: boolean;
+  phone?: string | null;
+  paymentNumber?: string | null;
+  address?: string | null;
   logoKey?: string | null;
   logoUpdatedAt?: string | null;
   createdAt: string;
@@ -50,7 +54,15 @@ export interface CreateOrganizationInput {
 export interface UpdateOrganizationInput {
   name?: string;
   hasStores?: boolean;
+  billingEnabled?: boolean;
   isActive?: boolean;
+}
+
+export interface UpdateCurrentOrganizationInput {
+  name?: string;
+  phone?: string;
+  paymentNumber?: string;
+  address?: string;
 }
 
 export interface UpdateOrganizationUserInput {
