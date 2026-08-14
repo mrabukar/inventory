@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { LucideIcon, TrendingDown, TrendingUp } from "lucide-react";
 
 type Color = "indigo" | "teal" | "violet" | "amber" | "emerald" | "rose";
@@ -19,6 +20,7 @@ interface Props {
   trend?: string;
   trendDir?: "up" | "down";
   valueColor?: string;
+  href?: string;
 }
 
 export function StatCard({
@@ -29,10 +31,11 @@ export function StatCard({
   trend,
   trendDir = "up",
   valueColor,
+  href,
 }: Props) {
   const [bg, fg] = TINTS[color] ?? TINTS.indigo;
-  return (
-    <div className="stat-card">
+  const inner = (
+    <div className={`stat-card${href ? " cursor-pointer hover:ring-1 hover:ring-border" : ""}`}>
       <div className="stat-top">
         <div className="stat-ic" style={{ background: bg, color: fg }}>
           <Icon size={20} />
@@ -50,4 +53,6 @@ export function StatCard({
       <div className="stat-lbl">{label}</div>
     </div>
   );
+
+  return href ? <Link href={href} className="block">{inner}</Link> : inner;
 }
