@@ -26,6 +26,7 @@ export interface AppUser {
   organizationId: string | null;
   organizationName: string | null;
   hasStores: boolean | null;
+  billingEnabled: boolean | null;
   organizationLogoKey: string | null;
   organizationLogoUpdatedAt: string | null;
 }
