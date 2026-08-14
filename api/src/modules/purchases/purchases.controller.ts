@@ -16,6 +16,7 @@ import {
 import { Roles } from "../../common/decorators/roles.decorator";
 import { CorrectPurchaseDto } from "./dto/correct-purchase.dto";
 import { CreatePurchaseDto } from "./dto/create-purchase.dto";
+import { CreatePurchaseBatchDto } from "./dto/create-purchase-batch.dto";
 import { PurchaseQueryDto } from "./dto/purchase-query.dto";
 import { PurchasesService } from "./purchases.service";
 
@@ -36,6 +37,16 @@ export class PurchasesController {
     @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.purchasesService.create(dto, user);
+  }
+
+  // "batch" must be declared before ":id" routes so it isn't misread as an id.
+  @Post("batch")
+  @HttpCode(HttpStatus.CREATED)
+  createBatch(
+    @Body() dto: CreatePurchaseBatchDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.purchasesService.createBatch(dto, user);
   }
 
   @Post(":id/correct/add")
