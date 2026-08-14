@@ -25,6 +25,7 @@ export class SaleLocationsController {
   constructor(private readonly saleLocationsService: SaleLocationsService) {}
 
   @Get()
+  @Roles(UserRole.admin, UserRole.branch_manager)
   findAll(
     @Query("includeInactive") includeInactive: string | undefined,
     @CurrentUser() user: CurrentUserPayload,
