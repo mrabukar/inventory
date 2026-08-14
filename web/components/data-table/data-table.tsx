@@ -34,7 +34,7 @@ export interface DataTableProps<TData> {
   enableExport?: boolean;
   exportFileName?: string;
   onExportAll?: () => Promise<TData[]>;
-  getRowId?: (row: TData) => string;
+  getRowId?: (row: TData, index: number) => string;
   toolbarExtra?: React.ReactNode;
   emptyTitle?: string;
   emptyDescription?: string;
