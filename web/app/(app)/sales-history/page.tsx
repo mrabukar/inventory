@@ -2,111 +2,23 @@
 
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
-import { Sheet } from "@/components/ui/sheet";
-import { Field } from "@/components/ui/field";
-import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { CorrectionSheet } from "@/components/sales/correction-sheet";
 import { SalesHistoryTable } from "./components/sales-history-table";
 import { useCorrectSale } from "@/hooks/sales/use-correct-sale";
 import { useSales } from "@/hooks/sales/use-sales";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { getLast30DaysRange } from "@/lib/filters/dates";
-import { formatProductLabel } from "@/lib/products/format";
-import { formatSaleDate } from "@/lib/reports/format";
+import { isSaleWithinCorrectionWindow } from "@/lib/sales/correction-window";
 import { useAppStore } from "@/store/app";
+import type { CorrectSaleItemInput } from "@/types/sales/create-sale";
 import type { Sale, SaleStatus } from "@/types/sales/sale";
 
 const STATUS_ITEMS = [
   { value: "active", label: "Active" },
   { value: "corrected", label: "Corrected" },
 ] as const;
-
-function CorrectionSheet({
-  sale,
-  onClose,
-  onSave,
-  isSaving,
-}: {
-  sale: Sale;
-  onClose: () => void;
-  onSave: (qty: number, reason: string) => void;
-  isSaving: boolean;
-}) {
-  const [qty, setQty] = useState(String(sale.quantitySold));
-  const [reason, setReason] = useState("");
-  const [err, setErr] = useState<{ qty?: string; reason?: string }>({});
-
-  const save = () => {
-    const e: typeof err = {};
-    const parsed = qty === "" ? NaN : parseInt(qty, 10);
-    if (qty === "" || Number.isNaN(parsed) || parsed < 0)
-      e.qty = "Enter a valid whole number";
-    if (!reason.trim()) e.reason = "Reason is required";
-    setErr(e);
-    if (Object.keys(e).length) return;
-    onSave(parsed, reason.trim());
-  };
-
-  return (
-    <Sheet
-      title="Correct Sale"
-      onClose={onClose}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={isSaving}>
-            Cancel
-          </Button>
-          <Button onClick={save} disabled={isSaving}>
-            {isSaving ? "Submitting…" : "Submit Correction"}
-          </Button>
-        </>
-      }
-    >
-      <div
-        className="readout"
-        style={{
-          flexDirection: "column",
-          alignItems: "flex-start",
-          gap: 6,
-          marginBottom: 18,
-        }}
-      >
-        <div>
-          <b>{formatProductLabel(sale.product.name, sale.product.model)}</b>
-        </div>
-        <div>
-          Original quantity: <b>{sale.quantitySold}</b>
-        </div>
-        <div>Sale date: {formatSaleDate(sale.saleDate)}</div>
-      </div>
-      <Field label="Corrected quantity" required error={err.qty}>
-        <input
-          className={`f-input${err.qty ? " error" : ""}`}
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          value={qty}
-          onChange={(e) => {
-            const next = e.target.value;
-            if (next === "") {
-              setQty("");
-              return;
-            }
-            setQty(next.replace(/\D/g, ""));
-          }}
-        />
-      </Field>
-      <Field label="Reason" required error={err.reason}>
-        <textarea
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder="Explain why this sale is being corrected"
-        />
-      </Field>
-    </Sheet>
-  );
-}
 
 export default function SalesHistoryPage() {
   const addToast = useAppStore((s) => s.addToast);
@@ -142,17 +54,24 @@ export default function SalesHistoryPage() {
   const rowCount = data?.meta.total ?? 0;
   const isLoading = isPending || (isFetching && (data?.data.length ?? 0) === 0);
 
-  const handleCorrect = async (qty: number, reason: string) => {
+  const handleCorrect = async (
+    items: CorrectSaleItemInput[],
+    reason: string,
+  ) => {
     if (!correct) return;
 
     try {
       await correctSale.mutateAsync({
         id: correct.id,
-        input: { correctedQuantity: qty, reason },
+        input: { items, reason },
       });
+      const count = items.length;
       addToast({
         title: "Sale corrected",
-        sub: `${formatProductLabel(correct.product.name, correct.product.model)} → ${qty} units`,
+        sub:
+          count === 1
+            ? `Updated 1 item to ${items[0].correctedQuantity} units`
+            : `Updated ${count} items`,
       });
       setCorrect(null);
     } catch (e) {
@@ -213,7 +132,10 @@ export default function SalesHistoryPage() {
           setPageSize(nextSize);
         }}
         isLoading={isLoading}
-        onCorrect={setCorrect}
+        onCorrect={(sale) => {
+          if (!isSaleWithinCorrectionWindow(sale.createdAt)) return;
+          setCorrect(sale);
+        }}
         toolbarExtra={toolbarExtra}
       />
 
