@@ -196,10 +196,13 @@ export class OrganizationsService {
     dto: CreateOrganizationDto,
     actor: CurrentUserPayload,
   ): Promise<Organization> {
+    const hasStores = dto.hasStores ?? true;
     const organization = await this.prisma.organization.create({
       data: {
         name: dto.name.trim(),
-        hasStores: dto.hasStores ?? true,
+        hasStores,
+        // Billing defaults to no-branch orgs; super-admin can flip it later.
+        billingEnabled: !hasStores,
       },
     });
 
@@ -239,8 +242,15 @@ export class OrganizationsService {
       where: { id },
       data: {
         ...(dto.name !== undefined ? { name: dto.name.trim() } : undefined),
-        ...(dto.hasStores !== undefined ? { hasStores: dto.hasStores } : undefined),
-        ...(dto.isActive !== undefined ? { isActive: dto.isActive } : undefined),
+        ...(dto.hasStores !== undefined
+          ? { hasStores: dto.hasStores }
+          : undefined),
+        ...(dto.billingEnabled !== undefined
+          ? { billingEnabled: dto.billingEnabled }
+          : undefined),
+        ...(dto.isActive !== undefined
+          ? { isActive: dto.isActive }
+          : undefined),
       },
     });
 
@@ -295,7 +305,12 @@ export class OrganizationsService {
 
   async updateCurrent(
     user: CurrentUserPayload,
-    dto: { name?: string },
+    dto: {
+      name?: string;
+      phone?: string;
+      paymentNumber?: string;
+      address?: string;
+    },
   ): Promise<Organization> {
     if (Object.keys(dto).length === 0) {
       throw new BadRequestException("At least one field must be provided");
@@ -308,6 +323,15 @@ export class OrganizationsService {
       where: { id },
       data: {
         ...(dto.name !== undefined ? { name: dto.name.trim() } : undefined),
+        ...(dto.phone !== undefined
+          ? { phone: dto.phone.trim() || null }
+          : undefined),
+        ...(dto.paymentNumber !== undefined
+          ? { paymentNumber: dto.paymentNumber.trim() || null }
+          : undefined),
+        ...(dto.address !== undefined
+          ? { address: dto.address.trim() || null }
+          : undefined),
       },
     });
 
@@ -326,7 +350,10 @@ export class OrganizationsService {
     return organization;
   }
 
-  async getPlatformStats(): Promise<{ organizationCount: number; userCount: number }> {
+  async getPlatformStats(): Promise<{
+    organizationCount: number;
+    userCount: number;
+  }> {
     const [organizationCount, userCount] = await Promise.all([
       this.prisma.organization.count(),
       this.prisma.user.count({
