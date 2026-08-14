@@ -13,6 +13,10 @@ export const PAGE_TITLES: Record<string, string> = {
   "/financial": "Financial Summary",
   "/categories": "Categories",
   "/stores": "Stores",
+  "/customers": "Customers",
+  "/invoices": "Invoices",
+  "/payments": "Payments",
+  "/receivables": "Receivables",
   "/users": "Users",
   "/audit": "Audit Log",
   "/submit-sale": "Submit Sale",
@@ -28,12 +32,11 @@ export const PAGE_TITLES: Record<string, string> = {
 };
 
 export function resolvePageTitle(pathname: string): string {
-  return (
-    PAGE_TITLES[pathname] ??
-    (pathname.startsWith("/super-admin/organizations/")
-      ? "Organization"
-      : "Dashboard")
-  );
+  if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname];
+  if (pathname.startsWith("/super-admin/organizations/")) return "Organization";
+  if (pathname.startsWith("/customers/")) return "Customer";
+  if (pathname.startsWith("/invoices/")) return "Invoice";
+  return "Dashboard";
 }
 
 export function formatDocumentTitle(pageTitle: string): string {
