@@ -33,7 +33,7 @@ describeIfDb("sqlInclusiveDateRange (integration)", () => {
     );
 
     const [agg, raw] = await Promise.all([
-      prisma.sale.aggregate({
+      prisma.saleItem.aggregate({
         where: {
           organizationId: orgId,
           saleDate: {
@@ -47,7 +47,7 @@ describeIfDb("sqlInclusiveDateRange (integration)", () => {
         SELECT
           SUM(s."quantitySold")::int AS units,
           COALESCE(SUM(s."quantitySold" * s."unitPurchasePrice"), 0)::numeric AS cogs
-        FROM "sale" s
+        FROM "sale_item" s
         WHERE s."organizationId" = ${orgId}
           AND ${bounds}
       `,
