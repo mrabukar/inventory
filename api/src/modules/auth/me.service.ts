@@ -1,7 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { AuditAction, Prisma } from "@prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { UpdateMeDto } from "./dto/update-me.dto";
@@ -17,6 +14,10 @@ const organizationSelect = {
   id: true,
   name: true,
   hasStores: true,
+  billingEnabled: true,
+  phone: true,
+  paymentNumber: true,
+  address: true,
   logoKey: true,
   logoUpdatedAt: true,
 } as const;
@@ -43,6 +44,10 @@ export type MeOrganization = {
   id: string;
   name: string;
   hasStores: boolean;
+  billingEnabled: boolean;
+  phone: string | null;
+  paymentNumber: string | null;
+  address: string | null;
   logoKey: string | null;
   logoUpdatedAt: Date | null;
 };
