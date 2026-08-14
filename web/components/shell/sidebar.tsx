@@ -146,12 +146,24 @@ function buildAdminNav(
   return nav;
 }
 
-const MANAGER_NAV: NavLinkItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/submit-sale", label: "Submit Sale", icon: PlusCircle },
-  { href: "/my-stock", label: "My Stock", icon: Package },
-  { href: "/sales-history", label: "Sales History", icon: History },
-];
+function buildManagerNav(billingEnabled: boolean): NavLinkItem[] {
+  const nav: NavLinkItem[] = [
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/submit-sale", label: "Submit Sale", icon: PlusCircle },
+    { href: "/my-stock", label: "My Stock", icon: Package },
+    { href: "/sales-history", label: "Sales History", icon: History },
+  ];
+
+  if (billingEnabled) {
+    nav.push(
+      { href: "/customers", label: "Customers", icon: Contact },
+      { href: "/invoices", label: "Invoices", icon: FileText },
+      { href: "/payments", label: "Payments", icon: Wallet },
+    );
+  }
+
+  return nav;
+}
 
 function isNavGroup(entry: AdminNavEntry): entry is NavGroupItem {
   return "type" in entry && entry.type === "group";
@@ -429,6 +441,7 @@ export function Sidebar({
   const pathname = usePathname();
   const billingEnabled = useAppStore((s) => s.user?.billingEnabled ?? false);
   const adminNav = buildAdminNav(hasStores !== false, billingEnabled);
+  const managerNav = buildManagerNav(billingEnabled);
 
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
@@ -465,7 +478,7 @@ export function Sidebar({
                   />
                 ),
               )
-            : MANAGER_NAV.map((item) => (
+            : managerNav.map((item) => (
                 <SidebarNavLink
                   key={item.href}
                   item={item}
