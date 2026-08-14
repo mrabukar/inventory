@@ -1,11 +1,32 @@
 import { Type } from "class-transformer";
-import { IsInt, IsNotEmpty, IsString, MaxLength, Min } from "class-validator";
+import {
+  ArrayMinSize,
+  IsArray,
+  IsInt,
+  IsNotEmpty,
+  IsPositive,
+  IsString,
+  MaxLength,
+  ValidateNested,
+} from "class-validator";
 
-export class CorrectSaleDto {
+export class CorrectSaleItemDto {
+  @IsString()
+  @IsNotEmpty()
+  saleItemId!: string;
+
   @Type(() => Number)
   @IsInt()
-  @Min(0)
+  @IsPositive()
   correctedQuantity!: number;
+}
+
+export class CorrectSaleDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CorrectSaleItemDto)
+  items!: CorrectSaleItemDto[];
 
   @IsString()
   @IsNotEmpty()
