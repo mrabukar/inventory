@@ -7,6 +7,7 @@ import type {
   OrganizationUsersQuery,
   OrganizationUsersResponse,
   PlatformStats,
+  UpdateCurrentOrganizationInput,
   UpdateOrganizationInput,
 } from "@/types/organizations/organization";
 import type { PaginatedResponse } from "@/types/common/pagination";
@@ -30,7 +31,9 @@ export function getCurrentOrganization() {
   return apiFetch<OrganizationDetail>("/api/organization");
 }
 
-export function updateCurrentOrganization(input: { name?: string }) {
+export function updateCurrentOrganization(
+  input: UpdateCurrentOrganizationInput,
+) {
   return apiFetch<Organization>("/api/organization", {
     method: "PATCH",
     body: JSON.stringify(input),
