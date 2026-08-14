@@ -3,16 +3,18 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { FileText } from "lucide-react";
+import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 
+import { DataTable } from "@/components/data-table/data-table";
+import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { PageHeader } from "@/components/ui/page-header";
 import { Combobox } from "@/components/ui/combobox";
-import { EmptyState } from "@/components/ui/empty-state";
 import { useInvoices } from "@/hooks/invoices/use-invoices";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { formatDisplayDate } from "@/lib/filters/dates";
 import { toNumber } from "@/lib/reports/format";
 import { cn, fmt } from "@/lib/utils";
-import type { InvoiceStatus } from "@/types/invoices/invoice";
+import type { Invoice, InvoiceStatus } from "@/types/invoices/invoice";
 
 const STATUS_ITEMS = [
   { value: "unpaid", label: "Unpaid" },
@@ -40,155 +42,200 @@ function StatusBadge({ status }: { status: InvoiceStatus }) {
   );
 }
 
+const columns: ColumnDef<Invoice>[] = [
+  {
+    id: "numberLabel",
+    accessorFn: (row) => row.numberLabel,
+    meta: {
+      label: "Invoice #",
+      align: "center",
+      exportValue: (row: Invoice) => row.numberLabel,
+    },
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Invoice #" />
+    ),
+    cell: ({ row }) => (
+      <Link href={`/invoices/${row.original.id}`} className="strong">
+        {row.original.numberLabel}
+      </Link>
+    ),
+  },
+  {
+    id: "issuedAt",
+    accessorFn: (row) => row.issuedAt,
+    meta: {
+      label: "Date",
+      align: "center",
+      exportValue: (row: Invoice) => formatDisplayDate(row.issuedAt),
+    },
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Date" />
+    ),
+    cell: ({ row }) => (
+      <span className="muted">{formatDisplayDate(row.original.issuedAt)}</span>
+    ),
+  },
+  {
+    id: "customer",
+    accessorFn: (row) => row.customer?.name ?? "Walk-in",
+    meta: {
+      label: "Customer",
+      align: "center",
+      exportValue: (row: Invoice) => row.customer?.name ?? "Walk-in",
+    },
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Customer" />
+    ),
+    cell: ({ row }) =>
+      row.original.customer ? (
+        <span>{row.original.customer.name}</span>
+      ) : (
+        <span className="muted">Walk-in</span>
+      ),
+  },
+  {
+    id: "total",
+    accessorFn: (row) => toNumber(row.total),
+    meta: {
+      label: "Total",
+      align: "center",
+      exportValue: (row: Invoice) => toNumber(row.total),
+    },
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Total" />
+    ),
+    cell: ({ row }) => (
+      <span className="num">{fmt(toNumber(row.original.total))}</span>
+    ),
+  },
+  {
+    id: "paid",
+    accessorFn: (row) => toNumber(row.paidAmount),
+    meta: {
+      label: "Paid",
+      align: "center",
+      exportValue: (row: Invoice) => toNumber(row.paidAmount),
+    },
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Paid" />
+    ),
+    cell: ({ row }) => (
+      <span className="num muted">
+        {fmt(toNumber(row.original.paidAmount))}
+      </span>
+    ),
+  },
+  {
+    id: "balance",
+    accessorFn: (row) => toNumber(row.total) - toNumber(row.paidAmount),
+    meta: {
+      label: "Balance",
+      align: "center",
+      exportValue: (row: Invoice) =>
+        toNumber(row.total) - toNumber(row.paidAmount),
+    },
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Balance" />
+    ),
+    cell: ({ row }) => {
+      const balance =
+        toNumber(row.original.total) - toNumber(row.original.paidAmount);
+      return <span className="num strong">{fmt(balance)}</span>;
+    },
+  },
+  {
+    id: "status",
+    accessorFn: (row) => row.status,
+    meta: { label: "Status", exportValue: (row: Invoice) => row.status },
+    header: "Status",
+    cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    enableSorting: false,
+  },
+  {
+    id: "actions",
+    meta: { export: false },
+    header: "Actions",
+    cell: ({ row }) => (
+      <Link
+        href={`/invoices/${row.original.id}`}
+        className="dt-act inline-flex"
+        title="View / print"
+      >
+        <FileText size={16} />
+      </Link>
+    ),
+    enableSorting: false,
+  },
+];
+
 export default function InvoicesPage() {
-  const [page, setPage] = useState(1);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<InvoiceStatus | undefined>();
   const debouncedSearch = useDebouncedValue(search, 300);
 
   const query = useMemo(
     () => ({
-      page,
-      limit: 20,
+      page: pageIndex + 1,
+      limit: pageSize,
       search: debouncedSearch || undefined,
       status,
     }),
-    [page, debouncedSearch, status],
+    [pageIndex, pageSize, debouncedSearch, status],
   );
 
-  const { data, isPending, isError, error } = useInvoices(query);
+  const { data, isPending, isFetching, isError, error } = useInvoices(query);
   const rows = data?.data ?? [];
-  const totalPages = data?.meta.totalPages ?? 1;
+  const rowCount = data?.meta.total ?? 0;
+  const isLoading = isPending || (isFetching && rows.length === 0);
+
+  const statusFilter = (
+    <Combobox
+      value={status}
+      onValueChange={(value) => {
+        setStatus(value as InvoiceStatus | undefined);
+        setPageIndex(0);
+      }}
+      items={[...STATUS_ITEMS]}
+      placeholder="All statuses"
+      clearOption={{ label: "All statuses" }}
+      className="h-8 min-w-[160px]"
+    />
+  );
 
   return (
     <>
       <PageHeader title="Invoices" desc="Customer invoices and balances" />
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <input
-          className="f-input min-w-[220px]"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-          placeholder="Search by invoice # or customer…"
-        />
-        <Combobox
-          value={status}
-          onValueChange={(value) => {
-            setStatus(value as InvoiceStatus | undefined);
-            setPage(1);
-          }}
-          items={[...STATUS_ITEMS]}
-          placeholder="All statuses"
-          clearOption={{ label: "All statuses" }}
-          className="min-w-[160px]"
-        />
-      </div>
-
-      {isError ? (
-        <div className="alert-error">
+      {isError && (
+        <div className="alert-error mb-4">
           {error instanceof Error ? error.message : "Failed to load invoices."}
-        </div>
-      ) : isPending ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
-      ) : rows.length === 0 ? (
-        <EmptyState
-          title="No invoices"
-          sub="Invoices are created automatically when you record a sale."
-        />
-      ) : (
-        <div className="dt">
-          <div className="dt-scroll">
-            <table className="dt-table">
-              <thead className="dt-head">
-                <tr>
-                  <th className="dt-th-left">Invoice #</th>
-                  <th className="dt-th-left">Date</th>
-                  <th className="dt-th-left">Customer</th>
-                  <th className="dt-th-center">Total</th>
-                  <th className="dt-th-center">Paid</th>
-                  <th className="dt-th-center">Balance</th>
-                  <th className="dt-th-center">Status</th>
-                  <th className="dt-th-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="dt-body">
-                {rows.map((invoice) => {
-                  const total = toNumber(invoice.total);
-                  const paid = toNumber(invoice.paidAmount);
-                  return (
-                    <tr key={invoice.id} className="dt-row">
-                      <td className="dt-cell-left">
-                        <Link
-                          href={`/invoices/${invoice.id}`}
-                          className="strong"
-                        >
-                          {invoice.numberLabel}
-                        </Link>
-                      </td>
-                      <td className="dt-cell-left">
-                        <span className="muted">
-                          {formatDisplayDate(invoice.issuedAt)}
-                        </span>
-                      </td>
-                      <td className="dt-cell-left">
-                        {invoice.customer?.name ?? (
-                          <span className="muted">Walk-in</span>
-                        )}
-                      </td>
-                      <td className="dt-cell-center">
-                        <span className="num">{fmt(total)}</span>
-                      </td>
-                      <td className="dt-cell-center">
-                        <span className="num muted">{fmt(paid)}</span>
-                      </td>
-                      <td className="dt-cell-center">
-                        <span className="num strong">{fmt(total - paid)}</span>
-                      </td>
-                      <td className="dt-cell-center">
-                        <StatusBadge status={invoice.status} />
-                      </td>
-                      <td className="dt-cell-center">
-                        <Link
-                          href={`/invoices/${invoice.id}`}
-                          className="dt-act inline-flex"
-                          title="View / print"
-                        >
-                          <FileText size={16} />
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
         </div>
       )}
 
-      {totalPages > 1 ? (
-        <div className="mt-4 flex items-center justify-end gap-2">
-          <button
-            className="dt-act"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            Prev
-          </button>
-          <span className="text-sm text-muted-foreground">
-            Page {page} of {totalPages}
-          </span>
-          <button
-            className="dt-act"
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          >
-            Next
-          </button>
-        </div>
-      ) : null}
+      <DataTable
+        columns={columns}
+        data={rows}
+        rowCount={rowCount}
+        pageIndex={pageIndex}
+        pageSize={pageSize}
+        onPaginationChange={(state: PaginationState) => {
+          setPageIndex(state.pageIndex);
+          setPageSize(state.pageSize);
+        }}
+        searchValue={search}
+        onSearchChange={(value) => {
+          setSearch(value);
+          setPageIndex(0);
+        }}
+        searchPlaceholder="Search by invoice # or customer…"
+        isLoading={isLoading}
+        enableRowSelection={false}
+        toolbarExtra={statusFilter}
+        emptyTitle="No invoices"
+        emptyDescription="Invoices are created automatically when you record a sale."
+      />
     </>
   );
 }
