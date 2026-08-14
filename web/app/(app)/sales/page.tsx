@@ -4,19 +4,22 @@ import { useCallback, useMemo, useState } from "react";
 
 import { SaleDetailSheet } from "./components/sale-detail-sheet";
 import { SalesTable } from "./components/sales-table";
+import { CorrectionSheet } from "@/components/sales/correction-sheet";
 import { Combobox } from "@/components/ui/combobox";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { PageHeader } from "@/components/ui/page-header";
-import { SummaryBar } from "@/components/ui/summary-bar";
+import { useSession } from "@/hooks/auth/session";
 import { useCategories } from "@/hooks/categories/use-categories";
+import { useCorrectSale } from "@/hooks/sales/use-correct-sale";
 import { useSales } from "@/hooks/sales/use-sales";
 import { useStores } from "@/hooks/stores/list-stores";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { getCurrentMonthRange } from "@/lib/filters/dates";
-import { toNumber } from "@/lib/reports/format";
-import { fmt } from "@/lib/utils";
+import { isSaleWithinCorrectionWindow } from "@/lib/sales/correction-window";
 import { listSales } from "@/service/sales/list-sales";
-import type { Sale, SaleStatus } from "@/types/sales/sale";
+import { useAppStore } from "@/store/app";
+import type { CorrectSaleItemInput } from "@/types/sales/create-sale";
+import { type Sale, type SaleStatus } from "@/types/sales/sale";
 
 const STATUS_ITEMS = [
   { value: "active", label: "Active" },
@@ -24,6 +27,12 @@ const STATUS_ITEMS = [
 ] as const;
 
 export default function SalesPage() {
+  const { user } = useSession();
+  const canCorrect = user?.hasStores === false;
+  const addToast = useAppStore((s) => s.addToast);
+  const addErrorToast = useAppStore((s) => s.addErrorToast);
+  const correctSale = useCorrectSale();
+
   const defaultRange = useMemo(() => getCurrentMonthRange(), []);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(20);
@@ -34,6 +43,7 @@ export default function SalesPage() {
   const [fromDate, setFromDate] = useState(defaultRange.fromDate);
   const [toDate, setToDate] = useState(defaultRange.toDate);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [correct, setCorrect] = useState<Sale | null>(null);
   const debouncedSearch = useDebouncedValue(search, 300);
 
   const listQuery = useMemo(
@@ -87,16 +97,6 @@ export default function SalesPage() {
 
   const resetPage = () => setPageIndex(0);
 
-  const pageRevenue = useMemo(
-    () => rows.reduce((sum, row) => sum + toNumber(row.totalAmount), 0),
-    [rows],
-  );
-
-  const pageUnits = useMemo(
-    () => rows.reduce((sum, row) => sum + row.quantitySold, 0),
-    [rows],
-  );
-
   const handleExportAll = useCallback(async () => {
     const limit = 100;
     let page = 1;
@@ -121,6 +121,34 @@ export default function SalesPage() {
 
     return exported;
   }, [debouncedSearch, storeId, categoryId, status, fromDate, toDate]);
+
+  const handleCorrect = async (
+    items: CorrectSaleItemInput[],
+    reason: string,
+  ) => {
+    if (!correct) return;
+
+    try {
+      await correctSale.mutateAsync({
+        id: correct.id,
+        input: { items, reason },
+      });
+      const count = items.length;
+      addToast({
+        title: "Sale corrected",
+        sub:
+          count === 1
+            ? `Updated 1 item to ${items[0].correctedQuantity} units`
+            : `Updated ${count} items`,
+      });
+      setCorrect(null);
+    } catch (e) {
+      addErrorToast({
+        title: "Failed to correct sale",
+        sub: e instanceof Error ? e.message : "Something went wrong",
+      });
+    }
+  };
 
   const toolbarExtra = (
     <div
@@ -192,18 +220,6 @@ export default function SalesPage() {
         </div>
       )}
 
-      {/* <SummaryBar
-        items={[
-          { k: "Total Sales", v: `${rows.length} transactions` },
-          {
-            k: "Total Revenue",
-            v: fmt(pageRevenue),
-            color: "var(--brand-indigo)",
-          },
-          { k: "Total Units", v: `${pageUnits} sold` },
-        ]}
-      /> */}
-
       <SalesTable
         rows={rows}
         rowCount={rowCount}
@@ -221,6 +237,14 @@ export default function SalesPage() {
         isLoading={isLoading}
         onExportAll={handleExportAll}
         onView={setSelectedSale}
+        onCorrect={
+          canCorrect
+            ? (sale) => {
+                if (!isSaleWithinCorrectionWindow(sale.createdAt)) return;
+                setCorrect(sale);
+              }
+            : undefined
+        }
         toolbarExtra={toolbarExtra}
       />
 
@@ -228,6 +252,15 @@ export default function SalesPage() {
         <SaleDetailSheet
           sale={selectedSale}
           onClose={() => setSelectedSale(null)}
+        />
+      )}
+
+      {correct && (
+        <CorrectionSheet
+          sale={correct}
+          onClose={() => setCorrect(null)}
+          onSave={handleCorrect}
+          isSaving={correctSale.isPending}
         />
       )}
     </>
