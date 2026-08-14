@@ -11,6 +11,10 @@ export interface MeOrganization {
   id: string;
   name: string;
   hasStores: boolean;
+  billingEnabled?: boolean;
+  phone?: string | null;
+  paymentNumber?: string | null;
+  address?: string | null;
   logoKey?: string | null;
   logoUpdatedAt?: string | null;
 }
