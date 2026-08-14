@@ -28,6 +28,8 @@ model User {
   stockSupplies   StockSupply[]    @relation("StockSupplies")
   purchases       Purchase[]       @relation("PurchasesCreatedBy")
   expenses        Expense[]        @relation("ExpensesCreatedBy")
+  createdCustomers Customer[]      @relation("CustomersCreatedBy")
+  recordedPayments Payment[]       @relation("PaymentsRecordedBy")
   auditLogs       AuditLog[]
 
   @@unique([email])
