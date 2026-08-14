@@ -1,0 +1,21 @@
+model Payment {
+  id             String       @id @default(cuid())
+  invoiceId      String
+  invoice        Invoice      @relation(fields: [invoiceId], references: [id])
+  customerId     String?
+  customer       Customer?    @relation(fields: [customerId], references: [id])
+  amount         Decimal      @db.Decimal(10, 2)
+  paidAt         DateTime     @db.Date
+  note           String?
+  recordedById   String
+  recordedBy     User         @relation("PaymentsRecordedBy", fields: [recordedById], references: [id])
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+
+  @@index([invoiceId])
+  @@index([customerId])
+  @@index([organizationId])
+  @@index([paidAt])
+  @@map("payment")
+}
