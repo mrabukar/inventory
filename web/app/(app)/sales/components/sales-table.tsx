@@ -2,14 +2,23 @@
 
 import { useMemo } from "react";
 import type { ColumnDef, PaginationState } from "@tanstack/react-table";
-import { Eye, Store } from "lucide-react";
+import { Eye, SquarePen, Store } from "lucide-react";
 
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { SaleStatusBadge } from "@/components/ui/badge";
 import { formatSaleDate, toNumber } from "@/lib/reports/format";
+import {
+  isSaleWithinCorrectionWindow,
+  SALE_CORRECTION_WINDOW_HOURS,
+} from "@/lib/sales/correction-window";
 import { fmt } from "@/lib/utils";
-import { saleProfit, type Sale } from "@/types/sales/sale";
+import {
+  saleProductSummary,
+  saleProfit,
+  saleUnitsSold,
+  type Sale,
+} from "@/types/sales/sale";
 
 interface SalesTableProps {
   rows: Sale[];
@@ -22,6 +31,7 @@ interface SalesTableProps {
   isLoading?: boolean;
   onExportAll?: () => Promise<Sale[]>;
   onView: (sale: Sale) => void;
+  onCorrect?: (sale: Sale) => void;
   toolbarExtra?: React.ReactNode;
 }
 
@@ -36,6 +46,7 @@ export function SalesTable({
   isLoading = false,
   onExportAll,
   onView,
+  onCorrect,
   toolbarExtra,
 }: SalesTableProps) {
   const columns = useMemo<ColumnDef<Sale>[]>(
@@ -75,33 +86,31 @@ export function SalesTable({
         ),
       },
       {
-        id: "product",
-        accessorFn: (row) => row.product.name,
+        id: "items",
+        accessorFn: (row) => saleProductSummary(row),
         meta: {
-          label: "Product",
-          exportValue: (row: Sale) => row.product.name,
+          label: "Items",
+          exportValue: (row: Sale) => saleProductSummary(row),
         },
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Product" />
+          <DataTableColumnHeader column={column} title="Items" />
         ),
         cell: ({ row }) => (
-          <span className="strong">{row.original.product.name}</span>
+          <span className="strong">{saleProductSummary(row.original)}</span>
         ),
       },
       {
-        id: "model",
-        accessorFn: (row) => row.product.model ?? "",
+        id: "customer",
+        accessorFn: (row) => row.customer?.name ?? "",
         meta: {
-          label: "Model",
-          exportValue: (row: Sale) => row.product.model ?? "",
+          label: "Customer",
+          exportValue: (row: Sale) => row.customer?.name ?? "",
         },
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Model" />
+          <DataTableColumnHeader column={column} title="Customer" />
         ),
         cell: ({ row }) => (
-          <span className="muted">
-            {row.original.product.model || "—"}
-          </span>
+          <span className="muted">{row.original.customer?.name ?? "—"}</span>
         ),
       },
       {
@@ -119,32 +128,18 @@ export function SalesTable({
         ),
       },
       {
-        accessorKey: "quantitySold",
+        id: "units",
+        accessorFn: (row) => saleUnitsSold(row),
         meta: {
-          label: "Qty",
+          label: "Units",
           align: "center",
-          exportValue: (row: Sale) => row.quantitySold,
+          exportValue: (row: Sale) => saleUnitsSold(row),
         },
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Qty" />
+          <DataTableColumnHeader column={column} title="Units" />
         ),
         cell: ({ row }) => (
-          <span className="num">{row.original.quantitySold}</span>
-        ),
-      },
-      {
-        id: "unitPrice",
-        accessorFn: (row) => toNumber(row.unitPrice),
-        meta: {
-          label: "Unit Price",
-          align: "center",
-          exportValue: (row: Sale) => toNumber(row.unitPrice),
-        },
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Unit Price" />
-        ),
-        cell: ({ row }) => (
-          <span className="num muted">{fmt(toNumber(row.original.unitPrice))}</span>
+          <span className="num">{saleUnitsSold(row.original)}</span>
         ),
       },
       {
@@ -202,23 +197,54 @@ export function SalesTable({
         id: "actions",
         meta: { export: false, align: "center" },
         header: "Actions",
-        cell: ({ row }) => (
-          <div className="dt-actions">
-            <button
-              type="button"
-              className="dt-act"
-              title="View"
-              onClick={() => onView(row.original)}
-            >
-              <Eye size={16} />
-            </button>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const corrected = row.original.status === "corrected";
+          const withinWindow = isSaleWithinCorrectionWindow(
+            row.original.createdAt,
+          );
+          const correctDisabled = corrected || !withinWindow;
+          const correctTitle = corrected
+            ? "Already corrected"
+            : !withinWindow
+              ? `Corrections only within ${SALE_CORRECTION_WINDOW_HOURS} hours of recording`
+              : "Correct";
+
+          return (
+            <div className="dt-actions">
+              <button
+                type="button"
+                className="dt-act"
+                title="View"
+                onClick={() => onView(row.original)}
+              >
+                <Eye size={16} />
+              </button>
+              {onCorrect ? (
+                <button
+                  type="button"
+                  className="dt-act"
+                  title={correctTitle}
+                  disabled={correctDisabled}
+                  style={
+                    correctDisabled
+                      ? { opacity: 0.35, cursor: "not-allowed" }
+                      : undefined
+                  }
+                  onClick={() =>
+                    !correctDisabled && onCorrect(row.original)
+                  }
+                >
+                  <SquarePen size={16} />
+                </button>
+              ) : null}
+            </div>
+          );
+        },
         enableSorting: false,
         enableHiding: false,
       },
     ],
-    [onView],
+    [onView, onCorrect],
   );
 
   return (
