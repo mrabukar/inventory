@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Dialog } from "radix-ui";
 import { X } from "lucide-react";
 
@@ -81,17 +81,20 @@ export function RecordPaymentModal({
     [customers],
   );
 
-  // Unpaid invoices for the selected customer.
-  const { data: invoicesData } = useInvoices({
-    customerId,
-    status: "unpaid",
-    limit: 50,
-  });
-  const { data: partialInvoicesData } = useInvoices({
-    customerId,
-    status: "partial",
-    limit: 50,
-  });
+  // Unpaid invoices for the selected customer — only fetch once a customer is chosen.
+  const { data: invoicesData, isFetching: isUnpaidFetching } = useInvoices(
+    { customerId, status: "unpaid", limit: 50 },
+    { enabled: Boolean(customerId) },
+  );
+  const { data: partialInvoicesData, isFetching: isPartialFetching } =
+    useInvoices(
+      { customerId, status: "partial", limit: 50 },
+      { enabled: Boolean(customerId) },
+    );
+
+  const isLoadingInvoices =
+    Boolean(customerId) && (isUnpaidFetching || isPartialFetching);
+
   const unpaidInvoices = useMemo(() => {
     const list = [
       ...(invoicesData?.data ?? []),
@@ -99,6 +102,21 @@ export function RecordPaymentModal({
     ];
     return list.sort((a, b) => a.number - b.number);
   }, [invoicesData?.data, partialInvoicesData?.data]);
+
+  // Auto-select the oldest unpaid invoice and pre-fill the amount as soon as
+  // the list loads (or whenever the customer changes and a new list arrives).
+  useEffect(() => {
+    if (isLoadingInvoices) return;
+    const oldest = unpaidInvoices[0];
+    if (!oldest) return;
+    const alreadyValid =
+      invoiceId && unpaidInvoices.some((inv) => inv.id === invoiceId);
+    if (!alreadyValid) {
+      const rem = toNumber(oldest.total) - toNumber(oldest.paidAmount);
+      setInvoiceId(oldest.id);
+      setAmount(String(rem));
+    }
+  }, [unpaidInvoices, isLoadingInvoices]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const invoiceItems = useMemo(
     () =>
@@ -118,6 +136,19 @@ export function RecordPaymentModal({
   const remaining = targetInvoice
     ? toNumber(targetInvoice.total) - toNumber(targetInvoice.paidAmount)
     : 0;
+
+  // When the user picks a different invoice, switch to it and fill the amount
+  // with its full remaining balance.
+  const handleInvoiceChange = (nextInvoiceId: string | undefined) => {
+    setInvoiceId(nextInvoiceId);
+    const nextInvoice =
+      unpaidInvoices.find((inv) => inv.id === nextInvoiceId) ??
+      unpaidInvoices[0];
+    if (!nextInvoice) return;
+    const nextRemaining =
+      toNumber(nextInvoice.total) - toNumber(nextInvoice.paidAmount);
+    setAmount(String(nextRemaining));
+  };
 
   const save = () => {
     const next: typeof err = {};
@@ -163,8 +194,7 @@ export function RecordPaymentModal({
               Record payment
             </Dialog.Title>
             <Dialog.Description className="text-sm text-muted-foreground">
-              Payments are applied to a specific invoice. Leave the invoice
-              picker empty to apply to the customer&apos;s oldest unpaid.
+              Payments are applied to a specific invoice.
             </Dialog.Description>
           </div>
 
@@ -185,23 +215,19 @@ export function RecordPaymentModal({
               />
             </Field>
 
-            {customerId && unpaidInvoices.length > 0 ? (
-              <Field
-                label="Invoice"
-                helper={
-                  invoiceId
-                    ? undefined
-                    : `Defaults to oldest unpaid (${unpaidInvoices[0]?.numberLabel ?? ""})`
-                }
-              >
+            {customerId && isLoadingInvoices ? (
+              <p className="text-sm text-muted-foreground animate-pulse">
+                Loading invoices…
+              </p>
+            ) : customerId && unpaidInvoices.length > 0 ? (
+              <Field label="Invoice">
                 <Combobox
                   value={invoiceId}
-                  onValueChange={setInvoiceId}
+                  onValueChange={handleInvoiceChange}
                   items={invoiceItems}
-                  placeholder="Oldest unpaid (default)"
+                  placeholder="Select invoice"
                   className="w-full"
                   popoverClassName="z-[200]"
-                  clearOption={{ label: "Oldest unpaid" }}
                 />
               </Field>
             ) : customerId ? (
@@ -224,9 +250,18 @@ export function RecordPaymentModal({
                 className={cn(inputClassName, err.amount && "border-destructive")}
                 type="number"
                 min={0}
+                max={remaining > 0 ? remaining : undefined}
                 step="0.01"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  const parsed = Number(raw);
+                  if (remaining > 0 && !Number.isNaN(parsed) && parsed > remaining) {
+                    setAmount(String(remaining));
+                  } else {
+                    setAmount(raw);
+                  }
+                }}
                 placeholder="0.00"
               />
             </Field>
