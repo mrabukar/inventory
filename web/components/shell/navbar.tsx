@@ -48,7 +48,9 @@ export function Navbar({ title, collapsed, onToggle }: Props) {
         <button
           className="icon-btn"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          title={
+            theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+          }
         >
           {theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}
         </button>
