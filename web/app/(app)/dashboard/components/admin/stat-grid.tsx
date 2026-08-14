@@ -1,6 +1,7 @@
 import {
   AlertTriangle,
   CreditCard,
+  HandCoins,
   Layers,
   Package,
   ShoppingCart,
@@ -15,9 +16,11 @@ import type { AdminDashboardSummary } from "@/types/reports/admin-dashboard";
 interface Props {
   summary: AdminDashboardSummary;
   comparison: AdminPeriodComparison;
+  billingEnabled: boolean;
+  outstandingBalance: number;
 }
 
-export function AdminStatGrid({ summary: s, comparison }: Props) {
+export function AdminStatGrid({ summary: s, comparison, billingEnabled, outstandingBalance }: Props) {
   return (
     <div className="stat-grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 mb-16">
       <StatCard
@@ -67,12 +70,25 @@ export function AdminStatGrid({ summary: s, comparison }: Props) {
         value={s.lowStockCount}
         label="Low Stock Alerts"
       />
-      <StatCard
-        icon={AlertTriangle}
-        color="rose"
-        value={s.outOfStockCount}
-        label="Out of Stock"
-      />
+
+      {billingEnabled ? (
+        <StatCard
+          icon={HandCoins}
+          color="rose"
+          value={fmt(outstandingBalance)}
+          label="Outstanding Balance"
+          valueColor={outstandingBalance > 0 ? "var(--status-rose)" : undefined}
+          href="/receivables"
+        />
+      ) : (
+        <StatCard
+          icon={AlertTriangle}
+          color="rose"
+          value={s.outOfStockCount}
+          label="Out of Stock"
+        />
+      )}
+
       <StatCard
         icon={ShoppingCart}
         color="violet"
