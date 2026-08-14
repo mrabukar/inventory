@@ -34,7 +34,8 @@ export default function PaymentsPage() {
     [pageIndex, pageSize],
   );
 
-  const { data, isPending, isFetching, isError, error } = usePayments(listQuery);
+  const { data, isPending, isFetching, isError, error } =
+    usePayments(listQuery);
   const { data: receivables = [] } = useReceivables();
   const createPayment = useCreatePayment();
 
@@ -49,20 +50,25 @@ export default function PaymentsPage() {
       {
         id: "paidAt",
         accessorFn: (row) => row.paidAt,
-        meta: { label: "Date", exportValue: (row: Payment) => formatDisplayDate(row.paidAt) },
+        meta: {
+          label: "Date",
+          exportValue: (row: Payment) => formatDisplayDate(row.paidAt),
+        },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Date" />
         ),
         cell: ({ row }) => (
-          <span className="muted">{formatDisplayDate(row.original.paidAt)}</span>
+          <span className="muted">
+            {formatDisplayDate(row.original.paidAt)}
+          </span>
         ),
       },
       {
         id: "customer",
-        accessorFn: (row) => row.customer?.name ?? "Walk-in",
+        accessorFn: (row) => row.customer?.name ?? "Anonymous",
         meta: {
           label: "Customer",
-          exportValue: (row: Payment) => row.customer?.name ?? "Walk-in",
+          exportValue: (row: Payment) => row.customer?.name ?? "Anonymous",
         },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Customer" />
@@ -76,21 +82,21 @@ export default function PaymentsPage() {
               {row.original.customer.name}
             </Link>
           ) : (
-            <span className="muted">Walk-in</span>
+            <span className="muted">-</span>
           ),
       },
       {
         id: "invoice",
         accessorFn: (row) => row.invoice.numberLabel,
-        meta: { label: "Invoice", exportValue: (row: Payment) => row.invoice.numberLabel },
+        meta: {
+          label: "Invoice",
+          exportValue: (row: Payment) => row.invoice.numberLabel,
+        },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Invoice" />
         ),
         cell: ({ row }) => (
-          <Link
-            href={`/invoices/${row.original.invoiceId}`}
-            className="muted"
-          >
+          <Link href={`/invoices/${row.original.invoiceId}`} className="muted">
             {row.original.invoice.numberLabel}
           </Link>
         ),
@@ -100,24 +106,37 @@ export default function PaymentsPage() {
         accessorFn: (row) => toNumber(row.amount),
         meta: {
           label: "Amount",
-          align: "right" as const,
+          align: "center" as const,
           exportValue: (row: Payment) => toNumber(row.amount),
         },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Amount" />
         ),
         cell: ({ row }) => (
-          <span className="num strong">{fmt(toNumber(row.original.amount))}</span>
+          <span className="num strong">
+            {fmt(toNumber(row.original.amount))}
+          </span>
         ),
       },
       {
         id: "note",
         accessorFn: (row) => row.note ?? "",
-        meta: { label: "Note", exportValue: (row: Payment) => row.note ?? "" },
+        meta: {
+          label: "Note",
+          exportValue: (row: Payment) =>
+            row.source === "sale" ? "Collected at sale" : (row.note ?? ""),
+        },
         header: "Note",
-        cell: ({ row }) => (
-          <span className="muted">{row.original.note ?? "—"}</span>
-        ),
+        cell: ({ row }) => {
+          if (row.original.source === "sale") {
+            return (
+              <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                Collected at sale
+              </span>
+            );
+          }
+          return <span className="muted">{row.original.note ?? "—"}</span>;
+        },
         enableSorting: false,
       },
     ],
@@ -160,7 +179,8 @@ export default function PaymentsPage() {
             href="/receivables"
             className="mt-1 inline-block text-xs text-muted-foreground hover:text-foreground"
           >
-            {receivables.length} customer{receivables.length === 1 ? "" : "s"} owe →
+            {receivables.length} customer{receivables.length === 1 ? "" : "s"}{" "}
+            owe →
           </Link>
         </div>
       </div>
