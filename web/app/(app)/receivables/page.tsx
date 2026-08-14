@@ -14,7 +14,10 @@ import {
 import { toNumber } from "@/lib/reports/format";
 import { fmt } from "@/lib/utils";
 import { useAppStore } from "@/store/app";
-import type { CreatePaymentInput, ReceivableRow } from "@/types/payments/payment";
+import type {
+  CreatePaymentInput,
+  ReceivableRow,
+} from "@/types/payments/payment";
 import { Button } from "@/components/ui/button";
 
 import { RecordPaymentModal } from "../payments/components/record-payment-modal";
@@ -86,7 +89,7 @@ export default function ReceivablesPage() {
         accessorFn: (row) => row.balance,
         meta: {
           label: "Balance",
-          align: "right" as const,
+          align: "center" as const,
           exportValue: (row: ReceivableRow) => row.balance,
         },
         header: ({ column }) => (
@@ -145,7 +148,9 @@ export default function ReceivablesPage() {
 
       {isError && (
         <div className="alert-error" style={{ marginBottom: 16 }}>
-          {error instanceof Error ? error.message : "Failed to load receivables."}
+          {error instanceof Error
+            ? error.message
+            : "Failed to load receivables."}
         </div>
       )}
 
