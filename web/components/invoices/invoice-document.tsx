@@ -22,18 +22,8 @@ export function InvoiceDocument({ invoice, logoUrl }: InvoiceDocumentProps) {
   return (
     <div className="invoice-print mx-auto max-w-2xl rounded-xl border border-neutral-200 bg-white p-8 text-sm text-neutral-900 shadow-sm print:max-w-none print:rounded-none print:border-0 print:shadow-none">
       <div className="flex items-start justify-between gap-6">
-        <div>
-          <div className="border-l-4 border-[#2563EB] pl-3 text-2xl font-bold tracking-wide text-[#0B1F4B] uppercase">
-            Invoice
-          </div>
-          <div className="mt-2 text-base font-bold text-neutral-900">
-            {invoice.numberLabel}
-          </div>
-          <div className="mt-1 text-neutral-500">
-            {formatDisplayDate(invoice.issuedAt)}
-          </div>
-        </div>
-        <div className="flex w-20 flex-col items-center text-center">
+        {/* Logo — left */}
+        <div className="flex flex-col items-start">
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -47,6 +37,19 @@ export function InvoiceDocument({ invoice, logoUrl }: InvoiceDocumentProps) {
             </div>
           )}
           <div className="text-sm font-bold text-neutral-900">{org.name}</div>
+        </div>
+
+        {/* Invoice title — right */}
+        <div className="text-right">
+          <div className="border-l-4 border-[#2563EB] pl-3 text-2xl font-bold tracking-wide text-[#0B1F4B] uppercase">
+            Invoice
+          </div>
+          <div className="mt-2 text-base font-bold text-neutral-900">
+            {invoice.numberLabel}
+          </div>
+          <div className="mt-1 text-neutral-500">
+            {formatDisplayDate(invoice.issuedAt)}
+          </div>
         </div>
       </div>
 
@@ -148,7 +151,14 @@ export function InvoiceDocument({ invoice, logoUrl }: InvoiceDocumentProps) {
         </div>
       </div>
 
-      <div className="mt-10 border-t border-neutral-200 pt-5 text-center">
+      <div className="mt-8 flex items-end justify-between gap-8">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-neutral-500">Signature</span>
+          <div className="w-48 border-b border-neutral-400" />
+        </div>
+      </div>
+
+      <div className="mt-6 border-t border-neutral-200 pt-5 text-center">
         <div className="font-bold text-[#0B1F4B]">{org.name}</div>
         {org.address ? (
           <div className="mt-0.5 text-neutral-500">{org.address}</div>
