@@ -85,7 +85,7 @@ export function Combobox({
       </PopoverTrigger>
       <PopoverContent
         className={cn(
-          "z-50 flex w-[var(--radix-popover-trigger-width)] min-w-[12rem] flex-col overflow-hidden p-0",
+          "z-[120] flex w-[var(--radix-popover-trigger-width)] min-w-[12rem] flex-col overflow-hidden p-0",
           popoverClassName,
         )}
         align="start"
