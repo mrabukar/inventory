@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 
 import {
@@ -8,14 +9,12 @@ import {
   type PurchaseFixMode,
 } from "./components/purchase-fix-chooser-modal";
 import { PurchaseFixModal } from "./components/purchase-fix-modal";
-import { PurchaseModal } from "./components/purchase-modal";
 import { PurchaseTable } from "./components/purchase-table";
 import { Combobox } from "@/components/ui/combobox";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { useCategories } from "@/hooks/categories/use-categories";
-import { useCreatePurchase } from "@/hooks/purchases/use-create-purchase";
 import {
   useCorrectPurchaseAdd,
   useCorrectPurchaseSubtract,
@@ -24,11 +23,7 @@ import { usePurchases } from "@/hooks/purchases/use-purchases";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { getCurrentMonthRange } from "@/lib/filters/dates";
 import { useAppStore } from "@/store/app";
-import type {
-  CorrectPurchaseInput,
-  CreatePurchaseInput,
-  Purchase,
-} from "@/types/purchases/purchase";
+import type { CorrectPurchaseInput, Purchase } from "@/types/purchases/purchase";
 
 interface FixChooserState {
   purchase: Purchase;
@@ -40,6 +35,7 @@ interface FixFormState {
 }
 
 export default function PurchasesPage() {
+  const router = useRouter();
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const defaultRange = useMemo(() => getCurrentMonthRange(), []);
@@ -50,7 +46,6 @@ export default function PurchasesPage() {
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [fromDate, setFromDate] = useState(defaultRange.fromDate);
   const [toDate, setToDate] = useState(defaultRange.toDate);
-  const [showCreate, setShowCreate] = useState(false);
   const [fixChooser, setFixChooser] = useState<FixChooserState | null>(null);
   const [fixForm, setFixForm] = useState<FixFormState | null>(null);
   const debouncedSearch = useDebouncedValue(search, 300);
@@ -80,7 +75,6 @@ export default function PurchasesPage() {
   const { data: categories = [] } = useCategories();
   const { data, isPending, isFetching, isError, error } =
     usePurchases(listQuery);
-  const createPurchase = useCreatePurchase();
   const correctionAdd = useCorrectPurchaseAdd();
   const correctionSubtract = useCorrectPurchaseSubtract();
 
@@ -98,19 +92,6 @@ export default function PurchasesPage() {
   );
 
   const resetPage = () => setPageIndex(0);
-
-  const handleCreate = async (input: CreatePurchaseInput) => {
-    try {
-      await createPurchase.mutateAsync(input);
-      addToast({ title: "Purchase recorded successfully" });
-      setShowCreate(false);
-    } catch (e) {
-      addErrorToast({
-        title: "Failed to record purchase",
-        sub: e instanceof Error ? e.message : "Something went wrong",
-      });
-    }
-  };
 
   const handleFix = async (input: CorrectPurchaseInput) => {
     if (!fixForm) return;
@@ -187,7 +168,7 @@ export default function PurchasesPage() {
         title="Purchases"
         desc="Record vendor purchases and track purchase history"
         action={
-          <Button onClick={() => setShowCreate(true)}>
+          <Button onClick={() => router.push("/purchases/new")}>
             <Plus className="size-4" />
             Record Purchase
           </Button>
@@ -219,14 +200,6 @@ export default function PurchasesPage() {
         isLoading={isLoading}
         toolbarExtra={toolbarExtra}
         onCorrect={(purchase) => setFixChooser({ purchase })}
-      />
-
-      <PurchaseModal
-        key={showCreate ? "open" : "closed"}
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
-        onSave={(form) => void handleCreate(form)}
-        isSaving={createPurchase.isPending}
       />
 
       <PurchaseFixChooserModal
