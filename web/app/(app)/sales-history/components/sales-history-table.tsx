@@ -8,8 +8,16 @@ import { DataTable } from "@/components/data-table/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { SaleStatusBadge } from "@/components/ui/badge";
 import { formatSaleDate, toNumber } from "@/lib/reports/format";
+import {
+  isSaleWithinCorrectionWindow,
+  SALE_CORRECTION_WINDOW_HOURS,
+} from "@/lib/sales/correction-window";
 import { fmt } from "@/lib/utils";
-import type { Sale } from "@/types/sales/sale";
+import {
+  saleProductSummary,
+  saleUnitsSold,
+  type Sale,
+} from "@/types/sales/sale";
 
 interface SalesHistoryTableProps {
   rows: Sale[];
@@ -53,62 +61,32 @@ export function SalesHistoryTable({
         ),
       },
       {
-        id: "product",
-        accessorFn: (row) => row.product.name,
+        id: "items",
+        accessorFn: (row) => saleProductSummary(row),
         meta: {
-          label: "Product",
-          exportValue: (row: Sale) => row.product.name,
+          label: "Items",
+          exportValue: (row: Sale) => saleProductSummary(row),
         },
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Product" />
+          <DataTableColumnHeader column={column} title="Items" />
         ),
         cell: ({ row }) => (
-          <span className="strong">{row.original.product.name}</span>
+          <span className="strong">{saleProductSummary(row.original)}</span>
         ),
       },
       {
-        id: "model",
-        accessorFn: (row) => row.product.model ?? "",
+        id: "units",
+        accessorFn: (row) => saleUnitsSold(row),
         meta: {
-          label: "Model",
-          exportValue: (row: Sale) => row.product.model ?? "",
-        },
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Model" />
-        ),
-        cell: ({ row }) => (
-          <span className="muted">
-            {row.original.product.model || "—"}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "quantitySold",
-        meta: {
-          label: "Qty",
+          label: "Units",
           align: "center",
-          exportValue: (row: Sale) => row.quantitySold,
+          exportValue: (row: Sale) => saleUnitsSold(row),
         },
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Qty" />
+          <DataTableColumnHeader column={column} title="Units" />
         ),
         cell: ({ row }) => (
-          <span className="num">{row.original.quantitySold}</span>
-        ),
-      },
-      {
-        id: "unitPrice",
-        accessorFn: (row) => toNumber(row.unitPrice),
-        meta: {
-          label: "Unit Price",
-          align: "center",
-          exportValue: (row: Sale) => toNumber(row.unitPrice),
-        },
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Unit Price" />
-        ),
-        cell: ({ row }) => (
-          <span className="num muted">{fmt(toNumber(row.original.unitPrice))}</span>
+          <span className="num">{saleUnitsSold(row.original)}</span>
         ),
       },
       {
@@ -146,17 +124,26 @@ export function SalesHistoryTable({
         header: "Actions",
         cell: ({ row }) => {
           const corrected = row.original.status === "corrected";
+          const withinWindow = isSaleWithinCorrectionWindow(
+            row.original.createdAt,
+          );
+          const disabled = corrected || !withinWindow;
+          const title = corrected
+            ? "Already corrected"
+            : !withinWindow
+              ? `Corrections only within ${SALE_CORRECTION_WINDOW_HOURS} hours of recording`
+              : "Correct";
           return (
             <div className="actions">
               <button
                 type="button"
                 className="act-btn"
-                title="Correct"
-                disabled={corrected}
+                title={title}
+                disabled={disabled}
                 style={
-                  corrected ? { opacity: 0.35, cursor: "not-allowed" } : undefined
+                  disabled ? { opacity: 0.35, cursor: "not-allowed" } : undefined
                 }
-                onClick={() => !corrected && onCorrect(row.original)}
+                onClick={() => !disabled && onCorrect(row.original)}
               >
                 <SquarePen size={16} />
               </button>
