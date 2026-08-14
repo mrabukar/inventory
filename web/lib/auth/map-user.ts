@@ -20,6 +20,7 @@ export function mapApiUserToAppUser(apiUser: ApiUser): AppUser {
     organizationId: apiUser.organization?.id ?? apiUser.organizationId ?? null,
     organizationName: apiUser.organization?.name ?? null,
     hasStores: apiUser.organization?.hasStores ?? null,
+    billingEnabled: apiUser.organization?.billingEnabled ?? null,
     organizationLogoKey: apiUser.organization?.logoKey ?? null,
     organizationLogoUpdatedAt: apiUser.organization?.logoUpdatedAt ?? null,
   };
