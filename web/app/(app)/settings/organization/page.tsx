@@ -34,14 +34,26 @@ export default function OrganizationSettingsPage() {
   });
 
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [paymentNumber, setPaymentNumber] = useState("");
+  const [address, setAddress] = useState("");
 
   useEffect(() => {
     if (!org) return;
     setName(org.name);
+    setPhone(org.phone ?? "");
+    setPaymentNumber(org.paymentNumber ?? "");
+    setAddress(org.address ?? "");
   }, [org]);
 
   const updateMutation = useMutation({
-    mutationFn: () => updateCurrentOrganization({ name: name.trim() }),
+    mutationFn: () =>
+      updateCurrentOrganization({
+        name: name.trim(),
+        phone: phone.trim(),
+        paymentNumber: paymentNumber.trim(),
+        address: address.trim(),
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["organization", "current"] });
       void queryClient.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
@@ -57,7 +69,12 @@ export default function OrganizationSettingsPage() {
     void queryClient.invalidateQueries({ queryKey: ["organization", "current"] });
   };
 
-  const settingsDirty = org != null && name.trim() !== org.name;
+  const settingsDirty =
+    org != null &&
+    (name.trim() !== org.name ||
+      phone.trim() !== (org.phone ?? "") ||
+      paymentNumber.trim() !== (org.paymentNumber ?? "") ||
+      address.trim() !== (org.address ?? ""));
 
   if (sessionLoading || !user || isPending || !org) {
     return <p className="text-muted-foreground">Loading organization…</p>;
@@ -94,6 +111,65 @@ export default function OrganizationSettingsPage() {
                 {org.hasStores ? "Multi-store" : "Direct sales"}
               </p>
             </div>
+
+            {org.billingEnabled ? (
+              <div className="grid gap-4 rounded-md border border-border p-3">
+                <p className="text-sm font-medium">
+                  Invoice details
+                  <span className="ml-2 font-normal text-muted-foreground">
+                    shown on customer invoices
+                  </span>
+                </p>
+                <div className="grid gap-2">
+                  <label
+                    htmlFor="org-phone"
+                    className="text-sm font-medium leading-none"
+                  >
+                    Phone
+                  </label>
+                  <input
+                    id="org-phone"
+                    className={inputCls}
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="Contact phone"
+                    disabled={updateMutation.isPending}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label
+                    htmlFor="org-payment-number"
+                    className="text-sm font-medium leading-none"
+                  >
+                    Payment number
+                  </label>
+                  <input
+                    id="org-payment-number"
+                    className={inputCls}
+                    value={paymentNumber}
+                    onChange={(e) => setPaymentNumber(e.target.value)}
+                    placeholder="Mobile-money number customers pay to"
+                    disabled={updateMutation.isPending}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label
+                    htmlFor="org-address"
+                    className="text-sm font-medium leading-none"
+                  >
+                    Address
+                  </label>
+                  <input
+                    id="org-address"
+                    className={inputCls}
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="Business address"
+                    disabled={updateMutation.isPending}
+                  />
+                </div>
+              </div>
+            ) : null}
 
             <div className="grid gap-2">
               <span className="text-sm font-medium leading-none">Status</span>
