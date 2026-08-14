@@ -11,5 +11,9 @@ export class UpdateOrganizationDto {
 
   @IsOptional()
   @IsBoolean()
+  billingEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
 }
