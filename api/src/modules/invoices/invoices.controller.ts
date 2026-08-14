@@ -8,7 +8,7 @@ import { Roles } from "../../common/decorators/roles.decorator";
 import { InvoiceQueryDto } from "./dto/invoice-query.dto";
 import { InvoicesService } from "./invoices.service";
 
-@Roles(UserRole.admin)
+@Roles(UserRole.admin, UserRole.branch_manager)
 @Controller("invoices")
 export class InvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
