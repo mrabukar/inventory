@@ -22,11 +22,13 @@ export interface Payment {
   amount: number | string;
   paidAt: string;
   note: string | null;
-  recordedById: string;
+  recordedById: string | null;
   createdAt: string;
+  /** "payment" = standalone cash payment; "sale" = collected at sale time. */
+  source?: "payment" | "sale";
   invoice: PaymentInvoiceSummary;
   customer: PaymentCustomerSummary | null;
-  recordedBy: PaymentRecordedBy;
+  recordedBy: PaymentRecordedBy | null;
 }
 
 export interface PaymentListQuery {
