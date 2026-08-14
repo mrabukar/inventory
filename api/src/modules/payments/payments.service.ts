@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { AuditAction, InvoiceStatus, Payment, Prisma } from "@prisma/client";
+import { AuditAction, InvoiceStatus, Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { MUTATION_TRANSACTION_OPTIONS } from "../../common/constants/prisma-transaction.constants";
 import { assertBillingEnabled } from "../../common/utils/require-billing-enabled.util";
@@ -25,6 +25,30 @@ export type PaymentWithDetails = Prisma.PaymentGetPayload<{
   include: typeof paymentInclude;
 }>;
 
+/** A real standalone payment row. */
+export type StandalonePaymentEntry = PaymentWithDetails & {
+  source: "payment";
+};
+
+/** A virtual entry synthesised from invoice.paidAtSale — no payment row exists. */
+export interface SaleCollectionEntry {
+  source: "sale";
+  /** Prefixed with "sale_" so it is unique alongside real payment ids. */
+  id: string;
+  invoiceId: string;
+  customerId: string | null;
+  amount: Prisma.Decimal;
+  paidAt: Date;
+  note: null;
+  recordedById: null;
+  createdAt: Date;
+  invoice: { id: string; numberLabel: string; total: Prisma.Decimal };
+  customer: { id: string; name: string } | null;
+  recordedBy: null;
+}
+
+export type CollectionEntry = StandalonePaymentEntry | SaleCollectionEntry;
+
 @Injectable()
 export class PaymentsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -32,28 +56,82 @@ export class PaymentsService {
   async findAll(
     query: PaymentQueryDto,
     user: CurrentUserPayload,
-  ): Promise<PaginatedResult<PaymentWithDetails>> {
+  ): Promise<PaginatedResult<CollectionEntry>> {
     const organizationId = requireOrganizationId(user);
     await assertBillingEnabled(this.prisma, organizationId);
 
     const { page, limit } = query;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.PaymentWhereInput = {
+    const paymentWhere: Prisma.PaymentWhereInput = {
       ...(query.customerId ? { customerId: query.customerId } : undefined),
       ...(query.invoiceId ? { invoiceId: query.invoiceId } : undefined),
     };
 
-    const [data, total] = await Promise.all([
+    // Invoice filter: same customer/invoice scope, but only rows where
+    // paidAtSale > 0 (sale-time collections that have no payment row).
+    const invoiceWhere: Prisma.InvoiceWhereInput = {
+      paidAtSale: { gt: 0 },
+      ...(query.customerId ? { customerId: query.customerId } : undefined),
+      ...(query.invoiceId ? { id: query.invoiceId } : undefined),
+    };
+
+    const [payments, saleInvoices] = await Promise.all([
       this.prisma.payment.findMany({
-        where,
-        skip,
-        take: limit,
+        where: paymentWhere,
         orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
         include: paymentInclude,
       }),
-      this.prisma.payment.count({ where }),
+      this.prisma.invoice.findMany({
+        where: invoiceWhere,
+        select: {
+          id: true,
+          numberLabel: true,
+          total: true,
+          paidAtSale: true,
+          issuedAt: true,
+          customerId: true,
+          customer: { select: { id: true, name: true } },
+        },
+        orderBy: { issuedAt: "desc" },
+      }),
     ]);
+
+    // Build unified collection list
+    const paymentEntries: CollectionEntry[] = payments.map((p) => ({
+      ...p,
+      source: "payment" as const,
+    }));
+
+    const saleEntries: CollectionEntry[] = saleInvoices.map(
+      (inv): SaleCollectionEntry => ({
+        source: "sale",
+        id: `sale_${inv.id}`,
+        invoiceId: inv.id,
+        customerId: inv.customerId,
+        amount: inv.paidAtSale,
+        paidAt: inv.issuedAt,
+        note: null,
+        recordedById: null,
+        createdAt: inv.issuedAt,
+        invoice: { id: inv.id, numberLabel: inv.numberLabel, total: inv.total },
+        customer: inv.customer,
+        recordedBy: null,
+      }),
+    );
+
+    // Sort by when the entry was recorded (createdAt) newest first.
+    // Using createdAt rather than paidAt avoids sale entries — whose paidAt is
+    // invoice.issuedAt (an intra-day timestamp) — sorting ahead of standalone
+    // payments whose paidAt is midnight of the selected date.
+    // Wrap with new Date() to normalise across both Prisma query result types.
+    const all = [...paymentEntries, ...saleEntries].sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+
+    const total = all.length;
+    const data = all.slice(skip, skip + limit);
 
     return {
       data,
@@ -94,8 +172,7 @@ export class PaymentsService {
         dto.invoiceId,
       );
 
-      const remaining =
-        Number(invoice.total) - Number(invoice.paidAmount);
+      const remaining = Number(invoice.total) - Number(invoice.paidAmount);
       if (amount > remaining + 0.001) {
         throw new BadRequestException(
           `Payment exceeds invoice remainder: ${remaining.toFixed(2)} left on ${invoice.numberLabel}`,
