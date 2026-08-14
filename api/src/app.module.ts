@@ -22,6 +22,10 @@ import { PurchasesModule } from "./modules/purchases/purchases.module";
 import { StoresModule } from "./modules/stores/stores.module";
 import { OrganizationsModule } from "./modules/organizations/organizations.module";
 import { OrganizationBrandingModule } from "./modules/organization-branding/organization-branding.module";
+import { CustomersModule } from "./modules/customers/customers.module";
+import { SaleLocationsModule } from "./modules/sale-locations/sale-locations.module";
+import { InvoicesModule } from "./modules/invoices/invoices.module";
+import { PaymentsModule } from "./modules/payments/payments.module";
 import { UsersModule } from "./modules/users/users.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { TenantModule } from "./common/tenant/tenant.module";
@@ -81,6 +85,10 @@ import { StorageModule } from "./common/storage/storage.module";
     ReportsModule,
     OrganizationsModule,
     OrganizationBrandingModule,
+    CustomersModule,
+    SaleLocationsModule,
+    InvoicesModule,
+    PaymentsModule,
     UsersModule,
   ],
   controllers: [AppController],
