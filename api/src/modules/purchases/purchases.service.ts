@@ -21,6 +21,7 @@ import { ProductsService } from "../products/products.service";
 import { PaginatedResult, StoresService } from "../stores/stores.service";
 import { CorrectPurchaseDto } from "./dto/correct-purchase.dto";
 import { CreatePurchaseDto } from "./dto/create-purchase.dto";
+import { CreatePurchaseBatchDto } from "./dto/create-purchase-batch.dto";
 import { PurchaseQueryDto } from "./dto/purchase-query.dto";
 import { parseAndValidatePurchaseDate } from "./purchase-date.util";
 import {
@@ -313,6 +314,218 @@ export class PurchasesService {
       ...purchase,
       product: updatedProduct,
     };
+  }
+
+  async createBatch(
+    dto: CreatePurchaseBatchDto,
+    user: CurrentUserPayload,
+  ): Promise<PurchaseCreateResult[]> {
+    // Guard: duplicate productIds in the same batch would produce ambiguous
+    // corrections later, so we reject them early.
+    const productIds = dto.items.map((i) => i.productId);
+    const uniqueIds = new Set(productIds);
+    if (uniqueIds.size !== productIds.length) {
+      const dupes = productIds.filter((id, idx) => productIds.indexOf(id) !== idx);
+      throw new BadRequestException(
+        `Duplicate products in batch: ${[...new Set(dupes)].join(", ")}`,
+      );
+    }
+
+    const purchaseDate = parseAndValidatePurchaseDate(dto.purchaseDate);
+    const organizationId = requireOrganizationId(user);
+    const warehouse =
+      await this.storesService.ensureOrgWarehouse(organizationId);
+
+    // Pre-fetch all products before opening the transaction — fails fast if any
+    // productId is unknown, without wasting a tx.
+    const products = await Promise.all(
+      dto.items.map((item) => this.productsService.findOne(item.productId)),
+    );
+
+    // Resolve selling prices and run below-cost assertion outside the tx.
+    const resolvedItems = dto.items.map((item, i) => {
+      const product = products[i];
+      const unitPurchasePrice = toMoneyNumber(item.unitPurchasePrice);
+      const totalCost = toMoneyNumber(unitPurchasePrice * item.quantity);
+      const sellingPrice =
+        item.newSellingPrice !== undefined
+          ? toMoneyNumber(item.newSellingPrice)
+          : Number(product.sellingPrice);
+
+      if (item.newSellingPrice !== undefined && !item.acceptSellingBelowCost) {
+        assertSellingPriceNotBelowPurchase(unitPurchasePrice, sellingPrice);
+      }
+
+      return { item, product, unitPurchasePrice, totalCost, sellingPrice };
+    });
+
+    // All items go into a single transaction — all succeed or all roll back.
+    const purchaseIds: string[] = [];
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const {
+        item,
+        product,
+        unitPurchasePrice,
+        totalCost,
+        sellingPrice,
+      } of resolvedItems) {
+        // Lock this product's warehouse inventory row so concurrent batch
+        // submits for the same product serialise correctly.
+        const inventory = await lockInventoryForMutation(
+          tx,
+          organizationId,
+          item.productId,
+          warehouse.id,
+        );
+
+        const onHandAgg = await tx.inventory.aggregate({
+          where: { productId: item.productId, organizationId },
+          _sum: { quantity: true },
+        });
+        const onHand = onHandAgg._sum.quantity ?? 0;
+
+        // Re-read averageCost inside the lock so we always see the latest
+        // value (another purchase may have committed since we fetched above).
+        const { averageCost: lockedAverageCost } =
+          await tx.product.findUniqueOrThrow({
+            where: { id: item.productId },
+            select: { averageCost: true },
+          });
+        const currentAverage = Number(lockedAverageCost);
+        const newAverage = computeWeightedAverageCost(
+          onHand,
+          currentAverage,
+          item.quantity,
+          unitPurchasePrice,
+        );
+
+        const purchase = await tx.purchase.create({
+          data: withOrganizationId(
+            {
+              productId: item.productId,
+              quantity: item.quantity,
+              unitPurchasePrice,
+              totalCost,
+              purchaseDate,
+              invoiceNumber: dto.invoiceNumber?.trim() || null,
+              note: dto.note?.trim() || null,
+              purchasedById: user.id,
+            },
+            organizationId,
+          ),
+        });
+
+        purchaseIds.push(purchase.id);
+
+        const previousQty = inventory?.quantity ?? 0;
+        const newQty = previousQty + item.quantity;
+
+        const updatedInventory = inventory
+          ? await tx.inventory.update({
+              where: {
+                productId_storeId: {
+                  productId: item.productId,
+                  storeId: warehouse.id,
+                },
+              },
+              data: { quantity: newQty },
+            })
+          : await tx.inventory.create({
+              data: withOrganizationId(
+                {
+                  productId: item.productId,
+                  storeId: warehouse.id,
+                  quantity: newQty,
+                },
+                organizationId,
+              ),
+            });
+
+        await tx.product.update({
+          where: { id: item.productId },
+          data: {
+            averageCost: newAverage,
+            ...(item.newSellingPrice !== undefined ? { sellingPrice } : undefined),
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            organizationId,
+            action: AuditAction.PURCHASE_CREATED,
+            entityType: "purchase",
+            entityId: purchase.id,
+            oldValue: Prisma.JsonNull,
+            newValue: {
+              id: purchase.id,
+              productId: item.productId,
+              productName: product.name,
+              quantity: item.quantity,
+              unitPurchasePrice,
+              totalCost,
+              purchaseDate,
+              invoiceNumber: dto.invoiceNumber ?? null,
+              previousAverageCost: currentAverage,
+              newAverageCost: newAverage,
+              ...(item.newSellingPrice !== undefined
+                ? { newSellingPrice: sellingPrice }
+                : undefined),
+            },
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            organizationId,
+            action: AuditAction.INVENTORY_UPDATED,
+            entityType: "inventory",
+            entityId: updatedInventory.id,
+            oldValue: {
+              quantity: previousQty,
+              productId: item.productId,
+              storeId: warehouse.id,
+            },
+            newValue: {
+              quantity: newQty,
+              productId: item.productId,
+              storeId: warehouse.id,
+            },
+          },
+        });
+
+        if (newAverage !== currentAverage) {
+          await tx.auditLog.create({
+            data: {
+              userId: user.id,
+              organizationId,
+              action: AuditAction.PRODUCT_COST_RECALCULATED,
+              entityType: "product",
+              entityId: item.productId,
+              oldValue: { averageCost: currentAverage },
+              newValue: { averageCost: newAverage },
+            },
+          });
+        }
+      }
+    }, MUTATION_TRANSACTION_OPTIONS);
+
+    // Fetch all created purchases with their freshly-updated products.
+    return Promise.all(
+      purchaseIds.map(async (id) => {
+        const purchase = await this.prisma.purchase.findUniqueOrThrow({
+          where: { id },
+          include: purchaseInclude,
+        });
+        const updatedProduct = await this.prisma.product.findUniqueOrThrow({
+          where: { id: purchase.productId },
+          include: { category: true },
+        });
+        return { ...purchase, product: updatedProduct };
+      }),
+    );
   }
 
   /**
