@@ -39,13 +39,21 @@ export interface DashboardRecentSaleProduct {
   };
 }
 
-export interface DashboardRecentSale {
+export interface DashboardRecentSaleItem {
   id: string;
   quantitySold: number;
-  totalAmount: number;
+  unitPrice: number | string;
+  lineTotal: number | string;
+  product: DashboardRecentSaleProduct;
+}
+
+export interface DashboardRecentSale {
+  id: string;
+  totalAmount: number | string;
   saleDate: string;
   status: string;
-  product: DashboardRecentSaleProduct;
+  items: DashboardRecentSaleItem[];
+  customer: { id: string; name: string } | null;
   store: {
     id: string;
     name: string;
@@ -55,6 +63,20 @@ export interface DashboardRecentSale {
     name: string;
     email: string;
   };
+}
+
+/** Total units across a recent sale's line items. */
+export function dashboardSaleUnits(sale: DashboardRecentSale): number {
+  return sale.items.reduce((sum, item) => sum + item.quantitySold, 0);
+}
+
+/** Compact product summary, e.g. "iPhone 15 +2 more". */
+export function dashboardSaleProductSummary(sale: DashboardRecentSale): string {
+  if (sale.items.length === 0) return "—";
+  const [first, ...rest] = sale.items;
+  return rest.length > 0
+    ? `${first.product.name} +${rest.length} more`
+    : first.product.name;
 }
 
 export interface StockByCategoryRow {
