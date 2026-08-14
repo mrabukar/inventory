@@ -17,7 +17,7 @@ import { CreatePaymentDto } from "./dto/create-payment.dto";
 import { PaymentQueryDto } from "./dto/payment-query.dto";
 import { PaymentsService } from "./payments.service";
 
-@Roles(UserRole.admin)
+@Roles(UserRole.admin, UserRole.branch_manager)
 @Controller("payments")
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
