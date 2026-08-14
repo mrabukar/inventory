@@ -137,11 +137,13 @@ export function SalesHistoryTable({
             <div className="actions">
               <button
                 type="button"
-                className="act-btn"
+                className="act-btn "
                 title={title}
                 disabled={disabled}
                 style={
-                  disabled ? { opacity: 0.35, cursor: "not-allowed" } : undefined
+                  disabled
+                    ? { opacity: 0.35, cursor: "not-allowed" }
+                    : undefined
                 }
                 onClick={() => !disabled && onCorrect(row.original)}
               >
