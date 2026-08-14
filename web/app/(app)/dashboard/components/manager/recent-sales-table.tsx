@@ -7,12 +7,14 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { SaleStatusBadge } from "@/components/ui/badge";
-import { ProductName } from "@/components/ui/product-name";
-import { formatProductLabel } from "@/lib/products/format";
 import { Card } from "@/components/ui/card";
 import { formatSaleDate, toNumber } from "@/lib/reports/format";
 import { fmt } from "@/lib/utils";
-import type { DashboardRecentSale } from "@/types/reports/common";
+import {
+  dashboardSaleProductSummary,
+  dashboardSaleUnits,
+  type DashboardRecentSale,
+} from "@/types/reports/common";
 import type { SaleStatus } from "@/types/sales/sale";
 
 interface Props {
@@ -46,36 +48,35 @@ export function ManagerRecentSalesTable({ sales }: Props) {
         ),
       },
       {
-        id: "product",
-        accessorFn: (row) =>
-          formatProductLabel(row.product.name, row.product.model),
+        id: "items",
+        accessorFn: (row) => dashboardSaleProductSummary(row),
         meta: {
-          label: "Product",
+          label: "Items",
           exportValue: (row: DashboardRecentSale) =>
-            formatProductLabel(row.product.name, row.product.model),
+            dashboardSaleProductSummary(row),
         },
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Product" />
+          <DataTableColumnHeader column={column} title="Items" />
         ),
         cell: ({ row }) => (
-          <ProductName
-            name={row.original.product.name}
-            model={row.original.product.model}
-          />
+          <span className="strong">
+            {dashboardSaleProductSummary(row.original)}
+          </span>
         ),
       },
       {
-        accessorKey: "quantitySold",
+        id: "units",
+        accessorFn: (row) => dashboardSaleUnits(row),
         meta: {
-          label: "Qty",
+          label: "Units",
           align: "center",
-          exportValue: (row: DashboardRecentSale) => row.quantitySold,
+          exportValue: (row: DashboardRecentSale) => dashboardSaleUnits(row),
         },
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Qty" />
+          <DataTableColumnHeader column={column} title="Units" />
         ),
         cell: ({ row }) => (
-          <span className="num">{row.original.quantitySold}</span>
+          <span className="num">{dashboardSaleUnits(row.original)}</span>
         ),
       },
       {
