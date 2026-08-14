@@ -98,6 +98,7 @@ export default function OrganizationDetailPage() {
 
   const [name, setName] = useState("");
   const [hasStores, setHasStores] = useState(true);
+  const [billingEnabled, setBillingEnabled] = useState(false);
   const [isActive, setIsActive] = useState(true);
 
   const [adminName, setAdminName] = useState("");
@@ -115,6 +116,7 @@ export default function OrganizationDetailPage() {
     if (!org) return;
     setName(org.name);
     setHasStores(org.hasStores);
+    setBillingEnabled(org.billingEnabled);
     setIsActive(org.isActive);
   }, [org]);
 
@@ -123,6 +125,7 @@ export default function OrganizationDetailPage() {
       updateOrganization(id, {
         name: name.trim(),
         hasStores,
+        billingEnabled,
         isActive,
       }),
     onSuccess: () => {
@@ -134,6 +137,7 @@ export default function OrganizationDetailPage() {
       if (org) {
         setName(org.name);
         setHasStores(org.hasStores);
+        setBillingEnabled(org.billingEnabled);
         setIsActive(org.isActive);
       }
     },
@@ -148,6 +152,7 @@ export default function OrganizationDetailPage() {
     org != null &&
     (name.trim() !== org.name ||
       hasStores !== org.hasStores ||
+      billingEnabled !== org.billingEnabled ||
       isActive !== org.isActive);
 
   if (isPending || !org) {
@@ -242,6 +247,22 @@ export default function OrganizationDetailPage() {
                   <span className="font-medium">Uses stores and branch managers</span>
                   <span className="mt-1 block text-muted-foreground">
                     Direct-sales organizations can disable store-based workflows.
+                  </span>
+                </span>
+              </label>
+
+              <label className="flex items-start gap-3 text-sm">
+                <Checkbox
+                  className="mt-0.5"
+                  checked={billingEnabled}
+                  disabled={updateMutation.isPending}
+                  onCheckedChange={(value) => setBillingEnabled(value === true)}
+                />
+                <span>
+                  <span className="font-medium">Billing enabled</span>
+                  <span className="mt-1 block text-muted-foreground">
+                    Invoices, payments, and customer balances. Defaults on for
+                    direct-sales orgs.
                   </span>
                 </span>
               </label>
