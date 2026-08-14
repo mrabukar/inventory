@@ -1,12 +1,17 @@
 model Organization {
-  id            String    @id @default(cuid())
-  name          String
-  hasStores     Boolean   @default(true)
-  isActive      Boolean   @default(true)
-  logoKey       String?
-  logoUpdatedAt DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  name           String
+  hasStores      Boolean   @default(true)
+  billingEnabled    Boolean   @default(false)
+  nextInvoiceNumber Int       @default(1)
+  isActive          Boolean   @default(true)
+  phone             String?
+  paymentNumber     String?
+  address           String?
+  logoKey           String?
+  logoUpdatedAt     DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   users             User[]
   stores            Store[]
@@ -14,12 +19,17 @@ model Organization {
   products          Product[]
   inventory         Inventory[]
   sales             Sale[]
+  saleItems         SaleItem[]
   saleCorrections   SaleCorrection[]
   stockSupplies     StockSupply[]
   expenses          Expense[]
   expenseCategories ExpenseCategory[]
   auditLogs         AuditLog[]
   purchases         Purchase[]
+  customers         Customer[]
+  saleLocations     SaleLocation[]
+  invoices          Invoice[]
+  payments          Payment[]
 
   @@map("organization")
 }
