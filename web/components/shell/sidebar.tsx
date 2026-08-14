@@ -7,7 +7,10 @@ import { Collapsible } from "radix-ui";
 import {
   Building2,
   ChevronDown,
+  Contact,
   FileBarChart2,
+  FileText,
+  HandCoins,
   LayoutDashboard,
   Package,
   Layers,
@@ -19,6 +22,7 @@ import {
   CreditCard,
   TrendingUp,
   Users,
+  Wallet,
   ClipboardList,
   PlusCircle,
   History,
@@ -69,7 +73,10 @@ const SUPER_ADMIN_NAV: NavLinkItem[] = [
   },
 ];
 
-function buildAdminNav(hasStores: boolean): AdminNavEntry[] {
+function buildAdminNav(
+  hasStores: boolean,
+  billingEnabled: boolean,
+): AdminNavEntry[] {
   const nav: AdminNavEntry[] = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     {
@@ -106,11 +113,16 @@ function buildAdminNav(hasStores: boolean): AdminNavEntry[] {
   if (hasStores) {
     nav.push({ href: "/stores", label: "Stores", icon: Store });
   } else {
-    nav.push({
-      href: "/submit-sale",
-      label: "Submit Sale",
-      icon: PlusCircle,
-    });
+    nav.push({ href: "/submit-sale", label: "Submit Sale", icon: PlusCircle });
+  }
+
+  if (billingEnabled) {
+    nav.push(
+      { href: "/customers", label: "Customers", icon: Contact },
+      { href: "/invoices", label: "Invoices", icon: FileText },
+      { href: "/payments", label: "Payments", icon: Wallet },
+      { href: "/receivables", label: "Receivables", icon: HandCoins },
+    );
   }
 
   nav.push(
@@ -415,7 +427,8 @@ export function Sidebar({
   hasStores = true,
 }: Props) {
   const pathname = usePathname();
-  const adminNav = buildAdminNav(hasStores !== false);
+  const billingEnabled = useAppStore((s) => s.user?.billingEnabled ?? false);
+  const adminNav = buildAdminNav(hasStores !== false, billingEnabled);
 
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
