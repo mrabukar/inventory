@@ -33,7 +33,7 @@ model Product {
   updatedAt      DateTime     @updatedAt
 
   inventory     Inventory[]
-  sales         Sale[]
+  saleItems     SaleItem[]
   stockSupplies StockSupply[]
   purchases     Purchase[]
 
