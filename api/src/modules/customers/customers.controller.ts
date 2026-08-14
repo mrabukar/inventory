@@ -26,6 +26,7 @@ export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
   @Get()
+  @Roles(UserRole.admin, UserRole.branch_manager)
   findAll(@Query() query: CustomerQueryDto) {
     return this.customersService.findAll(query);
   }
@@ -49,6 +50,7 @@ export class CustomersController {
   }
 
   @Get(":id")
+  @Roles(UserRole.admin, UserRole.branch_manager)
   findOne(@Param("id") id: string) {
     return this.customersService.findOne(id);
   }
