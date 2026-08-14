@@ -22,38 +22,69 @@ enum SaleStatus {
 }
 
 model Sale {
+  id             String       @id @default(cuid())
+  storeId        String
+  store          Store        @relation(fields: [storeId], references: [id])
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  customerId     String?
+  customer       Customer?     @relation(fields: [customerId], references: [id])
+  locationId     String?
+  location       SaleLocation? @relation(fields: [locationId], references: [id])
+  soldById       String
+  soldBy         User          @relation("SalesSoldBy", fields: [soldById], references: [id])
+  totalAmount    Decimal       @db.Decimal(10, 2)
+  saleDate       DateTime      @db.Date
+  note           String?
+  status         SaleStatus    @default(active)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  items       SaleItem[]
+  corrections SaleCorrection[]
+  invoice     Invoice?
+
+  @@index([storeId])
+  @@index([soldById])
+  @@index([customerId])
+  @@index([saleDate])
+  @@map("sale")
+}
+
+model SaleItem {
   id                String       @id @default(cuid())
+  saleId            String
+  sale              Sale         @relation(fields: [saleId], references: [id])
   productId         String
   product           Product      @relation(fields: [productId], references: [id])
-  storeId           String
-  store             Store        @relation(fields: [storeId], references: [id])
   organizationId    String
   organization      Organization @relation(fields: [organizationId], references: [id])
-  soldById          String
-  soldBy            User         @relation("SalesSoldBy", fields: [soldById], references: [id])
+  // Denormalized from the parent Sale (immutable after creation) so reports can
+  // aggregate everything from sale_item alone.
+  storeId           String
+  saleDate          DateTime     @db.Date
   quantitySold      Int
   unitPrice         Decimal      @db.Decimal(10, 2)
   unitPurchasePrice Decimal      @db.Decimal(10, 2)
-  totalAmount       Decimal      @db.Decimal(10, 2)
-  saleDate          DateTime     @db.Date
-  note              String?
-  status            SaleStatus   @default(active)
+  lineTotal         Decimal      @db.Decimal(10, 2)
   createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
 
   corrections SaleCorrection[]
 
-  @@index([storeId])
+  @@index([saleId])
   @@index([productId])
-  @@index([soldById])
+  @@index([organizationId])
+  @@index([storeId])
   @@index([saleDate])
-  @@map("sale")
+  @@map("sale_item")
 }
 
 model SaleCorrection {
   id                String       @id @default(cuid())
   saleId            String
   sale              Sale         @relation(fields: [saleId], references: [id])
+  saleItemId        String
+  saleItem          SaleItem     @relation(fields: [saleItemId], references: [id])
   organizationId    String
   organization      Organization @relation(fields: [organizationId], references: [id])
   originalQuantity  Int
@@ -64,6 +95,7 @@ model SaleCorrection {
   createdAt         DateTime     @default(now())
 
   @@index([saleId])
+  @@index([saleItemId])
   @@map("sale_correction")
 }
 
