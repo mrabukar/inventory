@@ -61,3 +61,22 @@ export interface CorrectPurchaseInput {
 export function purchaseTotal(purchase: Purchase): number {
   return toNumber(purchase.totalCost);
 }
+
+// ── Batch creation ────────────────────────────────────────────────────────────
+
+export interface CreatePurchaseBatchItemInput {
+  productId: string;
+  quantity: number;
+  unitPurchasePrice: number;
+  newSellingPrice?: number;
+  acceptSellingBelowCost?: boolean;
+}
+
+export interface CreatePurchaseBatchInput {
+  purchaseDate: string;
+  invoiceNumber?: string;
+  note?: string;
+  items: CreatePurchaseBatchItemInput[];
+}
+
+export type CreatePurchaseBatchResponse = (Purchase & { product: Purchase["product"] })[];
