@@ -4,9 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Pencil, Plus } from "lucide-react";
+import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 
 import { CustomerModal } from "../components/customer-modal";
 import { RecordPaymentModal } from "../../payments/components/record-payment-modal";
+import { DataTable } from "@/components/data-table/data-table";
+import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { useCustomer } from "@/hooks/customers/use-customers";
@@ -20,7 +23,71 @@ import { formatDisplayDate } from "@/lib/filters/dates";
 import { fmt } from "@/lib/utils";
 import { useAppStore } from "@/store/app";
 import type { CreateCustomerInput } from "@/types/customers/customer";
-import type { CreatePaymentInput } from "@/types/payments/payment";
+import type { CreatePaymentInput, CustomerStatementRow } from "@/types/payments/payment";
+
+const statementColumns: ColumnDef<CustomerStatementRow>[] = [
+  {
+    id: "date",
+    accessorFn: (row) => row.date,
+    meta: { label: "Date", align: "left", exportValue: (row: CustomerStatementRow) => formatDisplayDate(row.date) },
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Date" />,
+    cell: ({ row }) => (
+      <span className="muted">{formatDisplayDate(row.original.date)}</span>
+    ),
+  },
+  {
+    id: "reference",
+    accessorFn: (row) => row.reference,
+    meta: { label: "Reference", align: "left", exportValue: (row: CustomerStatementRow) => row.reference },
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Reference" />,
+    cell: ({ row }) => <span className="strong">{row.original.reference}</span>,
+  },
+  {
+    id: "description",
+    accessorFn: (row) => row.description,
+    meta: { label: "Description", align: "left", exportValue: (row: CustomerStatementRow) => row.description },
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Description" />,
+    cell: ({ row }) => <span className="muted">{row.original.description}</span>,
+  },
+  {
+    id: "charge",
+    accessorFn: (row) => row.charge ?? "",
+    meta: { label: "Charge", align: "right", exportValue: (row: CustomerStatementRow) => row.charge ?? "" },
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Charge" />,
+    cell: ({ row }) =>
+      row.original.charge != null ? (
+        <span className="num">{fmt(row.original.charge)}</span>
+      ) : (
+        <span className="muted">—</span>
+      ),
+    enableSorting: false,
+  },
+  {
+    id: "payment",
+    accessorFn: (row) => row.payment ?? "",
+    meta: { label: "Payment", align: "right", exportValue: (row: CustomerStatementRow) => row.payment ?? "" },
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Payment" />,
+    cell: ({ row }) =>
+      row.original.payment != null ? (
+        <span className="num t-emerald">{fmt(row.original.payment)}</span>
+      ) : (
+        <span className="muted">—</span>
+      ),
+    enableSorting: false,
+  },
+  {
+    id: "balance",
+    accessorFn: (row) => row.balance,
+    meta: { label: "Balance", align: "right", exportValue: (row: CustomerStatementRow) => row.balance },
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Balance" />,
+    cell: ({ row }) => (
+      <span className={`num strong ${row.original.balance > 0 ? "t-rose" : ""}`}>
+        {fmt(row.original.balance)}
+      </span>
+    ),
+    enableSorting: false,
+  },
+];
 
 function DetailRow({ label, value }: { label: string; value: string | null }) {
   return (
@@ -39,6 +106,8 @@ export default function CustomerDetailPage() {
   const billingEnabled = useAppStore((s) => s.user?.billingEnabled ?? false);
   const [editing, setEditing] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
+  const [stmtPageIndex, setStmtPageIndex] = useState(0);
+  const [stmtPageSize, setStmtPageSize] = useState(20);
 
   const { data: customer, isPending, isError, error } = useCustomer(id);
   const updateCustomer = useUpdateCustomer();
@@ -158,73 +227,32 @@ export default function CustomerDetailPage() {
           ) : null}
 
           {billingEnabled && statement ? (
-            <div className="mt-4 rounded-lg border border-border bg-background">
-              <div className="border-b border-border px-4 py-3">
+            <div className="mt-4">
+              <div className="mb-2">
                 <h2 className="text-sm font-semibold">Statement</h2>
                 <p className="text-xs text-muted-foreground">
                   All invoices and payments with a running balance.
                 </p>
               </div>
-              {statement.rows.length === 0 ? (
-                <div className="px-4 py-6 text-sm text-muted-foreground">
-                  No activity yet.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="dt-table">
-                    <thead className="dt-head">
-                      <tr>
-                        <th className="dt-th-left">Date</th>
-                        <th className="dt-th-left">Reference</th>
-                        <th className="dt-th-left">Description</th>
-                        <th className="dt-th-right">Charge</th>
-                        <th className="dt-th-right">Payment</th>
-                        <th className="dt-th-right">Balance</th>
-                      </tr>
-                    </thead>
-                    <tbody className="dt-body">
-                      {statement.rows.map((row, i) => (
-                        <tr key={i} className="dt-row">
-                          <td className="dt-cell-left">
-                            <span className="muted">
-                              {formatDisplayDate(row.date)}
-                            </span>
-                          </td>
-                          <td className="dt-cell-left">
-                            <span className="strong">{row.reference}</span>
-                          </td>
-                          <td className="dt-cell-left">
-                            <span className="muted">{row.description}</span>
-                          </td>
-                          <td className="dt-cell-right">
-                            {row.charge != null ? (
-                              <span className="num">{fmt(row.charge)}</span>
-                            ) : (
-                              <span className="muted">—</span>
-                            )}
-                          </td>
-                          <td className="dt-cell-right">
-                            {row.payment != null ? (
-                              <span className="num t-emerald">
-                                {fmt(row.payment)}
-                              </span>
-                            ) : (
-                              <span className="muted">—</span>
-                            )}
-                          </td>
-                          <td className="dt-cell-right">
-                            <span
-                              className={`num strong ${row.balance > 0 ? "t-rose" : ""}`}
-                            >
-                              {fmt(row.balance)}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <DataTable
+                columns={statementColumns}
+                data={statement.rows.slice(
+                  stmtPageIndex * stmtPageSize,
+                  (stmtPageIndex + 1) * stmtPageSize,
+                )}
+                rowCount={statement.rows.length}
+                pageIndex={stmtPageIndex}
+                pageSize={stmtPageSize}
+                onPaginationChange={(state: PaginationState) => {
+                  setStmtPageIndex(state.pageIndex);
+                  setStmtPageSize(state.pageSize);
+                }}
+                getRowId={(_, index) => String(stmtPageIndex * stmtPageSize + index)}
+                enableRowSelection={false}
+                enableColumnVisibility={false}
+                emptyTitle="No activity yet"
+                emptyDescription="Invoices and payments will appear here."
+              />
             </div>
           ) : null}
 
