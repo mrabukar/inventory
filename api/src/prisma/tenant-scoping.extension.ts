@@ -8,12 +8,17 @@ const TENANT_MODELS = new Set([
   "Product",
   "Inventory",
   "Sale",
+  "SaleItem",
   "SaleCorrection",
   "StockSupply",
   "ExpenseCategory",
   "Expense",
   "AuditLog",
   "Purchase",
+  "Customer",
+  "SaleLocation",
+  "Invoice",
+  "Payment",
 ]);
 
 const WHERE_OPERATIONS = new Set([
