@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Store, Trash2, User } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
@@ -97,6 +97,9 @@ export default function SubmitSalePage() {
   const [newLocation, setNewLocation] = useState("");
   const [addingLocation, setAddingLocation] = useState(false);
   const [paidNow, setPaidNow] = useState("");
+  // When false the field stays in sync with the sale total automatically.
+  // Flips to true the moment the user manually edits the field.
+  const [paidNowTouched, setPaidNowTouched] = useState(false);
 
   const customerItems = useMemo(
     () =>
@@ -157,6 +160,13 @@ export default function SubmitSalePage() {
     return q * (inv ? toNumber(inv.product.sellingPrice) : 0);
   };
   const total = rows.reduce((sum, row) => sum + lineTotal(row), 0);
+
+  // Keep "Amount paid now" in sync with the running total unless the user
+  // has overridden it. Resets to "" when all items are removed (total === 0).
+  useEffect(() => {
+    if (paidNowTouched) return;
+    setPaidNow(total > 0 ? String(total) : "");
+  }, [total, paidNowTouched]);
 
   const rowOver = (row: LineRow) => {
     const inv = rowFor(row);
@@ -293,15 +303,18 @@ export default function SubmitSalePage() {
                 </div>
               );
             })}
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-fit"
-              onClick={() => setRows((state) => [...state, newRow()])}
-            >
-              <Plus className="size-4" />
-              Add item
-            </Button>
+            {/* Add item — hidden for store-based orgs (one entry per sale for now) */}
+            {!hasStores && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-fit"
+                onClick={() => setRows((state) => [...state, newRow()])}
+              >
+                <Plus className="size-4" />
+                Add item
+              </Button>
+            )}
           </div>
 
           <FormField label="Sale date" required className="sm:max-w-[220px]">
@@ -412,7 +425,10 @@ export default function SubmitSalePage() {
                   min={0}
                   step="0.01"
                   value={paidNow}
-                  onChange={(e) => setPaidNow(e.target.value)}
+                  onChange={(e) => {
+                    setPaidNowTouched(true);
+                    setPaidNow(e.target.value);
+                  }}
                   placeholder="0.00"
                 />
                 <Button
@@ -420,7 +436,10 @@ export default function SubmitSalePage() {
                   variant="outline"
                   size="sm"
                   disabled={total <= 0}
-                  onClick={() => setPaidNow(String(total))}
+                  onClick={() => {
+                    setPaidNow(String(total));
+                    setPaidNowTouched(false); // re-enable auto-sync
+                  }}
                 >
                   Full
                 </Button>
