@@ -7,7 +7,9 @@ export interface Organization {
   billingEnabled: boolean;
   isActive: boolean;
   phone?: string | null;
-  paymentNumber?: string | null;
+  evcNumber?: string | null;
+  edahabNumber?: string | null;
+  accountNumber?: string | null;
   address?: string | null;
   logoKey?: string | null;
   logoUpdatedAt?: string | null;
@@ -61,7 +63,9 @@ export interface UpdateOrganizationInput {
 export interface UpdateCurrentOrganizationInput {
   name?: string;
   phone?: string;
-  paymentNumber?: string;
+  evcNumber?: string;
+  edahabNumber?: string;
+  accountNumber?: string;
   address?: string;
 }
 
