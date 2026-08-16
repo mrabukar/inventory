@@ -11,7 +11,7 @@ import { useInvoice } from "@/hooks/invoices/use-invoices";
 import { fetchOrganizationLogoBlob } from "@/service/upload";
 
 const PRINT_CSS = `
-@page { margin: 16mm; }
+@page { size: A5; margin: 10mm; }
 @media print {
   body * { visibility: hidden !important; }
   .invoice-print, .invoice-print * { visibility: visible !important; }
@@ -20,7 +20,7 @@ const PRINT_CSS = `
     left: 0;
     top: 0;
     width: 100%;
-    padding: 32px;
+    padding: 16px;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
