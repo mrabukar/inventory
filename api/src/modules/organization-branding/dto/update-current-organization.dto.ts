@@ -14,7 +14,17 @@ export class UpdateCurrentOrganizationDto {
   @IsOptional()
   @IsString()
   @MaxLength(60)
-  paymentNumber?: string;
+  evcNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  edahabNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  accountNumber?: string;
 
   @IsOptional()
   @IsString()
