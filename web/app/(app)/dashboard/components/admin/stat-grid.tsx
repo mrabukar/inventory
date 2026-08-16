@@ -52,41 +52,64 @@ export function AdminStatGrid({ summary: s, comparison, billingEnabled, outstand
         valueColor={s.netProfit < 0 ? "var(--status-rose)" : undefined}
         {...formatPeriodTrend(comparison.netProfit)}
       />
-      <StatCard
-        icon={Layers}
-        color="indigo"
-        value={fmt(s.currentStockValue)}
-        label="Current Stock Value"
-      />
-      <StatCard
-        icon={Package}
-        color="teal"
-        value={s.inStockBalance.toLocaleString()}
-        label="In-Stock Balance"
-      />
-      <StatCard
-        icon={AlertTriangle}
-        color="amber"
-        value={s.lowStockCount}
-        label="Low Stock Alerts"
-      />
-
       {billingEnabled ? (
-        <StatCard
-          icon={HandCoins}
-          color="rose"
-          value={fmt(outstandingBalance)}
-          label="Outstanding Balance"
-          valueColor={outstandingBalance > 0 ? "var(--status-rose)" : undefined}
-          href="/receivables"
-        />
+        <>
+          <StatCard
+            icon={HandCoins}
+            color="rose"
+            value={fmt(outstandingBalance)}
+            label="Outstanding Balance"
+            valueColor={
+              outstandingBalance > 0 ? "var(--status-rose)" : undefined
+            }
+            href="/receivables"
+          />
+          <StatCard
+            icon={Layers}
+            color="indigo"
+            value={fmt(s.currentStockValue)}
+            label="Current Stock Value"
+          />
+          <StatCard
+            icon={Package}
+            color="teal"
+            value={s.inStockBalance.toLocaleString()}
+            label="In-Stock Balance"
+          />
+          <StatCard
+            icon={AlertTriangle}
+            color="amber"
+            value={s.lowStockCount}
+            label="Low Stock Alerts"
+          />
+        </>
       ) : (
-        <StatCard
-          icon={AlertTriangle}
-          color="rose"
-          value={s.outOfStockCount}
-          label="Out of Stock"
-        />
+        <>
+          <StatCard
+            icon={Layers}
+            color="indigo"
+            value={fmt(s.currentStockValue)}
+            label="Current Stock Value"
+          />
+          <StatCard
+            icon={Package}
+            color="teal"
+            value={s.inStockBalance.toLocaleString()}
+            label="In-Stock Balance"
+          />
+          <StatCard
+            icon={AlertTriangle}
+            color="amber"
+            value={s.lowStockCount}
+            label="Low Stock Alerts"
+          />
+          <StatCard
+            icon={AlertTriangle}
+            color="rose"
+            value={s.outOfStockCount}
+            label="Out of Stock"
+          />
+        </>
       )}
 
       <StatCard
