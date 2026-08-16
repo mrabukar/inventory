@@ -18,10 +18,17 @@ export function InvoiceDocument({ invoice, logoUrl }: InvoiceDocumentProps) {
   const org = invoice.organization;
   const customer = invoice.customer;
   const sale = invoice.sale;
+  const payToEntries: { label: string; value: string }[] = [
+    { label: "EVC", value: org.evcNumber },
+    { label: "E-Dahab", value: org.edahabNumber },
+    { label: "Account", value: org.accountNumber },
+  ].filter(
+    (entry): entry is { label: string; value: string } => Boolean(entry.value),
+  );
 
   return (
     <div className="invoice-print mx-auto max-w-2xl rounded-xl border border-neutral-200 bg-white p-8 text-sm text-neutral-900 shadow-sm print:max-w-none print:rounded-none print:border-0 print:shadow-none">
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex items-start justify-between gap-6 print:gap-4">
         {/* Logo — left */}
         <div className="flex flex-col items-start">
           {logoUrl ? (
@@ -53,7 +60,7 @@ export function InvoiceDocument({ invoice, logoUrl }: InvoiceDocumentProps) {
         </div>
       </div>
 
-      <div className="mt-8 flex items-start gap-3 rounded-lg border border-neutral-200 bg-[#F4F7FB] px-4 py-3.5">
+      <div className="mt-8 flex items-start gap-3 rounded-lg border border-neutral-200 bg-[#F4F7FB] px-4 py-3.5 print:mt-4 print:py-2.5">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-[#DBEAFE] text-[#2563EB]">
           <User className="size-4" />
         </div>
@@ -79,16 +86,20 @@ export function InvoiceDocument({ invoice, logoUrl }: InvoiceDocumentProps) {
         </div>
       </div>
 
-      <div className="mt-6 overflow-hidden rounded-lg border border-neutral-200">
+      <div className="mt-6 overflow-hidden rounded-lg border border-neutral-200 print:mt-4">
         <table className="w-full text-left">
           <thead>
             <tr className="bg-[#0B1F4B] text-[11px] font-semibold tracking-wide text-white uppercase">
-              <th className="px-4 py-2.5 font-semibold">Item</th>
-              <th className="px-3 py-2.5 text-center font-semibold">Qty</th>
-              <th className="px-3 py-2.5 text-right font-semibold">
+              <th className="px-4 py-2.5 font-semibold print:py-1.5">Item</th>
+              <th className="px-3 py-2.5 text-center font-semibold print:py-1.5">
+                Qty
+              </th>
+              <th className="px-3 py-2.5 text-right font-semibold print:py-1.5">
                 Unit price
               </th>
-              <th className="px-4 py-2.5 text-right font-semibold">Amount</th>
+              <th className="px-4 py-2.5 text-right font-semibold print:py-1.5">
+                Amount
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -97,14 +108,16 @@ export function InvoiceDocument({ invoice, logoUrl }: InvoiceDocumentProps) {
                 key={item.id}
                 className="border-t border-neutral-200 first:border-t-0"
               >
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 print:py-1.5">
                   {formatProductLabel(item.product.name, item.product.model)}
                 </td>
-                <td className="px-3 py-3 text-center">{item.quantitySold}</td>
-                <td className="px-3 py-3 text-right">
+                <td className="px-3 py-3 text-center print:py-1.5">
+                  {item.quantitySold}
+                </td>
+                <td className="px-3 py-3 text-right print:py-1.5">
                   {fmt(toNumber(item.unitPrice))}
                 </td>
-                <td className="px-4 py-3 text-right font-bold">
+                <td className="px-4 py-3 text-right font-bold print:py-1.5">
                   {fmt(toNumber(item.lineTotal))}
                 </td>
               </tr>
@@ -113,7 +126,7 @@ export function InvoiceDocument({ invoice, logoUrl }: InvoiceDocumentProps) {
         </table>
       </div>
 
-      <div className="mt-6 flex items-start justify-between gap-8">
+      <div className="mt-6 flex items-start justify-between gap-8 print:mt-4">
         <div className="flex min-w-0 flex-1 items-start gap-2.5">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-[#DBEAFE] text-[#2563EB]">
             <FileText className="size-4" />
@@ -151,14 +164,14 @@ export function InvoiceDocument({ invoice, logoUrl }: InvoiceDocumentProps) {
         </div>
       </div>
 
-      <div className="mt-8 flex items-end justify-between gap-8">
+      <div className="mt-8 flex items-end justify-between gap-8 print:mt-5">
         <div className="flex flex-col gap-1">
           <span className="text-xs text-neutral-500">Signature</span>
           <div className="w-48 border-b border-neutral-400" />
         </div>
       </div>
 
-      <div className="mt-6 border-t border-neutral-200 pt-5 text-center">
+      <div className="mt-6 border-t border-neutral-200 pt-5 text-center print:mt-4 print:pt-3 print:break-inside-avoid">
         <div className="font-bold text-[#0B1F4B]">{org.name}</div>
         {org.address ? (
           <div className="mt-0.5 text-neutral-500">{org.address}</div>
@@ -171,14 +184,21 @@ export function InvoiceDocument({ invoice, logoUrl }: InvoiceDocumentProps) {
             Phone: {org.phone}
           </div>
         ) : null}
-        {org.paymentNumber ? (
+        {payToEntries.length > 0 ? (
           <>
-            <div className="mx-auto mt-3 h-px w-16 bg-[#2563EB]" />
-            <div className="mt-3 text-neutral-600">
-              Pay to:{" "}
-              <span className="font-bold text-[#0B1F4B]">
-                {org.paymentNumber}
-              </span>
+            <div className="mx-auto mt-3 h-px w-16 bg-[#2563EB] print:mt-2" />
+            <div className="mt-3 text-[11px] font-semibold tracking-wide text-[#2563EB] uppercase print:mt-2">
+              Pay to
+            </div>
+            <div className="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-0.5 text-neutral-600">
+              {payToEntries.map((entry) => (
+                <div key={entry.label}>
+                  {entry.label}:{" "}
+                  <span className="font-bold text-[#0B1F4B]">
+                    {entry.value}
+                  </span>
+                </div>
+              ))}
             </div>
           </>
         ) : null}
