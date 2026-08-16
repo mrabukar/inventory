@@ -16,7 +16,9 @@ const organizationSelect = {
   hasStores: true,
   billingEnabled: true,
   phone: true,
-  paymentNumber: true,
+  evcNumber: true,
+  edahabNumber: true,
+  accountNumber: true,
   address: true,
   logoKey: true,
   logoUpdatedAt: true,
@@ -46,7 +48,9 @@ export type MeOrganization = {
   hasStores: boolean;
   billingEnabled: boolean;
   phone: string | null;
-  paymentNumber: string | null;
+  evcNumber: string | null;
+  edahabNumber: string | null;
+  accountNumber: string | null;
   address: string | null;
   logoKey: string | null;
   logoUpdatedAt: Date | null;
