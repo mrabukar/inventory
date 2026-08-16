@@ -103,8 +103,9 @@ export function RecordPaymentModal({
     return list.sort((a, b) => a.number - b.number);
   }, [invoicesData?.data, partialInvoicesData?.data]);
 
-  // Auto-select the oldest unpaid invoice and pre-fill the amount as soon as
-  // the list loads (or whenever the customer changes and a new list arrives).
+  // Auto-select the oldest unpaid invoice as soon as the list loads (or
+  // whenever the customer changes and a new list arrives). The amount is
+  // left for the user to enter themselves.
   useEffect(() => {
     if (isLoadingInvoices) return;
     const oldest = unpaidInvoices[0];
@@ -112,9 +113,7 @@ export function RecordPaymentModal({
     const alreadyValid =
       invoiceId && unpaidInvoices.some((inv) => inv.id === invoiceId);
     if (!alreadyValid) {
-      const rem = toNumber(oldest.total) - toNumber(oldest.paidAmount);
       setInvoiceId(oldest.id);
-      setAmount(String(rem));
     }
   }, [unpaidInvoices, isLoadingInvoices]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -137,17 +136,10 @@ export function RecordPaymentModal({
     ? toNumber(targetInvoice.total) - toNumber(targetInvoice.paidAmount)
     : 0;
 
-  // When the user picks a different invoice, switch to it and fill the amount
-  // with its full remaining balance.
+  // When the user picks a different invoice, just switch to it — the amount
+  // stays whatever the user has entered.
   const handleInvoiceChange = (nextInvoiceId: string | undefined) => {
     setInvoiceId(nextInvoiceId);
-    const nextInvoice =
-      unpaidInvoices.find((inv) => inv.id === nextInvoiceId) ??
-      unpaidInvoices[0];
-    if (!nextInvoice) return;
-    const nextRemaining =
-      toNumber(nextInvoice.total) - toNumber(nextInvoice.paidAmount);
-    setAmount(String(nextRemaining));
   };
 
   const save = () => {
