@@ -6,7 +6,9 @@ model Organization {
   nextInvoiceNumber Int       @default(1)
   isActive          Boolean   @default(true)
   phone             String?
-  paymentNumber     String?
+  evcNumber         String?
+  edahabNumber      String?
+  accountNumber     String?
   address           String?
   logoKey           String?
   logoUpdatedAt     DateTime?
