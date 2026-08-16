@@ -13,7 +13,9 @@ export interface MeOrganization {
   hasStores: boolean;
   billingEnabled?: boolean;
   phone?: string | null;
-  paymentNumber?: string | null;
+  evcNumber?: string | null;
+  edahabNumber?: string | null;
+  accountNumber?: string | null;
   address?: string | null;
   logoKey?: string | null;
   logoUpdatedAt?: string | null;
