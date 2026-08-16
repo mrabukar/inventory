@@ -9,7 +9,9 @@ export interface InvoiceOrganization {
   id: string;
   name: string;
   phone: string | null;
-  paymentNumber: string | null;
+  evcNumber: string | null;
+  edahabNumber: string | null;
+  accountNumber: string | null;
   address: string | null;
   logoKey: string | null;
 }
