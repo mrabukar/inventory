@@ -308,7 +308,9 @@ export class OrganizationsService {
     dto: {
       name?: string;
       phone?: string;
-      paymentNumber?: string;
+      evcNumber?: string;
+      edahabNumber?: string;
+      accountNumber?: string;
       address?: string;
     },
   ): Promise<Organization> {
@@ -326,8 +328,14 @@ export class OrganizationsService {
         ...(dto.phone !== undefined
           ? { phone: dto.phone.trim() || null }
           : undefined),
-        ...(dto.paymentNumber !== undefined
-          ? { paymentNumber: dto.paymentNumber.trim() || null }
+        ...(dto.evcNumber !== undefined
+          ? { evcNumber: dto.evcNumber.trim() || null }
+          : undefined),
+        ...(dto.edahabNumber !== undefined
+          ? { edahabNumber: dto.edahabNumber.trim() || null }
+          : undefined),
+        ...(dto.accountNumber !== undefined
+          ? { accountNumber: dto.accountNumber.trim() || null }
           : undefined),
         ...(dto.address !== undefined
           ? { address: dto.address.trim() || null }
