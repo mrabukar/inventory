@@ -35,14 +35,18 @@ export default function OrganizationSettingsPage() {
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [paymentNumber, setPaymentNumber] = useState("");
+  const [evcNumber, setEvcNumber] = useState("");
+  const [edahabNumber, setEdahabNumber] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
   const [address, setAddress] = useState("");
 
   useEffect(() => {
     if (!org) return;
     setName(org.name);
     setPhone(org.phone ?? "");
-    setPaymentNumber(org.paymentNumber ?? "");
+    setEvcNumber(org.evcNumber ?? "");
+    setEdahabNumber(org.edahabNumber ?? "");
+    setAccountNumber(org.accountNumber ?? "");
     setAddress(org.address ?? "");
   }, [org]);
 
@@ -51,7 +55,9 @@ export default function OrganizationSettingsPage() {
       updateCurrentOrganization({
         name: name.trim(),
         phone: phone.trim(),
-        paymentNumber: paymentNumber.trim(),
+        evcNumber: evcNumber.trim(),
+        edahabNumber: edahabNumber.trim(),
+        accountNumber: accountNumber.trim(),
         address: address.trim(),
       }),
     onSuccess: () => {
@@ -73,7 +79,9 @@ export default function OrganizationSettingsPage() {
     org != null &&
     (name.trim() !== org.name ||
       phone.trim() !== (org.phone ?? "") ||
-      paymentNumber.trim() !== (org.paymentNumber ?? "") ||
+      evcNumber.trim() !== (org.evcNumber ?? "") ||
+      edahabNumber.trim() !== (org.edahabNumber ?? "") ||
+      accountNumber.trim() !== (org.accountNumber ?? "") ||
       address.trim() !== (org.address ?? ""));
 
   if (sessionLoading || !user || isPending || !org) {
@@ -138,17 +146,49 @@ export default function OrganizationSettingsPage() {
                 </div>
                 <div className="grid gap-2">
                   <label
-                    htmlFor="org-payment-number"
+                    htmlFor="org-evc-number"
                     className="text-sm font-medium leading-none"
                   >
-                    Payment number
+                    EVC number
                   </label>
                   <input
-                    id="org-payment-number"
+                    id="org-evc-number"
                     className={inputCls}
-                    value={paymentNumber}
-                    onChange={(e) => setPaymentNumber(e.target.value)}
-                    placeholder="Mobile-money number customers pay to"
+                    value={evcNumber}
+                    onChange={(e) => setEvcNumber(e.target.value)}
+                    placeholder="EVC Plus number customers pay to"
+                    disabled={updateMutation.isPending}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label
+                    htmlFor="org-edahab-number"
+                    className="text-sm font-medium leading-none"
+                  >
+                    E-Dahab number
+                  </label>
+                  <input
+                    id="org-edahab-number"
+                    className={inputCls}
+                    value={edahabNumber}
+                    onChange={(e) => setEdahabNumber(e.target.value)}
+                    placeholder="E-Dahab number customers pay to"
+                    disabled={updateMutation.isPending}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label
+                    htmlFor="org-account-number"
+                    className="text-sm font-medium leading-none"
+                  >
+                    Account/Bank number
+                  </label>
+                  <input
+                    id="org-account-number"
+                    className={inputCls}
+                    value={accountNumber}
+                    onChange={(e) => setAccountNumber(e.target.value)}
+                    placeholder="Bank or account number customers pay to"
                     disabled={updateMutation.isPending}
                   />
                 </div>
