@@ -126,41 +126,51 @@ export function InvoiceDocument({ invoice, logoUrl }: InvoiceDocumentProps) {
         </table>
       </div>
 
-      <div className="mt-6 flex items-start justify-between gap-8 print:mt-4">
-        <div className="flex min-w-0 flex-1 items-start gap-2.5">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-[#DBEAFE] text-[#2563EB]">
-            <FileText className="size-4" />
-          </div>
-          <div>
-            <div className="font-bold text-[#2563EB]">Thank you!</div>
-            <p className="mt-0.5 text-neutral-500">
-              We appreciate your business and look forward to working with you
-              again.
-            </p>
-            {sale.note ? (
-              <p className="mt-2 text-neutral-600">
-                <span className="font-semibold">Note: </span>
-                {sale.note}
-              </p>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="w-full max-w-55 shrink-0 space-y-1.5">
-          <div className="flex justify-between">
-            <span className="text-neutral-500">Subtotal</span>
-            <span className="font-bold">{fmt(total)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-neutral-500">Paid</span>
-            <span className="font-bold">{fmt(paid)}</span>
-          </div>
-          <div className="flex justify-between border-t border-dashed border-neutral-300 pt-2 text-base">
-            <span className="font-bold text-[#2563EB]">Balance due</span>
-            <span className="text-lg font-bold text-[#0B1F4B]">
+      <table className="mt-6 w-full border-collapse text-left print:mt-4">
+        <tbody>
+          <tr>
+            <td className="border border-neutral-300 px-4 py-2 text-neutral-500">
+              Subtotal
+            </td>
+            <td className="border border-neutral-300 px-4 py-2 text-right font-bold">
+              {fmt(total)}
+            </td>
+          </tr>
+          <tr>
+            <td className="border border-neutral-300 px-4 py-2 text-neutral-500">
+              Paid
+            </td>
+            <td className="border border-neutral-300 px-4 py-2 text-right font-bold">
+              {fmt(paid)}
+            </td>
+          </tr>
+          <tr>
+            <td className="border border-neutral-300 px-4 py-2 font-bold text-[#2563EB]">
+              Balance due
+            </td>
+            <td className="border border-neutral-300 px-4 py-2 text-right text-lg font-bold text-[#0B1F4B]">
               {fmt(balance)}
-            </span>
-          </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div className="mt-6 flex items-start gap-2.5 print:mt-4">
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-[#DBEAFE] text-[#2563EB]">
+          <FileText className="size-4" />
+        </div>
+        <div>
+          <div className="font-bold text-[#2563EB]">Thank you!</div>
+          <p className="mt-0.5 text-neutral-500">
+            We appreciate your business and look forward to working with you
+            again.
+          </p>
+          {sale.note ? (
+            <p className="mt-2 text-neutral-600">
+              <span className="font-semibold">Note: </span>
+              {sale.note}
+            </p>
+          ) : null}
         </div>
       </div>
 
