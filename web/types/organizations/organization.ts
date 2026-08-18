@@ -13,6 +13,8 @@ export interface Organization {
   address?: string | null;
   logoKey?: string | null;
   logoUpdatedAt?: string | null;
+  stampKey?: string | null;
+  stampUpdatedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
