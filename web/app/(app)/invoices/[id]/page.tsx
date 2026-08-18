@@ -8,7 +8,7 @@ import { ArrowLeft, Printer } from "lucide-react";
 import { InvoiceDocument } from "@/components/invoices/invoice-document";
 import { Button } from "@/components/ui/button";
 import { useInvoice } from "@/hooks/invoices/use-invoices";
-import { fetchOrganizationLogoBlob } from "@/service/upload";
+import { fetchOrganizationLogoBlob, fetchOrganizationStampBlob } from "@/service/upload";
 
 const PRINT_CSS = `
 @page { size: A5; margin: 10mm; }
@@ -33,8 +33,10 @@ export default function InvoiceDetailPage() {
   const id = params?.id;
   const { data: invoice, isPending, isError, error } = useInvoice(id);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [stampUrl, setStampUrl] = useState<string | null>(null);
 
   const logoKey = invoice?.organization.logoKey ?? null;
+  const stampKey = invoice?.organization.stampKey ?? null;
   const numberLabel = invoice?.numberLabel;
 
   useEffect(() => {
@@ -63,6 +65,24 @@ export default function InvoiceDetailPage() {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [logoKey]);
+
+  useEffect(() => {
+    if (!stampKey) return;
+    let active = true;
+    let objectUrl: string | null = null;
+    void fetchOrganizationStampBlob(null).then((url) => {
+      if (!active) {
+        if (url) URL.revokeObjectURL(url);
+        return;
+      }
+      objectUrl = url;
+      setStampUrl(url);
+    });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [stampKey]);
 
   if (isPending) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -98,7 +118,7 @@ export default function InvoiceDetailPage() {
         </Button>
       </div>
 
-      <InvoiceDocument invoice={invoice} logoUrl={logoUrl} />
+      <InvoiceDocument invoice={invoice} logoUrl={logoUrl} stampUrl={stampUrl} />
     </>
   );
 }
