@@ -9,9 +9,14 @@ import type { Invoice } from "@/types/invoices/invoice";
 interface InvoiceDocumentProps {
   invoice: Invoice;
   logoUrl: string | null;
+  stampUrl: string | null;
 }
 
-export function InvoiceDocument({ invoice, logoUrl }: InvoiceDocumentProps) {
+export function InvoiceDocument({
+  invoice,
+  logoUrl,
+  stampUrl,
+}: InvoiceDocumentProps) {
   const total = toNumber(invoice.total);
   const paid = toNumber(invoice.paidAmount);
   const balance = total - paid;
@@ -22,8 +27,8 @@ export function InvoiceDocument({ invoice, logoUrl }: InvoiceDocumentProps) {
     { label: "EVC", value: org.evcNumber },
     { label: "E-Dahab", value: org.edahabNumber },
     { label: "Account", value: org.accountNumber },
-  ].filter(
-    (entry): entry is { label: string; value: string } => Boolean(entry.value),
+  ].filter((entry): entry is { label: string; value: string } =>
+    Boolean(entry.value),
   );
 
   return (
@@ -81,7 +86,9 @@ export function InvoiceDocument({ invoice, logoUrl }: InvoiceDocumentProps) {
             <div className="mt-0.5 font-bold text-neutral-500">Walk-in</div>
           )}
           {sale.location ? (
-            <div className="text-neutral-500">Location: {sale.location.name}</div>
+            <div className="text-neutral-500">
+              Location: {sale.location.name}
+            </div>
           ) : null}
         </div>
       </div>
@@ -146,7 +153,7 @@ export function InvoiceDocument({ invoice, logoUrl }: InvoiceDocumentProps) {
           </div>
         </div>
 
-        <div className="w-full max-w-55 shrink-0 space-y-1.5">
+        <div className="w-full max-w-50 shrink-0 space-y-1.5">
           <div className="flex justify-between">
             <span className="text-neutral-500">Subtotal</span>
             <span className="font-bold">{fmt(total)}</span>
@@ -169,10 +176,23 @@ export function InvoiceDocument({ invoice, logoUrl }: InvoiceDocumentProps) {
           <span className="text-xs text-neutral-500">Signature</span>
           <div className="w-48 border-b border-neutral-400" />
         </div>
+
+        {/* Aligned under the totals block above (same w-full max-w-50 column) */}
+        <div className="flex w-full max-w-50 shrink-0 justify-start">
+          {stampUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={stampUrl}
+              alt="Business stamp"
+              className="size-20 object-contain"
+            />
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-6 border-t border-neutral-200 pt-5 text-center print:mt-4 print:pt-3 print:break-inside-avoid">
-        <div className="font-bold text-[#0B1F4B]">{org.name}</div>
+        {/* org details (phone and adress) */}
+        {/* <div className="font-bold text-[#0B1F4B]">{org.name}</div>
         {org.address ? (
           <div className="mt-0.5 text-neutral-500">{org.address}</div>
         ) : null}
@@ -183,7 +203,7 @@ export function InvoiceDocument({ invoice, logoUrl }: InvoiceDocumentProps) {
             </span>
             Phone: {org.phone}
           </div>
-        ) : null}
+        ) : null} */}
         {payToEntries.length > 0 ? (
           <>
             <div className="mx-auto mt-3 h-px w-16 bg-[#2563EB] print:mt-2" />
