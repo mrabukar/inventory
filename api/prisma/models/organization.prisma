@@ -12,6 +12,8 @@ model Organization {
   address           String?
   logoKey           String?
   logoUpdatedAt     DateTime?
+  stampKey          String?
+  stampUpdatedAt    DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
