@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/page-header";
 import { OrganizationLogoUpload } from "@/components/organization/organization-logo-upload";
+import { OrganizationStampUpload } from "@/components/organization/organization-stamp-upload";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
@@ -12,6 +13,10 @@ import {
   deleteCurrentOrganizationLogo,
   uploadCurrentOrganizationLogo,
 } from "@/service/organizations/logo";
+import {
+  deleteCurrentOrganizationStamp,
+  uploadCurrentOrganizationStamp,
+} from "@/service/organizations/stamp";
 import {
   getCurrentOrganization,
   updateCurrentOrganization,
@@ -72,6 +77,10 @@ export default function OrganizationSettingsPage() {
 
   const refreshLogo = () => {
     void queryClient.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
+    void queryClient.invalidateQueries({ queryKey: ["organization", "current"] });
+  };
+
+  const refreshStamp = () => {
     void queryClient.invalidateQueries({ queryKey: ["organization", "current"] });
   };
 
@@ -234,15 +243,26 @@ export default function OrganizationSettingsPage() {
           </div>
         </Card>
 
-        <OrganizationLogoUpload
-          scope="current"
-          hasLogo={Boolean(user.organizationLogoKey ?? org.logoKey)}
-          logoUpdatedAt={user.organizationLogoUpdatedAt ?? org.logoUpdatedAt}
-          onUploaded={refreshLogo}
-          onDeleted={refreshLogo}
-          uploadLogo={uploadCurrentOrganizationLogo}
-          deleteLogo={deleteCurrentOrganizationLogo}
-        />
+        <div className="space-y-6">
+          <OrganizationLogoUpload
+            scope="current"
+            hasLogo={Boolean(user.organizationLogoKey ?? org.logoKey)}
+            logoUpdatedAt={user.organizationLogoUpdatedAt ?? org.logoUpdatedAt}
+            onUploaded={refreshLogo}
+            onDeleted={refreshLogo}
+            uploadLogo={uploadCurrentOrganizationLogo}
+            deleteLogo={deleteCurrentOrganizationLogo}
+          />
+
+          <OrganizationStampUpload
+            hasStamp={Boolean(org.stampKey)}
+            stampUpdatedAt={org.stampUpdatedAt}
+            onUploaded={refreshStamp}
+            onDeleted={refreshStamp}
+            uploadStamp={uploadCurrentOrganizationStamp}
+            deleteStamp={deleteCurrentOrganizationStamp}
+          />
+        </div>
       </div>
     </>
   );
