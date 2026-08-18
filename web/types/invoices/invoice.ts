@@ -14,6 +14,7 @@ export interface InvoiceOrganization {
   accountNumber: string | null;
   address: string | null;
   logoKey: string | null;
+  stampKey: string | null;
 }
 
 export interface InvoiceSale {
