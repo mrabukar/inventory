@@ -71,3 +71,24 @@ export async function fetchOrganizationLogoBlob(
   const blob = await res.blob();
   return URL.createObjectURL(blob);
 }
+
+/** Current organization only — there is no super-admin "by id" stamp route (yet). */
+export function organizationStampUrl(stampUpdatedAt?: string | null): string {
+  const base = `${getApiBaseUrl()}/api/organization/stamp`;
+  if (!stampUpdatedAt) return base;
+  return `${base}?v=${encodeURIComponent(stampUpdatedAt)}`;
+}
+
+export async function fetchOrganizationStampBlob(
+  stampUpdatedAt?: string | null,
+): Promise<string | null> {
+  const res = await fetch(organizationStampUrl(stampUpdatedAt), {
+    credentials: "include",
+  });
+  if (!res.ok) {
+    return null;
+  }
+
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}

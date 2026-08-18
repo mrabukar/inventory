@@ -21,6 +21,8 @@ import { Roles } from "../../common/decorators/roles.decorator";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { OrganizationLogoService } from "../../common/storage/organization-logo.service";
 import { ORGANIZATION_LOGO_MAX_BYTES } from "../../common/storage/organization-logo.constants";
+import { OrganizationStampService } from "../../common/storage/organization-stamp.service";
+import { ORGANIZATION_STAMP_MAX_BYTES } from "../../common/storage/organization-stamp.constants";
 import { OrganizationsService } from "../organizations/organizations.service";
 import { UpdateCurrentOrganizationDto } from "./dto/update-current-organization.dto";
 
@@ -29,6 +31,7 @@ import { UpdateCurrentOrganizationDto } from "./dto/update-current-organization.
 export class OrganizationBrandingController {
   constructor(
     private readonly organizationLogo: OrganizationLogoService,
+    private readonly organizationStamp: OrganizationStampService,
     private readonly organizationsService: OrganizationsService,
   ) {}
 
@@ -67,12 +70,45 @@ export class OrganizationBrandingController {
   }
 
   @Get("logo")
-  async getLogo(
+  async getLogo(@CurrentUser() user: CurrentUserPayload, @Res() res: Response) {
+    const organizationId = requireOrganizationId(user);
+    const object = await this.organizationLogo.getLogoObject(
+      organizationId,
+      user,
+    );
+    res.setHeader("Content-Type", object.contentType);
+    res.setHeader("Cache-Control", "private, max-age=300");
+    res.send(object.body);
+  }
+
+  @Post("stamp")
+  @UseInterceptors(
+    FileInterceptor("stamp", {
+      storage: memoryStorage(),
+      limits: { fileSize: ORGANIZATION_STAMP_MAX_BYTES },
+    }),
+  )
+  uploadStamp(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    const organizationId = requireOrganizationId(user);
+    return this.organizationStamp.uploadStamp(organizationId, user, file);
+  }
+
+  @Delete("stamp")
+  deleteStamp(@CurrentUser() user: CurrentUserPayload) {
+    const organizationId = requireOrganizationId(user);
+    return this.organizationStamp.deleteStamp(organizationId, user);
+  }
+
+  @Get("stamp")
+  async getStamp(
     @CurrentUser() user: CurrentUserPayload,
     @Res() res: Response,
   ) {
     const organizationId = requireOrganizationId(user);
-    const object = await this.organizationLogo.getLogoObject(
+    const object = await this.organizationStamp.getStampObject(
       organizationId,
       user,
     );
