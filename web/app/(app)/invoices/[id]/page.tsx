@@ -8,7 +8,11 @@ import { ArrowLeft, Printer } from "lucide-react";
 import { InvoiceDocument } from "@/components/invoices/invoice-document";
 import { Button } from "@/components/ui/button";
 import { useInvoice } from "@/hooks/invoices/use-invoices";
-import { fetchOrganizationLogoBlob, fetchOrganizationStampBlob } from "@/service/upload";
+import {
+  fetchOrganizationLogoBlob,
+  fetchOrganizationSignatureBlob,
+  fetchOrganizationStampBlob,
+} from "@/service/upload";
 
 const PRINT_CSS = `
 @page { size: A5; margin: 10mm; }
@@ -34,9 +38,11 @@ export default function InvoiceDetailPage() {
   const { data: invoice, isPending, isError, error } = useInvoice(id);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [stampUrl, setStampUrl] = useState<string | null>(null);
+  const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
 
   const logoKey = invoice?.organization.logoKey ?? null;
   const stampKey = invoice?.organization.stampKey ?? null;
+  const signatureKey = invoice?.organization.signatureKey ?? null;
   const numberLabel = invoice?.numberLabel;
 
   useEffect(() => {
@@ -84,6 +90,24 @@ export default function InvoiceDetailPage() {
     };
   }, [stampKey]);
 
+  useEffect(() => {
+    if (!signatureKey) return;
+    let active = true;
+    let objectUrl: string | null = null;
+    void fetchOrganizationSignatureBlob(null).then((url) => {
+      if (!active) {
+        if (url) URL.revokeObjectURL(url);
+        return;
+      }
+      objectUrl = url;
+      setSignatureUrl(url);
+    });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [signatureKey]);
+
   if (isPending) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
@@ -118,7 +142,12 @@ export default function InvoiceDetailPage() {
         </Button>
       </div>
 
-      <InvoiceDocument invoice={invoice} logoUrl={logoUrl} stampUrl={stampUrl} />
+      <InvoiceDocument
+        invoice={invoice}
+        logoUrl={logoUrl}
+        stampUrl={stampUrl}
+        signatureUrl={signatureUrl}
+      />
     </>
   );
 }
