@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/page-header";
 import { OrganizationLogoUpload } from "@/components/organization/organization-logo-upload";
+import { OrganizationSignatureUpload } from "@/components/organization/organization-signature-upload";
 import { OrganizationStampUpload } from "@/components/organization/organization-stamp-upload";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,6 +14,10 @@ import {
   deleteCurrentOrganizationLogo,
   uploadCurrentOrganizationLogo,
 } from "@/service/organizations/logo";
+import {
+  deleteCurrentOrganizationSignature,
+  uploadCurrentOrganizationSignature,
+} from "@/service/organizations/signature";
 import {
   deleteCurrentOrganizationStamp,
   uploadCurrentOrganizationStamp,
@@ -81,6 +86,10 @@ export default function OrganizationSettingsPage() {
   };
 
   const refreshStamp = () => {
+    void queryClient.invalidateQueries({ queryKey: ["organization", "current"] });
+  };
+
+  const refreshSignature = () => {
     void queryClient.invalidateQueries({ queryKey: ["organization", "current"] });
   };
 
@@ -261,6 +270,15 @@ export default function OrganizationSettingsPage() {
             onDeleted={refreshStamp}
             uploadStamp={uploadCurrentOrganizationStamp}
             deleteStamp={deleteCurrentOrganizationStamp}
+          />
+
+          <OrganizationSignatureUpload
+            hasSignature={Boolean(org.signatureKey)}
+            signatureUpdatedAt={org.signatureUpdatedAt}
+            onUploaded={refreshSignature}
+            onDeleted={refreshSignature}
+            uploadSignature={uploadCurrentOrganizationSignature}
+            deleteSignature={deleteCurrentOrganizationSignature}
           />
         </div>
       </div>
