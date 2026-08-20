@@ -92,3 +92,26 @@ export async function fetchOrganizationStampBlob(
   const blob = await res.blob();
   return URL.createObjectURL(blob);
 }
+
+/** Current organization only — there is no super-admin "by id" signature route. */
+export function organizationSignatureUrl(
+  signatureUpdatedAt?: string | null,
+): string {
+  const base = `${getApiBaseUrl()}/api/organization/signature`;
+  if (!signatureUpdatedAt) return base;
+  return `${base}?v=${encodeURIComponent(signatureUpdatedAt)}`;
+}
+
+export async function fetchOrganizationSignatureBlob(
+  signatureUpdatedAt?: string | null,
+): Promise<string | null> {
+  const res = await fetch(organizationSignatureUrl(signatureUpdatedAt), {
+    credentials: "include",
+  });
+  if (!res.ok) {
+    return null;
+  }
+
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
