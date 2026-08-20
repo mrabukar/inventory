@@ -1,4 +1,4 @@
-import { FileText, Phone, User } from "lucide-react";
+import { FileText, User } from "lucide-react";
 
 import { formatDisplayDate } from "@/lib/filters/dates";
 import { formatProductLabel } from "@/lib/products/format";
@@ -10,12 +10,14 @@ interface InvoiceDocumentProps {
   invoice: Invoice;
   logoUrl: string | null;
   stampUrl: string | null;
+  signatureUrl: string | null;
 }
 
 export function InvoiceDocument({
   invoice,
   logoUrl,
   stampUrl,
+  signatureUrl,
 }: InvoiceDocumentProps) {
   const total = toNumber(invoice.total);
   const paid = toNumber(invoice.paidAmount);
@@ -174,6 +176,16 @@ export function InvoiceDocument({
       <div className="mt-8 flex items-end justify-between gap-8 print:mt-5">
         <div className="flex flex-col gap-1">
           <span className="text-xs text-neutral-500">Signature</span>
+          {signatureUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={signatureUrl}
+              alt="Signature"
+              className="h-10 w-48 object-contain object-bottom"
+            />
+          ) : (
+            <div className="h-10 w-48" />
+          )}
           <div className="w-48 border-b border-neutral-400" />
         </div>
 
