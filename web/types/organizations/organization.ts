@@ -15,6 +15,8 @@ export interface Organization {
   logoUpdatedAt?: string | null;
   stampKey?: string | null;
   stampUpdatedAt?: string | null;
+  signatureKey?: string | null;
+  signatureUpdatedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
