@@ -14,6 +14,8 @@ model Organization {
   logoUpdatedAt     DateTime?
   stampKey          String?
   stampUpdatedAt    DateTime?
+  signatureKey      String?
+  signatureUpdatedAt DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
