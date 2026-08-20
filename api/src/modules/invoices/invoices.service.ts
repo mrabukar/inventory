@@ -30,6 +30,7 @@ const invoiceInclude = {
       address: true,
       logoKey: true,
       stampKey: true,
+      signatureKey: true,
     },
   },
 } satisfies Prisma.InvoiceInclude;
