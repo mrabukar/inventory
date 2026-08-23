@@ -359,13 +359,13 @@ export class ReportsService {
   async getFinancialSummary(query: ReportQueryDto, user: CurrentUserPayload) {
     const organizationId = requireOrganizationId(user);
     const range = resolveReportDateRange(query.fromDate, query.toDate);
-    const storeId = await this.tenantStoreResolver.resolveStoreFilter(
-      user,
-      query.storeId,
-    );
+    const [storeId, expenseStoreId] = await Promise.all([
+      this.tenantStoreResolver.resolveStoreFilter(user, query.storeId),
+      this.tenantStoreResolver.resolveExpenseStoreFilter(user, query.storeId),
+    ]);
 
     const saleWhere = this.buildSaleWhere(range, storeId);
-    const expenseWhere = this.buildExpenseWhere(range, storeId);
+    const expenseWhere = this.buildExpenseWhere(range, expenseStoreId);
 
     const [
       summary,
