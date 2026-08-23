@@ -52,6 +52,38 @@ export class TenantStoreResolver {
     return trimmed || undefined;
   }
 
+  /**
+   * Expense P&L scope. Unlike {@link resolveStoreFilter}, non-branch orgs are
+   * not pinned to the hidden warehouse — company-wide expenses use storeId null.
+   */
+  async resolveExpenseStoreFilter(
+    user: CurrentUserPayload,
+    queryStoreId?: string,
+  ): Promise<string | undefined> {
+    if (user.role === UserRole.branch_manager) {
+      return assertBranchManagerHasStore(user);
+    }
+
+    const organizationId = requireOrganizationId(user);
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { hasStores: true },
+    });
+
+    if (!org) {
+      throw new ForbiddenException("Organization not found");
+    }
+
+    if (!org.hasStores) {
+      return undefined;
+    }
+
+    const trimmed =
+      typeof queryStoreId === "string" ? queryStoreId.trim() : undefined;
+
+    return trimmed || undefined;
+  }
+
   async resolveSaleStoreId(
     user: CurrentUserPayload,
     findStore: ManagerStoreLookup,
