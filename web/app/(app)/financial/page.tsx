@@ -23,10 +23,12 @@ import { useReportFilters } from "@/hooks/filters/use-report-filters";
 import { useFinancialSummary } from "@/hooks/reports/use-financial-summary";
 import { getLastSixMonthsRange } from "@/lib/filters/dates";
 import { fmt } from "@/lib/utils";
+import { useAppStore } from "@/store/app";
 
 const defaultRange = getLastSixMonthsRange();
 
 export default function FinancialPage() {
+  const hasStores = useAppStore((s) => s.user?.hasStores ?? true);
   const filters = useReportFilters(defaultRange);
   const [exportBusy, setExportBusy] = useState(false);
   const { data, isLoading, isError, error } = useFinancialSummary(filters.query);
@@ -56,7 +58,11 @@ export default function FinancialPage() {
       desc="Revenue, cost, and profit for the selected period"
       action={
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <ReportFilterBar filters={filters} disabled={exportBusy} />
+          <ReportFilterBar
+            filters={filters}
+            showStoreFilter={hasStores}
+            disabled={exportBusy}
+          />
           <ReportExportMenu
             report="financial-summary"
             params={filters.query}
