@@ -39,6 +39,7 @@ export async function createUser(
     isActive: true,
     storeId: input.role === "branch_manager" ? (input.storeId ?? null) : null,
     store: null,
+    twoFactorEnabled: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

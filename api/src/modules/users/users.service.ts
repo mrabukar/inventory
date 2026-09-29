@@ -223,6 +223,41 @@ export class UsersService {
     return user;
   }
 
+  async resetTwoFactor(
+    id: string,
+    actor: CurrentUserPayload,
+  ): Promise<void> {
+    if (id === actor.id) {
+      throw new BadRequestException("You cannot reset your own 2FA");
+    }
+
+    const existing = await this.findOne(id);
+
+    if (!existing.twoFactorEnabled) {
+      throw new BadRequestException("User does not have 2FA enabled");
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.twoFactor.deleteMany({ where: { userId: id } });
+      await tx.user.update({
+        where: { id },
+        data: { twoFactorEnabled: false },
+      });
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actor.id,
+        organizationId: this.resolveAuditOrganizationId(actor, existing),
+        action: AuditAction.USER_2FA_RESET,
+        entityType: "user",
+        entityId: id,
+        oldValue: { twoFactorEnabled: true },
+        newValue: { twoFactorEnabled: false, resetBy: actor.id },
+      },
+    });
+  }
+
   private resolveStoreIdForRole(
     role: UserRole,
     storeId?: string | null,

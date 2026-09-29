@@ -28,6 +28,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       hasStores: user.hasStores,
     });
 
+  const needs2faSetup =
+    isFetched &&
+    !authLoading &&
+    isAuthenticated &&
+    user != null &&
+    !user.twoFactorEnabled;
+
+  const isSetup2faPage = pathname === "/setup-2fa";
+
   useEffect(() => {
     if (isFetched && !authLoading && !isAuthenticated) {
       const query = searchParams.toString();
@@ -35,6 +44,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       router.replace(buildLoginUrl(returnPath));
     }
   }, [isFetched, authLoading, isAuthenticated, router, pathname, searchParams]);
+
+  useEffect(() => {
+    if (needs2faSetup && !isSetup2faPage) {
+      router.replace("/setup-2fa");
+    }
+  }, [needs2faSetup, isSetup2faPage, router]);
 
   useEffect(() => {
     if (roleDenied) {
@@ -52,6 +67,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [title, isFetched, authLoading, user, roleDenied]);
 
   if (!isFetched || authLoading || !user || roleDenied) return null;
+
+  if (needs2faSetup && isSetup2faPage) {
+    return <>{children}</>;
+  }
+
+  if (needs2faSetup) return null;
 
   return (
     <div className="app-frame">

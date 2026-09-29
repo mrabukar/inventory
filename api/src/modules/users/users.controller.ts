@@ -44,6 +44,15 @@ export class UsersController {
     return this.usersService.activate(id, user);
   }
 
+  @Patch(":id/two-factor")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  resetTwoFactor(
+    @Param("id") id: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.usersService.resetTwoFactor(id, user);
+  }
+
   @Patch(":id")
   update(
     @Param("id") id: string,

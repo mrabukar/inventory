@@ -2,11 +2,11 @@
 
 import { useMemo } from "react";
 import type { ColumnDef, PaginationState } from "@tanstack/react-table";
-import { Pencil, Power, PowerOff } from "lucide-react";
+import { Pencil, Power, PowerOff, ShieldOff } from "lucide-react";
 
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
-import { RoleBadge, StatusBadge } from "@/components/ui/badge";
+import { Badge, RoleBadge, StatusBadge } from "@/components/ui/badge";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import type { User } from "@/types/users/user";
 
@@ -23,6 +23,7 @@ interface UsersTableProps {
   onEdit: (user: User) => void;
   onDeactivate: (user: User) => void;
   onActivate: (user: User) => void;
+  onResetTwoFactor?: (user: User) => void;
   toolbarExtra?: React.ReactNode;
 }
 
@@ -39,6 +40,7 @@ export function UsersTable({
   onEdit,
   onDeactivate,
   onActivate,
+  onResetTwoFactor,
   toolbarExtra,
 }: UsersTableProps) {
   const columns = useMemo<ColumnDef<User>[]>(
@@ -101,6 +103,21 @@ export function UsersTable({
         enableSorting: false,
       },
       {
+        accessorKey: "twoFactorEnabled",
+        meta: {
+          label: "2FA",
+          exportValue: (row: User) =>
+            row.twoFactorEnabled ? "Active" : "Pending",
+        },
+        header: "2FA",
+        cell: ({ row }) => (
+          <Badge color={row.original.twoFactorEnabled ? "emerald" : "amber"}>
+            {row.original.twoFactorEnabled ? "Active" : "Pending"}
+          </Badge>
+        ),
+        enableSorting: false,
+      },
+      {
         accessorKey: "createdAt",
         meta: {
           label: "Created",
@@ -127,6 +144,16 @@ export function UsersTable({
             >
               <Pencil size={16} />
             </button>
+            {row.original.twoFactorEnabled && onResetTwoFactor && (
+              <button
+                type="button"
+                className="dt-act danger"
+                title="Reset 2FA"
+                onClick={() => onResetTwoFactor(row.original)}
+              >
+                <ShieldOff size={16} />
+              </button>
+            )}
             {row.original.isActive ? (
               <button
                 type="button"
@@ -152,7 +179,7 @@ export function UsersTable({
         enableHiding: false,
       },
     ],
-    [onEdit, onDeactivate, onActivate],
+    [onEdit, onDeactivate, onActivate, onResetTwoFactor],
   );
 
   return (

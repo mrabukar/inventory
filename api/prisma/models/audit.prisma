@@ -32,6 +32,7 @@ enum AuditAction {
   SALE_LOCATION_UPDATED
   INVOICE_CREATED
   PAYMENT_RECORDED
+  USER_2FA_RESET
 }
 
 model AuditLog {

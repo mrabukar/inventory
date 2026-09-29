@@ -21,6 +21,7 @@ export interface AppUser {
   email: string;
   phone: string | null;
   role: Role;
+  twoFactorEnabled: boolean;
   storeId: string | null;
   store: string | null;
   organizationId: string | null;
