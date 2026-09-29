@@ -10,6 +10,7 @@ export interface User {
   role: UserRole;
   phone: string | null;
   isActive: boolean;
+  twoFactorEnabled: boolean;
   storeId: string | null;
   store: Pick<Store, "id" | "name"> | null;
   createdAt: string;

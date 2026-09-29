@@ -33,6 +33,7 @@ const userSelect = {
   organizationId: true,
   isActive: true,
   phone: true,
+  twoFactorEnabled: true,
 } as const;
 
 export type MeStore = {

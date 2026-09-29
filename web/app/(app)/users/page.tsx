@@ -13,6 +13,7 @@ import { useSession } from "@/hooks/auth/session";
 import { useActivateUser } from "@/hooks/users/use-activate-user";
 import { useCreateUser } from "@/hooks/users/use-create-user";
 import { useDeactivateUser } from "@/hooks/users/use-deactivate-user";
+import { useResetTwoFactor } from "@/hooks/users/use-reset-two-factor";
 import { useUpdateUser } from "@/hooks/users/use-update-user";
 import { useUsers } from "@/hooks/users/use-users";
 import { useStores } from "@/hooks/stores/list-stores";
@@ -43,6 +44,7 @@ export default function UsersPage() {
   const [status, setStatus] = useState<boolean | undefined>();
   const [modal, setModal] = useState<ModalState | null>(null);
   const [confirm, setConfirm] = useState<User | null>(null);
+  const [twoFactorResetUser, setTwoFactorResetUser] = useState<User | null>(null);
   const debouncedSearch = useDebouncedValue(search, 300);
 
   const listQuery = useMemo(
@@ -65,6 +67,7 @@ export default function UsersPage() {
   const updateUser = useUpdateUser();
   const activateUser = useActivateUser();
   const deactivateUser = useDeactivateUser();
+  const resetTwoFactor = useResetTwoFactor();
 
   const rows = data?.data ?? [];
   const rowCount = data?.meta.total ?? 0;
@@ -176,6 +179,20 @@ export default function UsersPage() {
     }
   };
 
+  const handleResetTwoFactor = async () => {
+    if (!twoFactorResetUser) return;
+    try {
+      await resetTwoFactor.mutateAsync(twoFactorResetUser.id);
+      addToast({ title: "2FA has been reset" });
+      setTwoFactorResetUser(null);
+    } catch (e) {
+      addErrorToast({
+        title: "Failed to reset 2FA",
+        sub: e instanceof Error ? e.message : "Something went wrong",
+      });
+    }
+  };
+
   const isSaving = createUser.isPending || updateUser.isPending;
 
   const toolbarExtra = (
@@ -259,6 +276,16 @@ export default function UsersPage() {
           setConfirm(user);
         }}
         onActivate={handleActivate}
+        onResetTwoFactor={(user) => {
+          if (sessionUser?.id === user.id) {
+            addErrorToast({
+              title: "Cannot reset your own 2FA",
+              sub: "Ask another admin to reset your 2FA.",
+            });
+            return;
+          }
+          setTwoFactorResetUser(user);
+        }}
         toolbarExtra={toolbarExtra}
       />
 
@@ -285,6 +312,18 @@ export default function UsersPage() {
           isLoading={deactivateUser.isPending}
           onConfirm={() => void handleDeactivate()}
           onClose={() => setConfirm(null)}
+        />
+      )}
+
+      {twoFactorResetUser && (
+        <ConfirmDialog
+          title="Reset two-factor authentication"
+          message={`This will remove two-factor authentication for ${twoFactorResetUser.name}. They will be required to set up a new authenticator app on their next login.`}
+          confirmLabel="Reset 2FA"
+          variant="danger"
+          isLoading={resetTwoFactor.isPending}
+          onConfirm={() => void handleResetTwoFactor()}
+          onClose={() => setTwoFactorResetUser(null)}
         />
       )}
     </>

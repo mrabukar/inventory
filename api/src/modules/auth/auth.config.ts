@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { betterAuth } from "better-auth";
+import { type Auth, betterAuth } from "better-auth";
+import { twoFactor } from "better-auth/plugins";
 import { parseTrustedOrigins } from "./auth.constants";
 
 function getAuthSecret(isProd: boolean): string {
@@ -18,7 +19,7 @@ function getAuthSecret(isProd: boolean): string {
   return secret ?? "dev-secret-change-me";
 }
 
-export function createAuth(prisma: PrismaClient) {
+function _createAuth(prisma: PrismaClient) {
   const nodeEnv = process.env.NODE_ENV ?? "development";
   const isProd = nodeEnv === "production";
 
@@ -77,6 +78,20 @@ export function createAuth(prisma: PrismaClient) {
       updateAge: 60 * 2,
     },
 
+    plugins: [
+      twoFactor({
+        issuer: "Inventory",
+        totpOptions: {
+          digits: 6,
+          period: 30,
+        },
+        backupCodeOptions: {
+          amount: 10,
+          length: 10,
+        },
+      }),
+    ],
+
     advanced: {
       useSecureCookies: isProd,
       defaultCookieAttributes: {
@@ -88,6 +103,10 @@ export function createAuth(prisma: PrismaClient) {
   });
 }
 
-export type AppAuth = ReturnType<typeof createAuth>;
+export type AppAuth = ReturnType<typeof _createAuth>;
 
-export const auth = createAuth(new PrismaClient());
+export function createAuth(prisma: PrismaClient): Auth {
+  return _createAuth(prisma) as unknown as Auth;
+}
+
+export const auth: Auth = createAuth(new PrismaClient());
