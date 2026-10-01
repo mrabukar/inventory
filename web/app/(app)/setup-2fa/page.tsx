@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { BackupCodesDisplay } from "@/components/auth/backup-codes-display";
 import { useEnableTwoFactor, useVerifyTotp } from "@/hooks/auth/use-two-factor";
 import { fetchCurrentUser, SESSION_QUERY_KEY } from "@/hooks/auth/session";
+import { homePathForRole } from "@/lib/auth/routes";
 import { useAppStore } from "@/store/app";
 import { cn } from "@/lib/utils";
 
@@ -92,7 +93,7 @@ export default function SetupTwoFactorPage() {
     const user = await fetchCurrentUser();
     setUser(user);
     queryClient.setQueryData(SESSION_QUERY_KEY, user);
-    router.push("/dashboard");
+    router.push(homePathForRole(user.role));
   };
 
   const isPending = enableTwoFactor.isPending || verifyTotp.isPending;

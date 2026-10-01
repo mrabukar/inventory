@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { buildLoginUrl } from "@/lib/auth/redirect";
-import { isRouteAllowedForRole } from "@/lib/auth/routes";
+import { homePathForRole, isRouteAllowedForRole } from "@/lib/auth/routes";
 import { useAppStore } from "@/store/app";
 import { formatDocumentTitle, resolvePageTitle } from "@/lib/page-title";
 import { Sidebar } from "./sidebar";
@@ -53,9 +53,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (roleDenied) {
-      router.replace(
-        user?.role === "super_admin" ? "/super-admin" : "/dashboard",
-      );
+      router.replace(user ? homePathForRole(user.role) : "/dashboard");
     }
   }, [roleDenied, router, user?.role]);
 

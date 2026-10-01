@@ -30,6 +30,9 @@ export const PROTECTED_ROUTE_PREFIXES = [
 
 export const SUPER_ADMIN_ROUTE_PREFIXES = ["/super-admin"] as const;
 
+/** Mandatory 2FA enrollment — every signed-in role, including super_admin. */
+export const SETUP_2FA_PATH = "/setup-2fa";
+
 /** Account settings — all authenticated roles including super_admin. */
 export const ACCOUNT_SETTINGS_ROUTE_PREFIXES = [
   "/settings/profile",
@@ -99,11 +102,19 @@ export function isManagerOnlyPath(pathname: string): boolean {
   );
 }
 
+export function homePathForRole(role: Role): string {
+  return role === "super_admin" ? "/super-admin" : "/dashboard";
+}
+
 export function isRouteAllowedForRole(
   role: Role,
   pathname: string,
   options?: { hasStores?: boolean | null },
 ): boolean {
+  if (pathname === SETUP_2FA_PATH) {
+    return true;
+  }
+
   if (role === "super_admin") {
     return isSuperAdminPath(pathname) || isAccountSettingsPath(pathname);
   }
