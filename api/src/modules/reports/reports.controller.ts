@@ -43,6 +43,12 @@ export class ReportsController {
     return this.reportsService.getFinancialSummary(query, user);
   }
 
+  @Get("company-net-profit")
+  @Roles(UserRole.admin)
+  getAllTimeCompanyNetProfit(@CurrentUser() user: CurrentUserPayload) {
+    return this.reportsService.getAllTimeCompanyNetProfit(user);
+  }
+
   @Get("financial-summary/export")
   @Roles(UserRole.admin, UserRole.branch_manager)
   async exportFinancialSummary(
