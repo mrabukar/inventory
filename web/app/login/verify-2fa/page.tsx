@@ -11,8 +11,12 @@ import { fetchCurrentUser, SESSION_QUERY_KEY } from "@/hooks/auth/session";
 import { useAppStore } from "@/store/app";
 import { cn } from "@/lib/utils";
 
+const TOTP_CODE_LENGTH = 6;
+/** Better-Auth formats length:10 codes as XXXXX-XXXXX (10 chars + hyphen). */
+const BACKUP_CODE_LENGTH = 11;
+
 const inputCls = cn(
-  "flex h-12 w-full rounded-md border border-input bg-background px-3 py-2 text-center text-lg font-mono tracking-[0.3em]",
+  "flex h-12 w-full rounded-md border border-input bg-background px-3 py-2 text-center text-lg font-mono",
   "ring-offset-background transition-colors placeholder:text-muted-foreground",
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
   "disabled:cursor-not-allowed disabled:opacity-50",
@@ -82,7 +86,7 @@ export default function VerifyTwoFactorPage() {
               </h1>
               <p className="text-sm text-muted-foreground">
                 {useBackupCode
-                  ? "Enter one of your 10-character backup codes"
+                  ? "Enter one of your backup codes, including the hyphen"
                   : "Enter the 6-digit code from your authenticator app"}
               </p>
             </div>
@@ -100,14 +104,18 @@ export default function VerifyTwoFactorPage() {
 
           <div className="space-y-4">
             <input
-              className={inputCls}
+              className={cn(inputCls, useBackupCode ? "tracking-wide" : "tracking-[0.3em]")}
               type="text"
               inputMode={useBackupCode ? "text" : "numeric"}
-              maxLength={useBackupCode ? 10 : 6}
-              placeholder={useBackupCode ? "XXXXXXXXXX" : "000000"}
+              maxLength={useBackupCode ? BACKUP_CODE_LENGTH : TOTP_CODE_LENGTH}
+              placeholder={useBackupCode ? "XXXXX-XXXXX" : "000000"}
               value={code}
               onChange={(e) => {
-                setCode(useBackupCode ? e.target.value : e.target.value.replace(/\D/g, ""));
+                setCode(
+                  useBackupCode
+                    ? e.target.value.slice(0, BACKUP_CODE_LENGTH)
+                    : e.target.value.replace(/\D/g, "").slice(0, TOTP_CODE_LENGTH),
+                );
                 setErrorMessage(null);
               }}
               onKeyDown={(e) => {
