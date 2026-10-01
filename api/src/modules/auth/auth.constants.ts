@@ -2,6 +2,9 @@ import { UserRole } from "@prisma/client";
 
 export const SESSION_COOKIE_NAME = "better-auth.session_token";
 
+/** Shown as the authenticator-app issuer (e.g. "Inventory: user@email"). */
+export const AUTH_APP_NAME = "Inventory";
+
 export { UserRole };
 
 /** Prisma enum values: `super_admin` | `admin` | `branch_manager` */
