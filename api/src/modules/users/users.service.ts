@@ -9,6 +9,7 @@ import { hashPassword } from "better-auth/crypto";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { orderByUpdatedAtDesc } from "../../common/utils/list-order.util";
 import { PrismaService } from "../../prisma/prisma.service";
+import { revokeTrustedDevices } from "../auth/revoke-trusted-devices.util";
 import { PaginatedResult } from "../stores/stores.service";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UserQueryDto } from "./dto/user-query.dto";
@@ -137,6 +138,8 @@ export class UsersService {
           where: { userId: id, providerId: "credential" },
           data: { password: hashedPassword },
         });
+        await revokeTrustedDevices(tx, id);
+        await tx.session.deleteMany({ where: { userId: id } });
       }
 
       return updated;
@@ -243,6 +246,7 @@ export class UsersService {
         where: { id },
         data: { twoFactorEnabled: false },
       });
+      await revokeTrustedDevices(tx, id);
     });
 
     await this.prisma.auditLog.create({
