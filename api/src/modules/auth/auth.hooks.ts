@@ -16,6 +16,7 @@ import { isBootstrapSignupAllowed } from "../../config/signup-policy.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { isUserRole, UserRole } from "./auth.constants";
 import type { AppAuth } from "./auth.config";
+import { revokeTrustedDevices } from "./revoke-trusted-devices.util";
 import {
   isStrongPassword,
   STRONG_PASSWORD_MESSAGE,
@@ -296,6 +297,8 @@ export class AuthSignInHook {
 @Hook()
 @Injectable()
 export class AuthChangePasswordHook {
+  constructor(private readonly prisma: PrismaService) {}
+
   @BeforeHook("/change-password")
   validateChangePassword(ctx: AuthHookContext): void {
     const newPassword = (ctx.body as { newPassword?: string })?.newPassword;
@@ -304,6 +307,18 @@ export class AuthChangePasswordHook {
         message: STRONG_PASSWORD_MESSAGE,
       });
     }
+  }
+
+  @AfterHook("/change-password")
+  async revokeTrustedDevicesAfterPasswordChange(
+    ctx: AuthHookContext,
+  ): Promise<void> {
+    const userId = ctx.context.session?.user?.id;
+    if (!userId) {
+      return;
+    }
+
+    await revokeTrustedDevices(this.prisma, userId);
   }
 }
 
