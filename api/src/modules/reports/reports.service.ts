@@ -439,6 +439,50 @@ export class ReportsService {
     };
   }
 
+  /**
+   * Company net profit with no date window. Uses the same store scope as
+   * financial summary when no store is selected.
+   */
+  async getAllTimeCompanyNetProfit(user: CurrentUserPayload) {
+    const organizationId = requireOrganizationId(user);
+    const [storeId, expenseStoreId] = await Promise.all([
+      this.tenantStoreResolver.resolveStoreFilter(user),
+      this.tenantStoreResolver.resolveExpenseStoreFilter(user),
+    ]);
+
+    const saleWhere: Prisma.SaleItemWhereInput = {
+      ...(storeId ? { storeId } : undefined),
+    };
+    const expenseWhere: Prisma.ExpenseWhereInput = {
+      ...(expenseStoreId ? { storeId: expenseStoreId } : undefined),
+    };
+
+    const [salesAgg, expensesAgg, cogs] = await Promise.all([
+      this.prisma.saleItem.aggregate({
+        where: saleWhere,
+        _sum: { lineTotal: true },
+      }),
+      this.prisma.expense.aggregate({
+        where: expenseWhere,
+        _sum: { amount: true },
+      }),
+      this.sumAllTimeCogs(saleWhere, organizationId),
+    ]);
+
+    const totalRevenue = toMoneyNumber(salesAgg._sum.lineTotal);
+    const totalExpenses = toMoneyNumber(expensesAgg._sum.amount);
+    const grossProfit = subtractMoney(salesAgg._sum.lineTotal, cogs);
+    const netProfit = subtractMoney(grossProfit, expensesAgg._sum.amount);
+
+    return {
+      netProfit,
+      totalRevenue,
+      cogs,
+      grossProfit,
+      totalExpenses,
+    };
+  }
+
   // Sale aggregates now run against line items (SaleItem carries denormalized
   // storeId + saleDate). Category filters match the item's product.
   private buildSaleWhere(
@@ -545,6 +589,23 @@ export class ReportsService {
       lowStockCount: stockMetrics.lowStockCount,
       outOfStockCount: stockMetrics.outOfStockCount,
     };
+  }
+
+  private async sumAllTimeCogs(
+    where: Prisma.SaleItemWhereInput,
+    organizationId: string,
+  ): Promise<number> {
+    const storeId =
+      typeof where.storeId === "string" ? where.storeId : undefined;
+
+    const rows = await this.prisma.$queryRaw<{ cogs: unknown }[]>`
+      SELECT COALESCE(SUM(s."quantitySold" * s."unitPurchasePrice"), 0)::numeric AS cogs
+      FROM "sale_item" s
+      WHERE s."organizationId" = ${organizationId}
+      ${storeId ? Prisma.sql`AND s."storeId" = ${storeId}` : Prisma.empty}
+    `;
+
+    return parseRawMoney(rows[0]?.cogs);
   }
 
   private async sumCogs(
