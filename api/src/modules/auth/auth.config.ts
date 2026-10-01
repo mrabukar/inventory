@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { type Auth, betterAuth } from "better-auth";
 import { twoFactor } from "better-auth/plugins";
-import { parseTrustedOrigins } from "./auth.constants";
+import { AUTH_APP_NAME, parseTrustedOrigins } from "./auth.constants";
 
 function getAuthSecret(isProd: boolean): string {
   const secret = process.env.BETTER_AUTH_SECRET;
@@ -28,6 +28,7 @@ function _createAuth(prisma: PrismaClient) {
     `http://localhost:${process.env.PORT ?? 4000}`;
 
   return betterAuth({
+    appName: AUTH_APP_NAME,
     url,
     secret: getAuthSecret(isProd),
     basePath: "/api/auth",
@@ -80,7 +81,7 @@ function _createAuth(prisma: PrismaClient) {
 
     plugins: [
       twoFactor({
-        issuer: "Inventory",
+        issuer: AUTH_APP_NAME,
         totpOptions: {
           digits: 6,
           period: 30,
