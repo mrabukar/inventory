@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { Button } from "./button";
 
 interface Props {
   title?: string;
-  message: string;
+  message: ReactNode;
   confirmLabel?: string;
   variant?: "danger" | "primary";
   isLoading?: boolean;
@@ -31,22 +31,43 @@ export function ConfirmDialog({
   }, []);
 
   useEffect(() => {
-    const h = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isLoading) onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isLoading, onClose]);
 
-  const content = (
-    <div className="dialog" style={{ zIndex: 200 }}>
-      <div className="overlay" onClick={onClose} />
-      <div className="dialog-box">
-        <h2>{title}</h2>
-        <p>{message}</p>
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="dialog" style={{ zIndex: 200 }} role="presentation">
+      <div
+        className="overlay"
+        onClick={() => {
+          if (!isLoading) onClose();
+        }}
+      />
+      <div
+        className="dialog-box"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
+        aria-describedby="confirm-dialog-message"
+      >
+        <h2 id="confirm-dialog-title">{title}</h2>
+        <p id="confirm-dialog-message">{message}</p>
         <div className="dialog-row">
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={isLoading}
+          >
             Cancel
           </Button>
           <Button
+            type="button"
             variant={variant === "danger" ? "destructive" : "default"}
             onClick={onConfirm}
             disabled={isLoading}
@@ -55,10 +76,7 @@ export function ConfirmDialog({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
-
-  if (!mounted) return null;
-
-  return createPortal(content, document.body);
 }
