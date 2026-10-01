@@ -28,14 +28,11 @@ import { useStores } from "@/hooks/stores/list-stores";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import {
   buildProfitWarningMessage,
-  formatProfitPeriodLabel,
-  getProfitCheckPeriod,
-  isExpenseInPeriod,
   shouldWarnExpenseProfit,
 } from "@/lib/expenses/profit-warning";
 import { getCurrentMonthRange } from "@/lib/filters/dates";
 import { listExpenses } from "@/service/expenses/list-expenses";
-import { getFinancialSummary } from "@/service/reports/financial-summary";
+import { getCompanyNetProfit } from "@/service/reports/company-net-profit";
 import { useAppStore } from "@/store/app";
 import { expenseAmount, type Expense } from "@/types/expenses/expense";
 
@@ -191,32 +188,22 @@ export default function ExpensesPage() {
 
     const amount = Number(form.amount);
     const isEdit = modal?.mode === "edit";
-    const period = getProfitCheckPeriod();
     const expenseStoreLabel = storeItems.find(
       (s) => s.value === form.storeId,
     )?.label;
     const scopeLabel = expenseStoreLabel
       ? `company-wide net profit (expense for ${expenseStoreLabel})`
       : "company-wide";
-    const periodLabel = formatProfitPeriodLabel(period);
 
     setIsCheckingProfit(true);
     try {
-      // Always use company-wide net profit — matches the dashboard headline.
-      // Store-scoped profit excludes company-wide costs (e.g. rent) and can
-      // look healthy while company-wide net profit is negative.
-      const summary = await getFinancialSummary({
-        fromDate: period.fromDate,
-        toDate: period.toDate,
-      });
-      const currentNetProfit = summary.summary.netProfit;
+      // All-time company net profit. The expense date does not change the
+      // baseline, and a month-to-date window is $0 on the first of the month.
+      const summary = await getCompanyNetProfit();
+      const currentNetProfit = summary.netProfit;
 
       const oldAmount =
-        isEdit &&
-        modal.expense &&
-        isExpenseInPeriod(modal.expense.expenseDate, period)
-          ? expenseAmount(modal.expense)
-          : 0;
+        isEdit && modal.expense ? expenseAmount(modal.expense) : 0;
 
       if (
         shouldWarnExpenseProfit({
@@ -231,7 +218,6 @@ export default function ExpensesPage() {
           amount,
           oldAmount,
           isEdit,
-          periodLabel,
           scopeLabel,
         });
         setProfitWarning({
