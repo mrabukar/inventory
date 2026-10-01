@@ -318,7 +318,13 @@ export default function UsersPage() {
       {twoFactorResetUser && (
         <ConfirmDialog
           title="Reset two-factor authentication"
-          message={`This will remove two-factor authentication for ${twoFactorResetUser.name}. They will be required to set up a new authenticator app on their next login.`}
+          message={
+            <>
+              This will remove two-factor authentication for{" "}
+              <strong>{twoFactorResetUser.name}</strong>. They will be required
+              to set up a new authenticator app on their next login.
+            </>
+          }
           confirmLabel="Reset 2FA"
           variant="danger"
           isLoading={resetTwoFactor.isPending}
