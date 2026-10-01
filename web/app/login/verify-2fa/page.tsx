@@ -129,7 +129,7 @@ export default function VerifyTwoFactorPage() {
               autoComplete="one-time-code"
             />
 
-            {!useBackupCode && (
+            {/* {!useBackupCode && (
               <div className="flex items-center gap-2.5">
                 <input
                   type="checkbox"
@@ -146,7 +146,7 @@ export default function VerifyTwoFactorPage() {
                   Trust this device for 30 days
                 </label>
               </div>
-            )}
+            )} */}
 
             <Button
               className="w-full"
