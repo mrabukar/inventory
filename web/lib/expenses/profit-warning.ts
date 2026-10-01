@@ -1,22 +1,6 @@
-import { formatPeriodLabel, getCurrentMonthRange } from "@/lib/filters/dates";
 import { fmt } from "@/lib/utils";
 
-export interface ProfitCheckPeriod {
-  fromDate: string;
-  toDate: string;
-}
-
-export function getProfitCheckPeriod(): ProfitCheckPeriod {
-  return getCurrentMonthRange();
-}
-
-export function isExpenseInPeriod(
-  expenseDate: string,
-  period: ProfitCheckPeriod,
-): boolean {
-  const date = expenseDate.slice(0, 10);
-  return date >= period.fromDate && date <= period.toDate;
-}
+const ALL_TIME_PERIOD_LABEL = "all time";
 
 export function computeProjectedNetProfit(params: {
   currentNetProfit: number;
@@ -52,7 +36,6 @@ export function buildProfitWarningMessage(params: {
   amount: number;
   oldAmount?: number;
   isEdit: boolean;
-  periodLabel: string;
   scopeLabel: string;
 }): {
   title: string;
@@ -69,9 +52,9 @@ export function buildProfitWarningMessage(params: {
     amount,
     oldAmount = 0,
     isEdit,
-    periodLabel,
     scopeLabel,
   } = params;
+  const periodLabel = ALL_TIME_PERIOD_LABEL;
   const projectedNetProfit = computeProjectedNetProfit({
     currentNetProfit,
     amount,
@@ -146,6 +129,3 @@ export function buildProfitWarningMessage(params: {
   };
 }
 
-export function formatProfitPeriodLabel(period: ProfitCheckPeriod): string {
-  return formatPeriodLabel(period.fromDate, period.toDate);
-}
