@@ -16,6 +16,11 @@ model Purchase {
   correctsPurchaseId String?
   correctsPurchase   Purchase?    @relation("PurchaseCorrection", fields: [correctsPurchaseId], references: [id])
   corrections        Purchase[]   @relation("PurchaseCorrection")
+  // Set on a purchase created by "change product": the negative correction
+  // that moved these units off the wrongly recorded product.
+  movedFromCorrectionId String?   @unique
+  movedFromCorrection   Purchase? @relation("PurchaseProductChange", fields: [movedFromCorrectionId], references: [id])
+  movedTo               Purchase? @relation("PurchaseProductChange")
   invoiceNumber      String?
   purchaseDate       DateTime     @db.Date
   note               String?
