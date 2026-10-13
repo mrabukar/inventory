@@ -1,7 +1,7 @@
 "use client";
 
 import { Dialog } from "radix-ui";
-import { MinusCircle, PlusCircle, X } from "lucide-react";
+import { ArrowRightLeft, MinusCircle, PlusCircle, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn, fmt } from "@/lib/utils";
@@ -10,7 +10,7 @@ import { toNumber } from "@/lib/reports/format";
 import { purchaseReversibleQuantity } from "@/lib/purchases/reversible-quantity";
 import type { Purchase } from "@/types/purchases/purchase";
 
-export type PurchaseFixMode = "add" | "subtract";
+export type PurchaseFixMode = "add" | "subtract" | "change-product";
 
 interface PurchaseFixChooserModalProps {
   open: boolean;
@@ -80,7 +80,8 @@ export function PurchaseFixChooserModal({
             </Dialog.Title>
             <Dialog.Description className="text-sm text-muted-foreground">
               Use this only when a past purchase was recorded with the wrong
-              quantity. This does not replace recording a new purchase.
+              quantity or product. This does not replace recording a new
+              purchase.
             </Dialog.Description>
           </div>
 
@@ -119,6 +120,17 @@ export function PurchaseFixChooserModal({
               }
               disabled={removable <= 0}
               onClick={() => onSelect("subtract")}
+            />
+            <OptionCard
+              icon={ArrowRightLeft}
+              title="Wrong product"
+              description={
+                removable > 0
+                  ? "These units are a different product. Move them to the correct one."
+                  : "Nothing left to move on this purchase after prior corrections."
+              }
+              disabled={removable <= 0}
+              onClick={() => onSelect("change-product")}
             />
           </div>
 

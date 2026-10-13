@@ -8,6 +8,7 @@ import {
   PurchaseFixChooserModal,
   type PurchaseFixMode,
 } from "./components/purchase-fix-chooser-modal";
+import { PurchaseChangeProductModal } from "./components/purchase-change-product-modal";
 import { PurchaseFixModal } from "./components/purchase-fix-modal";
 import { PurchaseTable } from "./components/purchase-table";
 import { Combobox } from "@/components/ui/combobox";
@@ -16,6 +17,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { useCategories } from "@/hooks/categories/use-categories";
 import {
+  useChangePurchaseProduct,
   useCorrectPurchaseAdd,
   useCorrectPurchaseSubtract,
 } from "@/hooks/purchases/use-correct-purchase";
@@ -23,7 +25,11 @@ import { usePurchases } from "@/hooks/purchases/use-purchases";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { getCurrentMonthRange } from "@/lib/filters/dates";
 import { useAppStore } from "@/store/app";
-import type { CorrectPurchaseInput, Purchase } from "@/types/purchases/purchase";
+import type {
+  ChangePurchaseProductInput,
+  CorrectPurchaseInput,
+  Purchase,
+} from "@/types/purchases/purchase";
 
 interface FixChooserState {
   purchase: Purchase;
@@ -77,6 +83,7 @@ export default function PurchasesPage() {
     usePurchases(listQuery);
   const correctionAdd = useCorrectPurchaseAdd();
   const correctionSubtract = useCorrectPurchaseSubtract();
+  const changeProduct = useChangePurchaseProduct();
 
   const rows = data?.data ?? [];
   const rowCount = data?.meta.total ?? 0;
@@ -94,7 +101,7 @@ export default function PurchasesPage() {
   const resetPage = () => setPageIndex(0);
 
   const handleFix = async (input: CorrectPurchaseInput) => {
-    if (!fixForm) return;
+    if (!fixForm || fixForm.mode === "change-product") return;
     const mutation =
       fixForm.mode === "add" ? correctionAdd : correctionSubtract;
 
@@ -113,6 +120,29 @@ export default function PurchasesPage() {
     } catch (e) {
       addErrorToast({
         title: "Failed to correct purchase",
+        sub: e instanceof Error ? e.message : "Something went wrong",
+      });
+    }
+  };
+
+  const handleChangeProduct = async (
+    input: ChangePurchaseProductInput,
+    targetLabel: string,
+  ) => {
+    if (!fixForm) return;
+
+    try {
+      await changeProduct.mutateAsync({
+        purchaseId: fixForm.purchase.id,
+        input,
+      });
+      addToast({
+        title: `Moved ${input.quantity} unit${input.quantity === 1 ? "" : "s"} to ${targetLabel}`,
+      });
+      setFixForm(null);
+    } catch (e) {
+      addErrorToast({
+        title: "Failed to change the product",
         sub: e instanceof Error ? e.message : "Something went wrong",
       });
     }
@@ -213,19 +243,32 @@ export default function PurchasesPage() {
         }}
       />
 
-      <PurchaseFixModal
-        key={
-          fixForm
-            ? `${fixForm.purchase.id}-${fixForm.mode}`
-            : "purchase-fix-closed"
-        }
-        open={fixForm !== null}
-        mode={fixForm?.mode ?? "add"}
-        purchase={fixForm?.purchase ?? null}
-        onClose={() => setFixForm(null)}
-        onSave={(form) => void handleFix(form)}
-        isSaving={correctionAdd.isPending || correctionSubtract.isPending}
-      />
+      {fixForm?.mode === "change-product" ? (
+        <PurchaseChangeProductModal
+          key={`${fixForm.purchase.id}-change-product`}
+          open
+          purchase={fixForm.purchase}
+          onClose={() => setFixForm(null)}
+          onSave={(form, targetLabel) =>
+            void handleChangeProduct(form, targetLabel)
+          }
+          isSaving={changeProduct.isPending}
+        />
+      ) : (
+        <PurchaseFixModal
+          key={
+            fixForm
+              ? `${fixForm.purchase.id}-${fixForm.mode}`
+              : "purchase-fix-closed"
+          }
+          open={fixForm !== null}
+          mode={fixForm?.mode ?? "add"}
+          purchase={fixForm?.purchase ?? null}
+          onClose={() => setFixForm(null)}
+          onSave={(form) => void handleFix(form)}
+          isSaving={correctionAdd.isPending || correctionSubtract.isPending}
+        />
+      )}
     </>
   );
 }

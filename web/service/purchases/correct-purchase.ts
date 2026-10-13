@@ -1,5 +1,7 @@
 import { apiFetch } from "@/service/client";
 import type {
+  ChangePurchaseProductInput,
+  ChangePurchaseProductResponse,
   CorrectPurchaseInput,
   Purchase,
 } from "@/types/purchases/purchase";
@@ -28,6 +30,19 @@ export function correctPurchaseAdd(
 ): Promise<CorrectPurchaseResponse> {
   return apiFetch<CorrectPurchaseResponse>(
     `/api/purchases/${purchaseId}/correct/add`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function changePurchaseProduct(
+  purchaseId: string,
+  input: ChangePurchaseProductInput,
+): Promise<ChangePurchaseProductResponse> {
+  return apiFetch<ChangePurchaseProductResponse>(
+    `/api/purchases/${purchaseId}/correct/change-product`,
     {
       method: "POST",
       body: JSON.stringify(input),

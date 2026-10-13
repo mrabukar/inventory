@@ -9,8 +9,25 @@ import { DataTableColumnHeader } from "@/components/data-table/data-table-column
 import { Button } from "@/components/ui/button";
 import { formatDisplayDate } from "@/lib/filters/dates";
 import { toNumber } from "@/lib/reports/format";
+import { formatProductLabel } from "@/lib/products/format";
 import { fmt } from "@/lib/utils";
 import type { Purchase } from "@/types/purchases/purchase";
+
+/** Short tag for correction rows and the two halves of a product change. */
+function purchaseTag(row: Purchase): string | null {
+  if (row.movedTo) {
+    const { name, model } = row.movedTo.product;
+    return `Moved to ${formatProductLabel(name, model)}`;
+  }
+  if (row.movedFromCorrection) {
+    const { name, model } = row.movedFromCorrection.product;
+    return `Moved from ${formatProductLabel(name, model)}`;
+  }
+  if (row.type === "correction") {
+    return row.quantity > 0 ? "Fix (added)" : "Fix (removed)";
+  }
+  return null;
+}
 
 interface PurchaseTableProps {
   rows: Purchase[];
@@ -64,16 +81,19 @@ export function PurchaseTable({
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Product" />
         ),
-        cell: ({ row }) => (
-          <span className="strong">
-            {row.original.product.name}
-            {row.original.type === "correction" ? (
-              <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
-                {row.original.quantity > 0 ? "Fix (added)" : "Fix (removed)"}
-              </span>
-            ) : null}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const tag = purchaseTag(row.original);
+          return (
+            <span className="strong">
+              {row.original.product.name}
+              {tag ? (
+                <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+                  {tag}
+                </span>
+              ) : null}
+            </span>
+          );
+        },
       },
       {
         id: "model",
@@ -178,7 +198,7 @@ export function PurchaseTable({
                       variant="outline"
                       size="sm"
                       className="h-8 shrink-0"
-                      title="Fix a purchase quantity mistake"
+                      title="Fix a purchase quantity or product mistake"
                       onClick={() => onCorrect(row.original)}
                     >
                       <Wrench />

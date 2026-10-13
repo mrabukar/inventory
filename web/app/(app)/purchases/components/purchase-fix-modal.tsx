@@ -22,7 +22,7 @@ import type { PurchaseFixMode } from "./purchase-fix-chooser-modal";
 
 interface PurchaseFixModalProps {
   open: boolean;
-  mode: PurchaseFixMode;
+  mode: Exclude<PurchaseFixMode, "change-product">;
   purchase: Purchase | null;
   onClose: () => void;
   onSave: (data: CorrectPurchaseInput) => void;

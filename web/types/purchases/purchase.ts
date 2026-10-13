@@ -10,6 +10,13 @@ export interface PurchaseUser {
 
 export type PurchaseType = "purchase" | "correction";
 
+/** The other half of a "change product" fix. */
+export interface LinkedPurchase {
+  id: string;
+  productId: string;
+  product: { id: string; name: string; model: string | null };
+}
+
 export interface Purchase {
   id: string;
   productId: string;
@@ -18,6 +25,11 @@ export interface Purchase {
   totalCost: number | string;
   type: PurchaseType;
   correctsPurchaseId: string | null;
+  /** On a purchase created by "change product": the correction it came from. */
+  movedFromCorrectionId: string | null;
+  movedFromCorrection?: LinkedPurchase | null;
+  /** On a "change product" correction: the purchase the units moved to. */
+  movedTo?: LinkedPurchase | null;
   invoiceNumber: string | null;
   purchaseDate: string;
   note: string | null;
@@ -56,6 +68,18 @@ export interface CreatePurchaseInput {
 export interface CorrectPurchaseInput {
   quantity: number;
   reason: string;
+}
+
+export interface ChangePurchaseProductInput {
+  productId: string;
+  quantity: number;
+  unitPurchasePrice: number;
+  reason: string;
+}
+
+export interface ChangePurchaseProductResponse {
+  correction: Purchase;
+  purchase: Purchase;
 }
 
 export function purchaseTotal(purchase: Purchase): number {
