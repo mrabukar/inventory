@@ -193,3 +193,57 @@ So the Nokia report becomes *Purchased 18 / In stock 18* — **correctly**, and 
 - [x] **Partial vs full:** **Partial reversal allowed** (reverse part of a purchase).
 - [x] **Which purchases:** **Any purchase** can be corrected (with the §9.2 approximation caveat + `averageCost ≥ 0` guard + audit flag).
 - [x] **Record loss value for write-offs (shrinkage)?** — **Deferred** (future optional follow-up). Genuine write-offs keep reducing inventory only for now; if losses become material, revisit recording the lost value as a shrinkage expense so it shows in profit. Does **not** block this work.
+
+---
+
+## 11. Change product (wrong product recorded)
+
+> **Added:** 2026-10-13. Covers the case add/subtract can't: the purchase was recorded against the **wrong product**.
+
+### 11.1 Decisions
+
+| Decision | Choice | Why |
+|----------|--------|-----|
+| Edit `productId` in place? | **No** — never mutate the original row | The wrong product's stock and `averageCost` already absorbed the units; the right product got nothing; the audit trail would be lost |
+| Model | One atomic action = **negative correction** on the wrong product + **new `type = purchase` row** on the right product | Reuses the subtract path and the normal purchase path; reports net automatically |
+| Why the new row is a `purchase`, not a `correction` | Corrections are summed against `correctsPurchaseId` to get the removable quantity; a positive cross-product correction would inflate the original's removable units | The new row is then itself fixable like any purchase |
+| Link | `purchase.movedFromCorrectionId` (nullable, unique) on the new row → the negative correction | Exact 1:1 pairing, so both rows can show "Moved to / Moved from" even after several partial moves |
+| Quantity | **Partial allowed**, default = all remaining | Invoices can mix products |
+| Unit price | Prefilled with the original price, **editable** | A wrong product often had a different price; stock investment then changes by `q × (newPrice − originalPrice)` |
+| Audit | Reuse `PURCHASE_CORRECTED` with `direction: "change_product"` | No new enum value → old code stays readable on rollback |
+
+### 11.2 Flow — `POST /api/purchases/:id/correct/change-product` (admin)
+
+Input: `productId` (correct product), `quantity`, `unitPurchasePrice`, `reason` (required).
+
+In **one transaction**:
+1. Lock the original purchase row; recompute remaining quantity (original + net corrections) **inside the lock**.
+2. Lock warehouse inventory for both products in **sorted productId order** (avoids deadlock between opposite moves).
+3. Require wrong-product warehouse on-hand ≥ `quantity`.
+4. Negative correction on the wrong product at the **original** price — warehouse ↓, `reverseWeightedAverageCost`.
+5. New purchase on the right product at the **entered** price, same `purchaseDate` and `invoiceNumber`, `movedFromCorrectionId` = the correction — warehouse ↑, `computeWeightedAverageCost`.
+6. Audit both sides (`PURCHASE_CORRECTED`, `INVENTORY_UPDATED`, `PRODUCT_COST_RECALCULATED`).
+
+Rejects: same product, inactive product, quantity ≤ 0 or > remaining, warehouse short, price ≤ 0, empty reason.
+
+### 11.3 Worked example
+
+Recorded **5 × Test @ 120** (600) — should have been **Product X**.
+
+| Row | Product | Qty | Total | Type | Link |
+|-----|---------|-----|-------|------|------|
+| Original (untouched) | Test | +5 | 600 | purchase | — |
+| Correction | Test | −5 | −600 | correction | `correctsPurchaseId` → original |
+| New purchase | X | +5 | 600 | purchase | `movedFromCorrectionId` → correction |
+
+Stock investment for the period: unchanged (600). Stock Report: Test −5, X +5. Past sales/COGS untouched.
+
+### 11.4 Related fix
+
+`correctSubtract` previously checked the remaining quantity **before** the transaction, so two concurrent submits could over-correct. The check now runs inside the transaction with the original purchase row locked.
+
+### 11.5 Rollout safety
+
+- Migration is additive only (nullable column + unique index + FK); no existing rows rewritten.
+- **Order on deploy:** `prisma migrate deploy` **before** restarting the API on the new build — the new Prisma client selects `movedFromCorrectionId` and would fail against a DB without it.
+- Rollback = previous code; the column can stay (old client ignores it), and moved rows are ordinary purchase/correction rows.
