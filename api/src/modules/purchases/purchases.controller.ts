@@ -14,6 +14,7 @@ import {
   type CurrentUserPayload,
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { ChangePurchaseProductDto } from "./dto/change-purchase-product.dto";
 import { CorrectPurchaseDto } from "./dto/correct-purchase.dto";
 import { CreatePurchaseDto } from "./dto/create-purchase.dto";
 import { CreatePurchaseBatchDto } from "./dto/create-purchase-batch.dto";
@@ -67,6 +68,16 @@ export class PurchasesController {
     @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.purchasesService.correctSubtract(id, dto, user);
+  }
+
+  @Post(":id/correct/change-product")
+  @HttpCode(HttpStatus.CREATED)
+  changeProduct(
+    @Param("id") id: string,
+    @Body() dto: ChangePurchaseProductDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.purchasesService.changeProduct(id, dto, user);
   }
 
   @Post(":id/correct")
