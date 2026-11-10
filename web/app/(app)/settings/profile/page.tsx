@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
-import { KeyRound, ShieldCheck, Eye, EyeOff, XCircle } from "lucide-react";
+import { KeyRound, ShieldCheck, ShieldOff, Eye, EyeOff, XCircle } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BackupCodesDisplay } from "@/components/auth/backup-codes-display";
 import { useSession } from "@/hooks/auth/session";
 import { useUpdateMe } from "@/hooks/auth/use-update-me";
+import { useDisableOwnTwoFactor } from "@/hooks/auth/use-disable-own-two-factor";
 import { useGetTotpUri, useGenerateBackupCodes } from "@/hooks/auth/use-two-factor";
 import { appRoleLabel } from "@/lib/types";
 import { useAppStore } from "@/store/app";
@@ -23,7 +24,7 @@ const readOnlyCls = cn(
   "cursor-default bg-muted/50 text-muted-foreground",
 );
 
-type SecurityModal = "qr" | "backup" | null;
+type SecurityModal = "qr" | "backup" | "disable" | null;
 
 export default function ProfileSettingsPage() {
   const { user, isLoading: sessionLoading } = useSession();
@@ -32,6 +33,7 @@ export default function ProfileSettingsPage() {
   const updateMe = useUpdateMe();
   const getTotpUri = useGetTotpUri();
   const generateBackupCodes = useGenerateBackupCodes();
+  const disableOwn = useDisableOwnTwoFactor();
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -41,6 +43,7 @@ export default function ProfileSettingsPage() {
   const [totpURI, setTotpURI] = useState<string | null>(null);
   const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
+  const [modalCode, setModalCode] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -83,6 +86,7 @@ export default function ProfileSettingsPage() {
     setTotpURI(null);
     setBackupCodes(null);
     setModalError(null);
+    setModalCode("");
   };
 
   const handleViewQR = async () => {
@@ -114,11 +118,37 @@ export default function ProfileSettingsPage() {
     }
   };
 
+  const handleDisableOwn = async () => {
+    if (!modalPassword.trim()) {
+      setModalError("Enter your password");
+      return;
+    }
+    if (!/^\d{6}$/.test(modalCode)) {
+      setModalError("Enter the 6-digit code from your authenticator app");
+      return;
+    }
+    setModalError(null);
+    try {
+      await disableOwn.mutateAsync({ password: modalPassword, code: modalCode });
+      addToast({
+        title: "Two-factor turned off",
+        sub: "You'll sign in with only your password.",
+      });
+      closeModal();
+    } catch (error) {
+      setModalError(
+        error instanceof Error ? error.message : "Couldn't turn off two-factor",
+      );
+    }
+  };
+
   if (sessionLoading || !user) {
     return <p className="text-muted-foreground">Loading profile...</p>;
   }
 
   const isModalPending = getTotpUri.isPending || generateBackupCodes.isPending;
+  const twoFactorOn = user.twoFactorEnabled;
+  const canTurnOff = twoFactorOn && user.role === "admin";
 
   return (
     <>
@@ -198,37 +228,76 @@ export default function ProfileSettingsPage() {
         <Card title="Security" pad>
           <div className="space-y-5">
             {/* 2FA status */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <ShieldCheck className="size-4 text-emerald-600" />
-                <span className="text-sm font-medium">Two-factor authentication</span>
+                {twoFactorOn ? (
+                  <ShieldCheck className="size-4 text-emerald-600" aria-hidden />
+                ) : (
+                  <ShieldOff className="size-4 text-muted-foreground" aria-hidden />
+                )}
+                <span className="text-sm font-medium">Two-factor sign-in</span>
               </div>
-              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
-                Active
+              <span
+                className={cn(
+                  "rounded-full px-2.5 py-0.5 text-xs font-medium",
+                  twoFactorOn
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-muted text-muted-foreground",
+                )}
+              >
+                {twoFactorOn ? "On" : "Off"}
               </span>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Two-factor authentication is required for all accounts and cannot be disabled.
+            <p className="text-sm text-muted-foreground">
+              {twoFactorOn
+                ? "You sign in with your password and a 6-digit code from your authenticator app."
+                : "You sign in with only your password. Adding an authenticator app means a stolen password alone can't open your account."}
             </p>
 
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setSecurityModal("qr")}
-              >
-                View QR code
+            {twoFactorOn ? (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSecurityModal("qr")}
+                >
+                  View QR code
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSecurityModal("backup")}
+                >
+                  Regenerate backup codes
+                </Button>
+                {canTurnOff ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setSecurityModal("disable")}
+                  >
+                    Turn off
+                  </Button>
+                ) : null}
+              </div>
+            ) : (
+              <Button type="button" size="sm" asChild>
+                <Link href="/setup-2fa">
+                  <ShieldCheck className="size-4" />
+                  Set up two-factor
+                </Link>
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setSecurityModal("backup")}
-              >
-                Regenerate backup codes
-              </Button>
-            </div>
+            )}
+
+            {twoFactorOn && !canTurnOff ? (
+              <p className="text-xs text-muted-foreground">
+                To turn off two-factor sign-in, ask an admin.
+              </p>
+            ) : null}
 
             <hr className="border-border" />
 
@@ -276,6 +345,96 @@ export default function ProfileSettingsPage() {
               submitLabel="View QR code"
             />
           )}
+        </SecurityModalWrapper>
+      )}
+
+      {/* Turn off own 2FA (admins) */}
+      {securityModal === "disable" && (
+        <SecurityModalWrapper title="Turn off two-factor sign-in" onClose={closeModal}>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              After this you&apos;ll sign in with only your password. Confirm
+              it&apos;s you with your password and a current code.
+            </p>
+            {modalError && (
+              <div
+                className="flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-700"
+                role="alert"
+              >
+                <XCircle className="size-4 shrink-0" />
+                {modalError}
+              </div>
+            )}
+            <div className="grid gap-2">
+              <label htmlFor="disable-2fa-password" className="text-sm font-medium leading-none">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="disable-2fa-password"
+                  className={cn(inputCls, "pr-10")}
+                  type={showModalPw ? "text" : "password"}
+                  value={modalPassword}
+                  onChange={(e) => {
+                    setModalPassword(e.target.value);
+                    setModalError(null);
+                  }}
+                  disabled={disableOwn.isPending}
+                  autoFocus
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={() => setShowModalPw((s) => !s)}
+                  tabIndex={-1}
+                  aria-label={showModalPw ? "Hide password" : "Show password"}
+                >
+                  {showModalPw ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="disable-2fa-code" className="text-sm font-medium leading-none">
+                Authenticator code
+              </label>
+              <input
+                id="disable-2fa-code"
+                className={cn(inputCls, "font-mono tracking-[0.3em]")}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                placeholder="000000"
+                value={modalCode}
+                onChange={(e) => {
+                  setModalCode(e.target.value.replace(/\D/g, ""));
+                  setModalError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void handleDisableOwn();
+                }}
+                disabled={disableOwn.isPending}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                className="flex-1"
+                variant="outline"
+                onClick={closeModal}
+                disabled={disableOwn.isPending}
+              >
+                Keep it on
+              </Button>
+              <Button
+                className="flex-1"
+                variant="destructive"
+                onClick={() => void handleDisableOwn()}
+                disabled={disableOwn.isPending}
+              >
+                {disableOwn.isPending ? "Turning off…" : "Turn off"}
+              </Button>
+            </div>
+          </div>
         </SecurityModalWrapper>
       )}
 
