@@ -36,6 +36,11 @@ import {
   buildManagerPeriodComparison,
 } from "../../common/utils/period-comparison.util";
 import { PrismaService } from "../../prisma/prisma.service";
+import {
+  COUNTED_SALE_STATUSES,
+  STOCK_OUT_SALE_STATUSES,
+  type SaleStatusValue,
+} from "../sales/sale.constants";
 import { ReportQueryDto } from "./dto/report-query.dto";
 import { ProductDistributionQueryDto } from "./dto/product-distribution-query.dto";
 import {
@@ -78,6 +83,18 @@ const recentSaleInclude = {
 
 /** Recent sales rows returned on admin/manager dashboard cards. */
 const DASHBOARD_RECENT_SALES_LIMIT = 7;
+
+/** Only approved sales count toward revenue, profit and rankings. */
+const countedSaleItem: Prisma.SaleItemWhereInput = {
+  sale: { status: { in: COUNTED_SALE_STATUSES } },
+};
+
+/** Raw-SQL twin of `countedSaleItem` for queries aliasing sale_item as `s`. */
+const COUNTED_SALE_SQL = Prisma.sql`AND EXISTS (
+  SELECT 1 FROM "sale" sa
+  WHERE sa.id = s."saleId"
+    AND sa.status::text IN (${Prisma.join(COUNTED_SALE_STATUSES)})
+)`;
 
 @Injectable()
 export class ReportsService {
@@ -451,6 +468,7 @@ export class ReportsService {
     ]);
 
     const saleWhere: Prisma.SaleItemWhereInput = {
+      ...countedSaleItem,
       ...(storeId ? { storeId } : undefined),
     };
     const expenseWhere: Prisma.ExpenseWhereInput = {
@@ -489,8 +507,10 @@ export class ReportsService {
     range: ReportDateRange,
     storeId?: string,
     categoryId?: string,
+    statuses: SaleStatusValue[] = COUNTED_SALE_STATUSES,
   ): Prisma.SaleItemWhereInput {
     return {
+      sale: { status: { in: statuses } },
       ...(storeId ? { storeId } : undefined),
       ...(categoryId ? { product: { categoryId } } : undefined),
       saleDate: { gte: range.fromDate, lte: range.toDate },
@@ -603,6 +623,7 @@ export class ReportsService {
       FROM "sale_item" s
       WHERE s."organizationId" = ${organizationId}
       ${storeId ? Prisma.sql`AND s."storeId" = ${storeId}` : Prisma.empty}
+      ${COUNTED_SALE_SQL}
     `;
 
     return parseRawMoney(rows[0]?.cogs);
@@ -630,6 +651,7 @@ export class ReportsService {
     const parts: Prisma.Sql[] = [
       Prisma.sql`WHERE 1=1`,
       Prisma.sql`AND s."organizationId" = ${organizationId}`,
+      COUNTED_SALE_SQL,
       Prisma.sql`AND ${sqlInclusiveDateRange(
         Prisma.sql`s."saleDate"`,
         dateRange.fromCalendar,
@@ -801,6 +823,7 @@ export class ReportsService {
   private async fetchRecentSales(itemWhere: Prisma.SaleItemWhereInput) {
     // Translate the item-level filter into a Sale header filter.
     const saleWhere: Prisma.SaleWhereInput = {
+      status: { in: COUNTED_SALE_STATUSES },
       ...(typeof itemWhere.storeId === "string"
         ? { storeId: itemWhere.storeId }
         : undefined),
@@ -826,6 +849,7 @@ export class ReportsService {
     toCalendar: string;
   }) {
     const where: Prisma.SaleItemWhereInput = {
+      ...countedSaleItem,
       storeId: params.storeId,
       saleDate: {
         gte: calendarDateToDbDate(params.fromCalendar),
@@ -911,6 +935,7 @@ export class ReportsService {
       FROM "sale_item" s
       WHERE s."storeId" = ${storeId}
         AND s."organizationId" = ${organizationId}
+        ${COUNTED_SALE_SQL}
         AND ${sqlInclusiveDateRange(
           Prisma.sql`s."saleDate"`,
           fromCalendar,
@@ -974,6 +999,7 @@ export class ReportsService {
         AND p."categoryId" = ${categoryId}
         ${storeId ? Prisma.sql`AND s."storeId" = ${storeId}` : Prisma.empty}
         AND s."productId" IN (${Prisma.join(productIds)})
+        ${COUNTED_SALE_SQL}
       GROUP BY 1, 2
       ORDER BY 2, 1
     `;
@@ -1169,7 +1195,13 @@ export class ReportsService {
           }),
       this.prisma.saleItem.groupBy({
         by: ["productId"],
-        where: this.buildSaleWhere(range, storeId, categoryId),
+        // Stock report reconciles with shelf counts, so pending sales count.
+        where: this.buildSaleWhere(
+          range,
+          storeId,
+          categoryId,
+          STOCK_OUT_SALE_STATUSES,
+        ),
         _sum: { quantitySold: true },
       }),
       this.prisma.inventory.groupBy({
