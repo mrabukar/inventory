@@ -1,5 +1,6 @@
 import { authClient } from "@/lib/auth/client";
 import type { CreateUserInput, User } from "@/types/users/user";
+import { manageUserTwoFactor } from "./manage-two-factor";
 import { updateUser } from "./update-user";
 
 export async function createUser(
@@ -26,6 +27,10 @@ export async function createUser(
     throw new Error("User was created but no user id was returned");
   }
 
+  if (input.twoFactorRequired === false) {
+    await manageUserTwoFactor(userId, "disable");
+  }
+
   if (input.phone?.trim()) {
     return updateUser(userId, { phone: input.phone.trim() });
   }
@@ -40,6 +45,7 @@ export async function createUser(
     storeId: input.role === "branch_manager" ? (input.storeId ?? null) : null,
     store: null,
     twoFactorEnabled: false,
+    twoFactorRequired: input.twoFactorRequired !== false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
