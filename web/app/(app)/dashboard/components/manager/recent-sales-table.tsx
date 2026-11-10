@@ -15,7 +15,7 @@ import {
   dashboardSaleUnits,
   type DashboardRecentSale,
 } from "@/types/reports/common";
-import type { SaleStatus } from "@/types/sales/sale";
+import { SALE_STATUS_LABEL, type SaleStatus } from "@/types/sales/sale";
 
 interface Props {
   sales: DashboardRecentSale[];
@@ -102,7 +102,7 @@ export function ManagerRecentSalesTable({ sales }: Props) {
           label: "Status",
           align: "center",
           exportValue: (row: DashboardRecentSale) =>
-            row.status === "corrected" ? "Corrected" : "Active",
+            SALE_STATUS_LABEL[row.status as SaleStatus] ?? row.status,
         },
         header: "Status",
         cell: ({ row }) => (
