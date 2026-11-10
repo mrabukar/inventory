@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 
+import { TwoFactorDialog } from "./components/two-factor-dialog";
 import { UserModal, type UserFormValues } from "./components/user-modal";
 import { UsersTable } from "./components/users-table";
 import { Combobox } from "@/components/ui/combobox";
@@ -13,14 +15,25 @@ import { useSession } from "@/hooks/auth/session";
 import { useActivateUser } from "@/hooks/users/use-activate-user";
 import { useCreateUser } from "@/hooks/users/use-create-user";
 import { useDeactivateUser } from "@/hooks/users/use-deactivate-user";
-import { useResetTwoFactor } from "@/hooks/users/use-reset-two-factor";
+import { useManageTwoFactor } from "@/hooks/users/use-manage-two-factor";
 import { useUpdateUser } from "@/hooks/users/use-update-user";
 import { useUsers } from "@/hooks/users/use-users";
 import { useStores } from "@/hooks/stores/list-stores";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { listUsers } from "@/service/users/list-users";
 import { useAppStore } from "@/store/app";
-import { ROLE_ITEMS, type User, type UserRole } from "@/types/users/user";
+import {
+  ROLE_ITEMS,
+  type TwoFactorAction,
+  type User,
+  type UserRole,
+} from "@/types/users/user";
+
+const TWO_FACTOR_TOAST: Record<TwoFactorAction, string> = {
+  disable: "Two-factor turned off",
+  require: "Two-factor is now required",
+  reset: "Authenticator reset",
+};
 
 interface ModalState {
   mode: "add" | "edit";
@@ -36,6 +49,7 @@ export default function UsersPage() {
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const { user: sessionUser } = useSession();
+  const router = useRouter();
 
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(20);
@@ -44,7 +58,9 @@ export default function UsersPage() {
   const [status, setStatus] = useState<boolean | undefined>();
   const [modal, setModal] = useState<ModalState | null>(null);
   const [confirm, setConfirm] = useState<User | null>(null);
-  const [twoFactorResetUser, setTwoFactorResetUser] = useState<User | null>(null);
+  const [twoFactorUser, setTwoFactorUser] = useState<User | null>(null);
+  const [twoFactorPending, setTwoFactorPending] =
+    useState<TwoFactorAction | null>(null);
   const debouncedSearch = useDebouncedValue(search, 300);
 
   const listQuery = useMemo(
@@ -67,7 +83,7 @@ export default function UsersPage() {
   const updateUser = useUpdateUser();
   const activateUser = useActivateUser();
   const deactivateUser = useDeactivateUser();
-  const resetTwoFactor = useResetTwoFactor();
+  const manageTwoFactor = useManageTwoFactor();
 
   const rows = data?.data ?? [];
   const rowCount = data?.meta.total ?? 0;
@@ -141,6 +157,7 @@ export default function UsersPage() {
           storeId:
             form.role === "branch_manager" ? form.storeId : undefined,
           phone: form.phone || undefined,
+          twoFactorRequired: form.twoFactorRequired,
         });
         addToast({ title: "User added successfully" });
       }
@@ -179,17 +196,20 @@ export default function UsersPage() {
     }
   };
 
-  const handleResetTwoFactor = async () => {
-    if (!twoFactorResetUser) return;
+  const handleTwoFactorAction = async (action: TwoFactorAction) => {
+    if (!twoFactorUser) return;
+    setTwoFactorPending(action);
     try {
-      await resetTwoFactor.mutateAsync(twoFactorResetUser.id);
-      addToast({ title: "2FA has been reset" });
-      setTwoFactorResetUser(null);
+      await manageTwoFactor.mutateAsync({ id: twoFactorUser.id, action });
+      addToast({ title: TWO_FACTOR_TOAST[action], sub: twoFactorUser.name });
+      setTwoFactorUser(null);
     } catch (e) {
       addErrorToast({
-        title: "Failed to reset 2FA",
+        title: "Couldn't change two-factor sign-in",
         sub: e instanceof Error ? e.message : "Something went wrong",
       });
+    } finally {
+      setTwoFactorPending(null);
     }
   };
 
@@ -276,15 +296,13 @@ export default function UsersPage() {
           setConfirm(user);
         }}
         onActivate={handleActivate}
-        onResetTwoFactor={(user) => {
+        onManageTwoFactor={(user) => {
+          // Your own 2FA needs your password and a code: manage it from Profile.
           if (sessionUser?.id === user.id) {
-            addErrorToast({
-              title: "Cannot reset your own 2FA",
-              sub: "Ask another admin to reset your 2FA.",
-            });
+            router.push("/settings/profile");
             return;
           }
-          setTwoFactorResetUser(user);
+          setTwoFactorUser(user);
         }}
         toolbarExtra={toolbarExtra}
       />
@@ -300,6 +318,7 @@ export default function UsersPage() {
           onClose={() => setModal(null)}
           onSave={(form) => void saveUser(form)}
           isSaving={isSaving}
+          showTwoFactorField
         />
       )}
 
@@ -315,21 +334,12 @@ export default function UsersPage() {
         />
       )}
 
-      {twoFactorResetUser && (
-        <ConfirmDialog
-          title="Reset two-factor authentication"
-          message={
-            <>
-              This will remove two-factor authentication for{" "}
-              <strong>{twoFactorResetUser.name}</strong>. They will be required
-              to set up a new authenticator app on their next login.
-            </>
-          }
-          confirmLabel="Reset 2FA"
-          variant="danger"
-          isLoading={resetTwoFactor.isPending}
-          onConfirm={() => void handleResetTwoFactor()}
-          onClose={() => setTwoFactorResetUser(null)}
+      {twoFactorUser && (
+        <TwoFactorDialog
+          user={twoFactorUser}
+          pendingAction={twoFactorPending}
+          onAction={(action) => void handleTwoFactorAction(action)}
+          onClose={() => setTwoFactorUser(null)}
         />
       )}
     </>
