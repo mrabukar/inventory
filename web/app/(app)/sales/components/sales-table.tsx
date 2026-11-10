@@ -9,8 +9,8 @@ import { DataTableColumnHeader } from "@/components/data-table/data-table-column
 import { SaleStatusBadge } from "@/components/ui/badge";
 import { formatSaleDate, toNumber } from "@/lib/reports/format";
 import {
+  correctionWindowLabel,
   isSaleWithinCorrectionWindow,
-  SALE_CORRECTION_WINDOW_HOURS,
 } from "@/lib/sales/correction-window";
 import { fmt } from "@/lib/utils";
 import {
@@ -201,14 +201,16 @@ export function SalesTable({
         header: "Actions",
         cell: ({ row }) => {
           const corrected = row.original.status === "corrected";
+          // The correct action only exists for organizations without stores.
           const withinWindow = isSaleWithinCorrectionWindow(
             row.original.createdAt,
+            false,
           );
           const correctDisabled = corrected || !withinWindow;
           const correctTitle = corrected
             ? "Already corrected"
             : !withinWindow
-              ? `Corrections only within ${SALE_CORRECTION_WINDOW_HOURS} hours of recording`
+              ? `Corrections only within ${correctionWindowLabel(false)} of recording`
               : "Correct";
 
           return (
