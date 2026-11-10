@@ -196,7 +196,7 @@ export default function SubmitSalePage() {
   const submit = async () => {
     if (!canSubmit) return;
     try {
-      await createSale.mutateAsync({
+      const created = await createSale.mutateAsync({
         items: validRows.map((row) => ({
           productId: row.productId!,
           quantitySold: parseInt(row.qty, 10),
@@ -211,11 +211,16 @@ export default function SubmitSalePage() {
         (sum, row) => sum + parseInt(row.qty, 10),
         0,
       );
-      addToast({
-        title: "Sale recorded successfully",
-        sub: `${units} unit${units === 1 ? "" : "s"} — ${fmt(total)}`,
-      });
-      router.push("/dashboard");
+      const summary = `${units} unit${units === 1 ? "" : "s"} — ${fmt(total)}`;
+      addToast(
+        created.status === "pending"
+          ? {
+              title: "Sent for approval",
+              sub: `${summary}. An admin will review it; you'll see the result in Sales History.`,
+            }
+          : { title: "Sale recorded successfully", sub: summary },
+      );
+      router.push(created.status === "pending" ? "/sales-history" : "/dashboard");
     } catch (e) {
       addErrorToast({
         title: "Failed to record sale",
