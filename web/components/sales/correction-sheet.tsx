@@ -7,7 +7,8 @@ import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { formatProductLabel } from "@/lib/products/format";
-import { formatSaleDate } from "@/lib/reports/format";
+import { formatSaleDate, toNumber } from "@/lib/reports/format";
+import { fmt } from "@/lib/utils";
 import type { CorrectSaleItemInput } from "@/types/sales/create-sale";
 import type { Sale } from "@/types/sales/sale";
 
@@ -123,6 +124,22 @@ export function CorrectionSheet({
     return anyChanged;
   }, [selectedIds, qtys, itemById]);
 
+  // If the customer has already paid more than the corrected total, the app
+  // can't record a refund: tell the admin so they can settle it outside.
+  const overpaid = useMemo(() => {
+    if (!sale.invoice) return 0;
+    const paid = toNumber(sale.invoice.paidAmount);
+    const newTotal = sale.items.reduce((sum, item) => {
+      const raw = selectedIds.includes(item.id) ? qtys[item.id] : undefined;
+      const parsed = raw == null || raw === "" ? NaN : parseInt(raw, 10);
+      const qty =
+        Number.isNaN(parsed) || parsed < 1 ? item.quantitySold : parsed;
+      return sum + toNumber(item.unitPrice) * qty;
+    }, 0);
+    const excess = Math.round((paid - newTotal) * 100) / 100;
+    return excess > 0 ? excess : 0;
+  }, [sale.invoice, sale.items, selectedIds, qtys]);
+
   const canSubmit = !isSaving && hasValidChanges && reason.trim().length > 0;
 
   return (
@@ -218,6 +235,18 @@ export function CorrectionSheet({
           <p className="text-sm text-destructive">{err.items}</p>
         ) : null}
       </div>
+
+      {overpaid > 0 ? (
+        <div
+          role="alert"
+          className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm text-amber-800"
+        >
+          The customer has already paid {fmt(toNumber(sale.invoice!.paidAmount))}.
+          After this correction the sale is worth less, so {fmt(overpaid)} is
+          owed back. Refund it outside the app. The invoice will show the new
+          total as paid and no refund is recorded.
+        </div>
+      ) : null}
 
       <Field label="Reason" required error={err.reason}>
         <textarea
