@@ -17,7 +17,9 @@ import {
   saleProductSummary,
   saleProfit,
   saleUnitsSold,
+  SALE_STATUS_LABEL,
   type Sale,
+  type SaleStatus,
 } from "@/types/sales/sale";
 
 interface SalesTableProps {
@@ -187,7 +189,7 @@ export function SalesTable({
           label: "Status",
           align: "center",
           exportValue: (row: Sale) =>
-            row.status === "corrected" ? "Corrected" : "Active",
+            SALE_STATUS_LABEL[row.status as SaleStatus] ?? row.status,
         },
         header: "Status",
         cell: ({ row }) => <SaleStatusBadge status={row.original.status} />,
