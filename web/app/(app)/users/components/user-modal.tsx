@@ -17,6 +17,7 @@ export interface UserFormValues {
   role: UserRole;
   storeId: string;
   phone: string;
+  twoFactorRequired: boolean;
 }
 
 interface UserModalProps {
@@ -27,6 +28,8 @@ interface UserModalProps {
   showStoreField?: boolean;
   hideRoleField?: boolean;
   withPasswordConfirm?: boolean;
+  /** Show the "Require two-factor" switch when adding a user. */
+  showTwoFactorField?: boolean;
   onClose: () => void;
   onSave: (data: UserFormValues) => void;
   isSaving: boolean;
@@ -77,6 +80,7 @@ function initialForm(user?: User): UserFormValues {
     role: user?.role ?? "branch_manager",
     storeId: user?.storeId ?? "",
     phone: user?.phone ?? "",
+    twoFactorRequired: true,
   };
 }
 
@@ -88,6 +92,7 @@ export function UserModal({
   showStoreField = true,
   hideRoleField = false,
   withPasswordConfirm = false,
+  showTwoFactorField = false,
   onClose,
   onSave,
   isSaving,
@@ -112,7 +117,7 @@ export function UserModal({
       : items.filter((item) => item.value !== "branch_manager");
   }, [showStoreField]);
 
-  const set = (key: keyof UserFormValues, value: string) =>
+  const set = (key: Exclude<keyof UserFormValues, "twoFactorRequired">, value: string) =>
     setForm((state) => ({ ...state, [key]: value }));
 
   const setRole = (role: UserRole | undefined) => {
@@ -327,6 +332,33 @@ export function UserModal({
                 placeholder="Optional"
               />
             </FormField>
+
+            {showTwoFactorField && !isEdit ? (
+              <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3">
+                <input
+                  type="checkbox"
+                  role="switch"
+                  className="mt-0.5 size-4 accent-[var(--primary)]"
+                  checked={form.twoFactorRequired}
+                  onChange={(e) =>
+                    setForm((state) => ({
+                      ...state,
+                      twoFactorRequired: e.target.checked,
+                    }))
+                  }
+                />
+                <span className="grid gap-0.5">
+                  <span className="text-sm font-medium leading-none">
+                    Require two-factor sign-in
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    {form.twoFactorRequired
+                      ? "They'll set up an authenticator app the first time they sign in."
+                      : "They'll sign in with only a password. You can require it later."}
+                  </span>
+                </span>
+              </label>
+            ) : null}
           </div>
 
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
