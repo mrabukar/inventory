@@ -30,6 +30,7 @@ import {
   Store,
   Boxes,
   Warehouse,
+  ClipboardCheck,
 } from "lucide-react";
 
 import { LogoMark } from "@/components/logo";
@@ -40,6 +41,7 @@ import {
 } from "@/components/ui/popover";
 import type { Role } from "@/lib/types";
 import { fetchOrganizationLogoBlob } from "@/service/upload";
+import { usePendingSalesCount } from "@/hooks/sales/use-review-sale";
 import { useAppStore } from "@/store/app";
 
 interface NavLinkItem {
@@ -76,6 +78,7 @@ const SUPER_ADMIN_NAV: NavLinkItem[] = [
 function buildAdminNav(
   hasStores: boolean,
   billingEnabled: boolean,
+  pendingSales: number,
 ): AdminNavEntry[] {
   const nav: AdminNavEntry[] = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -105,10 +108,17 @@ function buildAdminNav(
     ],
   });
 
-  nav.push(
-    { href: "/sales", label: "Sales", icon: ShoppingCart },
-    { href: "/expenses", label: "Expenses", icon: CreditCard },
-  );
+  nav.push({ href: "/sales", label: "Sales", icon: ShoppingCart, match: "exact" });
+  // Branch managers' sales wait here; orgs without stores have none.
+  if (hasStores) {
+    nav.push({
+      href: "/sales/approvals",
+      label: "Approvals",
+      icon: ClipboardCheck,
+      badge: pendingSales,
+    });
+  }
+  nav.push({ href: "/expenses", label: "Expenses", icon: CreditCard });
 
   if (hasStores) {
     nav.push({ href: "/stores", label: "Stores", icon: Store });
@@ -440,7 +450,14 @@ export function Sidebar({
 }: Props) {
   const pathname = usePathname();
   const billingEnabled = useAppStore((s) => s.user?.billingEnabled ?? false);
-  const adminNav = buildAdminNav(hasStores !== false, billingEnabled);
+  const { data: pendingSales = 0 } = usePendingSalesCount(
+    role === "admin" && hasStores !== false,
+  );
+  const adminNav = buildAdminNav(
+    hasStores !== false,
+    billingEnabled,
+    pendingSales,
+  );
   const managerNav = buildManagerNav(billingEnabled);
 
   return (
