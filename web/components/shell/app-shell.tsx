@@ -33,6 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     !authLoading &&
     isAuthenticated &&
     user != null &&
+    user.twoFactorRequired &&
     !user.twoFactorEnabled;
 
   const isSetup2faPage = pathname === "/setup-2fa";
@@ -66,7 +67,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (!isFetched || authLoading || !user || roleDenied) return null;
 
-  if (needs2faSetup && isSetup2faPage) {
+  // Setup runs full-screen, whether required or chosen from Profile.
+  if (isSetup2faPage && !user.twoFactorEnabled) {
     return <>{children}</>;
   }
 
