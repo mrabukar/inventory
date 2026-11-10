@@ -44,12 +44,23 @@ export function StatusBadge({ active }: { active: boolean }) {
   return <Badge color={active ? "emerald" : "rose"}>{active ? "Active" : "Inactive"}</Badge>;
 }
 
-export function SaleStatusBadge({ status }: { status: "active" | "corrected" }) {
-  return (
-    <Badge color={status === "corrected" ? "amber" : "emerald"}>
-      {status === "corrected" ? "Corrected" : "Active"}
-    </Badge>
-  );
+const SALE_STATUS_BADGE: Record<
+  "pending" | "active" | "corrected" | "rejected",
+  { color: Color; label: string }
+> = {
+  pending: { color: "amber", label: "Awaiting approval" },
+  active: { color: "emerald", label: "Approved" },
+  corrected: { color: "violet", label: "Corrected" },
+  rejected: { color: "rose", label: "Rejected" },
+};
+
+export function SaleStatusBadge({
+  status,
+}: {
+  status: "pending" | "active" | "corrected" | "rejected";
+}) {
+  const { color, label } = SALE_STATUS_BADGE[status] ?? SALE_STATUS_BADGE.active;
+  return <Badge color={color}>{label}</Badge>;
 }
 
 export function SupplyTypeBadge({
