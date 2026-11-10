@@ -13,12 +13,12 @@ import { getLast30DaysRange } from "@/lib/filters/dates";
 import { isSaleWithinCorrectionWindow } from "@/lib/sales/correction-window";
 import { useAppStore } from "@/store/app";
 import type { CorrectSaleItemInput } from "@/types/sales/create-sale";
-import type { Sale, SaleStatus } from "@/types/sales/sale";
+import {
+  SALE_STATUS_ITEMS,
+  type Sale,
+  type SaleStatus,
+} from "@/types/sales/sale";
 
-const STATUS_ITEMS = [
-  { value: "active", label: "Active" },
-  { value: "corrected", label: "Corrected" },
-] as const;
 
 export default function SalesHistoryPage() {
   const addToast = useAppStore((s) => s.addToast);
@@ -99,7 +99,7 @@ export default function SalesHistoryPage() {
           setStatus(value as SaleStatus | undefined);
           setPageIndex(0);
         }}
-        items={[...STATUS_ITEMS]}
+        items={SALE_STATUS_ITEMS}
         placeholder="All status"
         clearOption={{ label: "All status" }}
         className="min-w-[140px]"
