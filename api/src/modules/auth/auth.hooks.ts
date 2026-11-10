@@ -296,6 +296,20 @@ export class AuthSignInHook {
 
 @Hook()
 @Injectable()
+export class AuthTwoFactorHook {
+  // Turning 2FA off goes through POST /me/two-factor/disable (admins only,
+  // password + code) or an admin action on the user. Block the plugin's own
+  // endpoint so no one can bypass those rules.
+  @BeforeHook("/two-factor/disable")
+  blockPluginDisable(): void {
+    throw new APIError("FORBIDDEN", {
+      message: "Ask an admin to turn off two-factor authentication",
+    });
+  }
+}
+
+@Hook()
+@Injectable()
 export class AuthChangePasswordHook {
   constructor(private readonly prisma: PrismaService) {}
 
