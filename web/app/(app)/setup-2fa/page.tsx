@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
@@ -9,7 +10,11 @@ import { LogoMark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { BackupCodesDisplay } from "@/components/auth/backup-codes-display";
 import { useEnableTwoFactor, useVerifyTotp } from "@/hooks/auth/use-two-factor";
-import { fetchCurrentUser, SESSION_QUERY_KEY } from "@/hooks/auth/session";
+import {
+  fetchCurrentUser,
+  SESSION_QUERY_KEY,
+  useSession,
+} from "@/hooks/auth/session";
 import { homePathForRole } from "@/lib/auth/routes";
 import { useAppStore } from "@/store/app";
 import { cn } from "@/lib/utils";
@@ -34,6 +39,9 @@ export default function SetupTwoFactorPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const setUser = useAppStore((s) => s.setUser);
+  // Users who chose to set up 2FA (not required) can back out.
+  const { user: sessionUser } = useSession();
+  const isOptional = sessionUser?.twoFactorRequired === false;
 
   const enableTwoFactor = useEnableTwoFactor();
   const verifyTotp = useVerifyTotp();
@@ -195,6 +203,11 @@ export default function SetupTwoFactorPage() {
               >
                 {isPending ? "Setting up..." : "Continue"}
               </Button>
+              {isOptional ? (
+                <Button className="w-full" variant="ghost" asChild>
+                  <Link href="/settings/profile">Not now</Link>
+                </Button>
+              ) : null}
             </div>
           )}
 
