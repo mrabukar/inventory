@@ -1,7 +1,16 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { AuditAction, Prisma } from "@prisma/client";
+import { AuthService } from "@thallesp/nestjs-better-auth";
 import { PrismaService } from "../../prisma/prisma.service";
+import type { AppAuth } from "./auth.config";
+import { DisableOwnTwoFactorDto } from "./dto/disable-own-two-factor.dto";
 import { UpdateMeDto } from "./dto/update-me.dto";
+import { revokeTrustedDevices } from "./revoke-trusted-devices.util";
+import { secretFromTotpUri, verifyTotp } from "./totp.util";
 
 const storeSelect = {
   id: true,
@@ -34,6 +43,7 @@ const userSelect = {
   isActive: true,
   phone: true,
   twoFactorEnabled: true,
+  twoFactorRequired: true,
 } as const;
 
 export type MeStore = {
@@ -59,7 +69,10 @@ export type MeOrganization = {
 
 @Injectable()
 export class MeService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authService: AuthService<AppAuth>,
+  ) {}
 
   async getProfile(sessionUser: Record<string, unknown>) {
     const userId =
@@ -158,6 +171,73 @@ export class MeService {
         organization,
       },
     };
+  }
+
+  /**
+   * Admin turns off their own 2FA. Requires the current password and a live
+   * authenticator code so a hijacked session alone cannot strip 2FA.
+   */
+  async disableOwnTwoFactor(
+    userId: string,
+    dto: DisableOwnTwoFactorDto,
+    headers: Headers,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: userSelect,
+    });
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+    if (!user.twoFactorEnabled) {
+      throw new BadRequestException("Two-factor authentication is already off");
+    }
+
+    // Better-Auth checks the password and returns the URI holding the secret.
+    let totpURI: string;
+    try {
+      ({ totpURI } = await this.authService.api.getTOTPURI({
+        body: { password: dto.password },
+        headers,
+      }));
+    } catch {
+      throw new BadRequestException("Incorrect password");
+    }
+
+    const secret = secretFromTotpUri(totpURI);
+    if (!secret || !verifyTotp(dto.code, secret)) {
+      throw new BadRequestException("That code is incorrect or has expired");
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.twoFactor.deleteMany({ where: { userId } });
+      await revokeTrustedDevices(tx, userId);
+      await tx.user.update({
+        where: { id: userId },
+        data: { twoFactorEnabled: false, twoFactorRequired: false },
+      });
+    });
+
+    if (user.organizationId) {
+      await this.prisma.auditLog.create({
+        data: {
+          userId,
+          organizationId: user.organizationId,
+          action: AuditAction.USER_2FA_DISABLED,
+          entityType: "user",
+          entityId: userId,
+          oldValue: {
+            twoFactorEnabled: true,
+            twoFactorRequired: user.twoFactorRequired,
+          },
+          newValue: {
+            twoFactorEnabled: false,
+            twoFactorRequired: false,
+            changedBy: userId,
+          },
+        },
+      });
+    }
   }
 
   private toAuditSnapshot(
