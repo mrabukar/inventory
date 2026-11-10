@@ -16,6 +16,7 @@ export function mapApiUserToAppUser(apiUser: ApiUser): AppUser {
     phone: apiUser.phone ?? null,
     role,
     twoFactorEnabled: apiUser.twoFactorEnabled ?? false,
+    twoFactorRequired: apiUser.twoFactorRequired ?? true,
     storeId: apiUser.storeId,
     store: apiUser.store?.name ?? null,
     organizationId: apiUser.organization?.id ?? apiUser.organizationId ?? null,
