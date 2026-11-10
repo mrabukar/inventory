@@ -57,7 +57,33 @@ export function SaleDetailSheet({ sale, onClose }: SaleDetailSheetProps) {
         ) : null}
         <DetailRow label="Sale date" value={formatSaleDate(sale.saleDate)} />
         <DetailRow label="Total units" value={saleUnitsSold(sale)} />
+        {sale.reviewedBy ? (
+          <DetailRow
+            label={sale.status === "rejected" ? "Rejected by" : "Approved by"}
+            value={`${sale.reviewedBy.name}${
+              sale.reviewedAt ? ` · ${formatRelativeTime(sale.reviewedAt)}` : ""
+            }`}
+          />
+        ) : null}
       </div>
+
+      {sale.status === "rejected" && sale.rejectionReason ? (
+        <div
+          role="note"
+          style={{
+            marginTop: 16,
+            padding: 12,
+            borderRadius: 8,
+            border: "1px solid var(--border)",
+            background: "var(--bg2)",
+          }}
+        >
+          <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>
+            Reason for rejection
+          </div>
+          <div>{sale.rejectionReason}</div>
+        </div>
+      ) : null}
 
       <div style={{ marginTop: 24 }}>
         <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Items</h3>
