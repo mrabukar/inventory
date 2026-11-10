@@ -16,7 +16,9 @@ import { fmt } from "@/lib/utils";
 import {
   saleProductSummary,
   saleUnitsSold,
+  SALE_STATUS_LABEL,
   type Sale,
+  type SaleStatus,
 } from "@/types/sales/sale";
 
 interface SalesHistoryTableProps {
@@ -112,10 +114,25 @@ export function SalesHistoryTable({
           label: "Status",
           align: "center",
           exportValue: (row: Sale) =>
-            row.status === "corrected" ? "Corrected" : "Active",
+            SALE_STATUS_LABEL[row.status as SaleStatus] ?? row.status,
         },
         header: "Status",
-        cell: ({ row }) => <SaleStatusBadge status={row.original.status} />,
+        cell: ({ row }) => {
+          const { status, rejectionReason } = row.original;
+          return (
+            <div className="inline-flex flex-col items-center gap-1">
+              <SaleStatusBadge status={status} />
+              {status === "rejected" && rejectionReason ? (
+                <span
+                  className="max-w-[220px] text-xs text-muted-foreground"
+                  title={rejectionReason}
+                >
+                  {rejectionReason}
+                </span>
+              ) : null}
+            </div>
+          );
+        },
         enableSorting: false,
       },
       {
@@ -123,14 +140,20 @@ export function SalesHistoryTable({
         meta: { export: false, align: "center" },
         header: "Actions",
         cell: ({ row }) => {
-          const corrected = row.original.status === "corrected";
+          const { status } = row.original;
+          const corrected = status === "corrected";
+          const notApproved = status === "pending" || status === "rejected";
           const withinWindow = isSaleWithinCorrectionWindow(
             row.original.createdAt,
           );
-          const disabled = corrected || !withinWindow;
+          const disabled = corrected || notApproved || !withinWindow;
           const title = corrected
             ? "Already corrected"
-            : !withinWindow
+            : status === "pending"
+              ? "Waiting for an admin to approve"
+              : status === "rejected"
+                ? "Rejected sales can't be corrected"
+                : !withinWindow
               ? `Corrections only within ${SALE_CORRECTION_WINDOW_HOURS} hours of recording`
               : "Correct";
           return (
