@@ -240,7 +240,8 @@ export default function SalesPage() {
         onCorrect={
           canCorrect
             ? (sale) => {
-                if (!isSaleWithinCorrectionWindow(sale.createdAt)) return;
+                if (!isSaleWithinCorrectionWindow(sale.createdAt, user?.hasStores ?? null))
+                  return;
                 setCorrect(sale);
               }
             : undefined
