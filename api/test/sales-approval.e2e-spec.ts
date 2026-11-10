@@ -285,6 +285,150 @@ describeDb("Sale approval and 2FA management (PostgreSQL)", () => {
     expect(sale.status).toBe("active");
   });
 
+  describe("corrections in an organization without stores", () => {
+    let orgId: string;
+    let soloAdmin: CurrentUserPayload;
+    let soloProductId: string;
+    let customerId: string;
+
+    const daysAgo = (days: number) =>
+      new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    beforeAll(async () => {
+      const org = await prisma.organization.create({
+        data: {
+          name: `Solo ${randomUUID().slice(0, 8)}`,
+          hasStores: false,
+          billingEnabled: true,
+        },
+      });
+      orgId = org.id;
+      soloAdmin = await makeUser(orgId, UserRole.admin, null);
+      const warehouse = await new StoresService(prisma).ensureOrgWarehouse(
+        orgId,
+      );
+      const category = await prisma.category.create({
+        data: { name: "Goods", organizationId: orgId },
+      });
+      const product = await prisma.product.create({
+        data: {
+          name: "Item",
+          normalizedName: `item-${randomUUID()}`,
+          categoryId: category.id,
+          sellingPrice: 1,
+          organizationId: orgId,
+          createdById: soloAdmin.id,
+        },
+      });
+      soloProductId = product.id;
+      await prisma.inventory.create({
+        data: {
+          productId: soloProductId,
+          storeId: warehouse.id,
+          organizationId: orgId,
+          quantity: 1000,
+        },
+      });
+      const customer = await prisma.customer.create({
+        data: {
+          name: "Buyer",
+          organizationId: orgId,
+          createdById: soloAdmin.id,
+        },
+      });
+      customerId = customer.id;
+    });
+
+    const sellToCustomer = (quantitySold: number, paidAmount = 0) =>
+      inOrg(orgId, () =>
+        sales.create(
+          {
+            items: [{ productId: soloProductId, quantitySold }],
+            saleDate: today,
+            customerId,
+            paidAmount,
+          },
+          soloAdmin,
+        ),
+      );
+
+    const correctTo = (
+      sale: Awaited<ReturnType<typeof sellToCustomer>>,
+      qty: number,
+    ) =>
+      inOrg(orgId, () =>
+        sales.correct(
+          sale.id,
+          {
+            items: [{ saleItemId: sale.items[0].id, correctedQuantity: qty }],
+            reason: "Customer returned items",
+          },
+          soloAdmin,
+        ),
+      );
+
+    const owed = async (saleId: string) => {
+      const inv = await prisma.invoice.findUniqueOrThrow({ where: { saleId } });
+      return Number(inv.total) - Number(inv.paidAmount);
+    };
+
+    it("drops an unpaid balance from $100 to $50 when 100 items become 50", async () => {
+      const sale = await sellToCustomer(100);
+      expect(await owed(sale.id)).toBe(100);
+
+      await correctTo(sale, 50);
+
+      expect(await owed(sale.id)).toBe(50);
+    });
+
+    it("keeps the remaining balance right when the customer part-paid", async () => {
+      const sale = await sellToCustomer(100, 30);
+      expect(await owed(sale.id)).toBe(70);
+
+      await correctTo(sale, 50);
+
+      expect(await owed(sale.id)).toBe(20);
+    });
+
+    it("allows a correction 20 days after recording but not 31", async () => {
+      const recent = await sellToCustomer(10);
+      await prisma.sale.update({
+        where: { id: recent.id },
+        data: { createdAt: daysAgo(20) },
+      });
+      await expect(correctTo(recent, 5)).resolves.toBeDefined();
+
+      const old = await sellToCustomer(10);
+      await prisma.sale.update({
+        where: { id: old.id },
+        data: { createdAt: daysAgo(31) },
+      });
+      await expect(correctTo(old, 5)).rejects.toThrow(/30 days/);
+    });
+
+    it("keeps the 12-hour window for branch managers", async () => {
+      const sale = await sell(manager, 2, 1000);
+      await inOrg(organizationId, () => sales.approve(sale.id, admin));
+      await prisma.sale.update({
+        where: { id: sale.id },
+        data: { createdAt: new Date(Date.now() - 13 * 60 * 60 * 1000) },
+      });
+
+      await expect(
+        inOrg(organizationId, () =>
+          sales.correct(
+            sale.id,
+            {
+              items: [{ saleItemId: sale.items[0].id, correctedQuantity: 1 }],
+              reason: "typo",
+            },
+            manager,
+          ),
+        ),
+      ).rejects.toThrow(/12 hours/);
+    });
+  });
+
   describe("admin 2FA management", () => {
     it("turns off a pending requirement, requires it again, and blocks self-changes", async () => {
       const target = await makeUser(
