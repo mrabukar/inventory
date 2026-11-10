@@ -27,8 +27,13 @@ import { SaleQueryDto } from "./dto/sale-query.dto";
 import { parseAndValidateSaleDate } from "./sale-date.util";
 import { toMoneyNumber } from "../../common/utils/money.util";
 
-/** Sales may only be corrected within this many hours of recording (`createdAt`). */
+/**
+ * Sales may only be corrected within this many hours of recording (`createdAt`).
+ * Branch managers get a short window; organizations without stores (where the
+ * admin records and corrects sales) get 30 days.
+ */
 const SALE_CORRECTION_WINDOW_HOURS = 12;
+const NO_STORES_CORRECTION_WINDOW_HOURS = 30 * 24;
 
 const saleInclude = {
   items: {
@@ -429,10 +434,18 @@ export class SalesService {
       );
     }
 
+    // resolveSaleStoreId only lets an admin through for organizations without
+    // stores, so an admin here means the long window applies.
+    const isNoStoresOrg = user.role === UserRole.admin;
+    const windowHours = isNoStoresOrg
+      ? NO_STORES_CORRECTION_WINDOW_HOURS
+      : SALE_CORRECTION_WINDOW_HOURS;
     const ageMs = Date.now() - sale.createdAt.getTime();
-    if (ageMs > SALE_CORRECTION_WINDOW_HOURS * 60 * 60 * 1000) {
+    if (ageMs > windowHours * 60 * 60 * 1000) {
       throw new BadRequestException(
-        `Corrections are only allowed within ${SALE_CORRECTION_WINDOW_HOURS} hours of recording`,
+        isNoStoresOrg
+          ? "Corrections are only allowed within 30 days of recording"
+          : `Corrections are only allowed within ${SALE_CORRECTION_WINDOW_HOURS} hours of recording`,
       );
     }
 
