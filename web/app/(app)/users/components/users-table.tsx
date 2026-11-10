@@ -2,13 +2,19 @@
 
 import { useMemo } from "react";
 import type { ColumnDef, PaginationState } from "@tanstack/react-table";
-import { Pencil, Power, PowerOff, ShieldOff } from "lucide-react";
+import { Pencil, Power, PowerOff, ShieldCheck } from "lucide-react";
 
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { Badge, RoleBadge, StatusBadge } from "@/components/ui/badge";
 import { formatRelativeTime } from "@/lib/format-relative-time";
-import type { User } from "@/types/users/user";
+import { twoFactorState, type User } from "@/types/users/user";
+
+const TWO_FACTOR_LABEL = {
+  on: "On",
+  pending: "Setup pending",
+  off: "Off",
+} as const;
 
 interface UsersTableProps {
   rows: User[];
@@ -23,7 +29,7 @@ interface UsersTableProps {
   onEdit: (user: User) => void;
   onDeactivate: (user: User) => void;
   onActivate: (user: User) => void;
-  onResetTwoFactor?: (user: User) => void;
+  onManageTwoFactor?: (user: User) => void;
   toolbarExtra?: React.ReactNode;
 }
 
@@ -40,7 +46,7 @@ export function UsersTable({
   onEdit,
   onDeactivate,
   onActivate,
-  onResetTwoFactor,
+  onManageTwoFactor,
   toolbarExtra,
 }: UsersTableProps) {
   const columns = useMemo<ColumnDef<User>[]>(
@@ -106,15 +112,37 @@ export function UsersTable({
         accessorKey: "twoFactorEnabled",
         meta: {
           label: "2FA",
-          exportValue: (row: User) =>
-            row.twoFactorEnabled ? "Active" : "Pending",
+          exportValue: (row: User) => TWO_FACTOR_LABEL[twoFactorState(row)],
         },
         header: "2FA",
-        cell: ({ row }) => (
-          <Badge color={row.original.twoFactorEnabled ? "emerald" : "amber"}>
-            {row.original.twoFactorEnabled ? "Active" : "Pending"}
-          </Badge>
-        ),
+        cell: ({ row }) => {
+          const state = twoFactorState(row.original);
+          const unprotectedAdmin =
+            state === "off" && row.original.role === "admin";
+          return (
+            <span className="inline-flex items-center gap-1.5">
+              <Badge
+                color={
+                  state === "on"
+                    ? "emerald"
+                    : state === "pending"
+                      ? "amber"
+                      : "slate"
+                }
+              >
+                {TWO_FACTOR_LABEL[state]}
+              </Badge>
+              {unprotectedAdmin ? (
+                <span
+                  className="text-xs font-medium text-rose-600"
+                  title="This admin signs in with only a password"
+                >
+                  Unprotected
+                </span>
+              ) : null}
+            </span>
+          );
+        },
         enableSorting: false,
       },
       {
@@ -144,14 +172,15 @@ export function UsersTable({
             >
               <Pencil size={16} />
             </button>
-            {row.original.twoFactorEnabled && onResetTwoFactor && (
+            {onManageTwoFactor && (
               <button
                 type="button"
-                className="dt-act danger"
-                title="Reset 2FA"
-                onClick={() => onResetTwoFactor(row.original)}
+                className="dt-act"
+                title="Two-factor sign-in"
+                aria-label={`Two-factor sign-in for ${row.original.name}`}
+                onClick={() => onManageTwoFactor(row.original)}
               >
-                <ShieldOff size={16} />
+                <ShieldCheck size={16} />
               </button>
             )}
             {row.original.isActive ? (
@@ -179,7 +208,7 @@ export function UsersTable({
         enableHiding: false,
       },
     ],
-    [onEdit, onDeactivate, onActivate, onResetTwoFactor],
+    [onEdit, onDeactivate, onActivate, onManageTwoFactor],
   );
 
   return (
