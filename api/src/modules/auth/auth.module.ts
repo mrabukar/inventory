@@ -9,6 +9,7 @@ import {
   AuthChangePasswordHook,
   AuthSignInHook,
   AuthSignUpHook,
+  AuthTwoFactorHook,
   AuthUserDatabaseHook,
 } from "./auth.hooks";
 
@@ -32,6 +33,7 @@ import {
     AuthSignInHook,
     AuthSignUpHook,
     AuthChangePasswordHook,
+    AuthTwoFactorHook,
     AuthUserDatabaseHook,
     MeService,
   ],
