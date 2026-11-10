@@ -30,6 +30,7 @@ export interface ApiUser {
   organizationId?: string | null;
   isActive: boolean;
   twoFactorEnabled?: boolean;
+  twoFactorRequired?: boolean;
   phone?: string | null;
   store?: MeStore | null;
   organization?: MeOrganization | null;
