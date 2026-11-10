@@ -5,7 +5,18 @@ import type { Customer } from "@/types/customers/customer";
 import type { SaleLocation } from "@/types/sales/sale-location";
 import { toNumber } from "@/lib/reports/format";
 
-export type SaleStatus = "active" | "corrected";
+export type SaleStatus = "pending" | "active" | "corrected" | "rejected";
+
+export const SALE_STATUS_LABEL: Record<SaleStatus, string> = {
+  pending: "Awaiting approval",
+  active: "Approved",
+  corrected: "Corrected",
+  rejected: "Rejected",
+};
+
+export const SALE_STATUS_ITEMS = (
+  ["pending", "active", "corrected", "rejected"] as const
+).map((value) => ({ value, label: SALE_STATUS_LABEL[value] }));
 
 export interface SaleInvoiceSummary {
   id: string;
@@ -56,6 +67,11 @@ export interface Sale {
   saleDate: string;
   note: string | null;
   status: SaleStatus;
+  /** Counter payment held while the sale awaits approval (billing orgs). */
+  paidAtSubmission?: number | string | null;
+  reviewedAt?: string | null;
+  reviewedBy?: { id: string; name: string } | null;
+  rejectionReason?: string | null;
   createdAt: string;
   updatedAt: string;
   items: SaleItem[];
