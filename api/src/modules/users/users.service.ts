@@ -11,6 +11,7 @@ import { orderByUpdatedAtDesc } from "../../common/utils/list-order.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { revokeTrustedDevices } from "../auth/revoke-trusted-devices.util";
 import { PaginatedResult } from "../stores/stores.service";
+import type { TwoFactorAction } from "./dto/two-factor-action.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UserQueryDto } from "./dto/user-query.dto";
 
@@ -226,38 +227,81 @@ export class UsersService {
     return user;
   }
 
-  async resetTwoFactor(
+  /**
+   * - disable: remove the authenticator and stop requiring 2FA (password-only login).
+   * - require: make 2FA mandatory again; the user sets it up at next login.
+   * - reset:   remove the authenticator and require a fresh setup (lost phone).
+   * Admins turn off their own 2FA via /me/two-factor/disable, which re-verifies them.
+   */
+  async manageTwoFactor(
     id: string,
+    action: TwoFactorAction,
     actor: CurrentUserPayload,
   ): Promise<void> {
-    if (id === actor.id) {
-      throw new BadRequestException("You cannot reset your own 2FA");
+    if (id === actor.id && action !== "require") {
+      throw new BadRequestException(
+        "Use your profile's security settings to change your own 2FA",
+      );
     }
 
     const existing = await this.findOne(id);
+    const before = {
+      twoFactorEnabled: existing.twoFactorEnabled,
+      twoFactorRequired: existing.twoFactorRequired,
+    };
 
-    if (!existing.twoFactorEnabled) {
-      throw new BadRequestException("User does not have 2FA enabled");
+    let after: typeof before;
+    let auditAction: AuditAction;
+
+    switch (action) {
+      case "disable":
+        if (!existing.twoFactorEnabled && !existing.twoFactorRequired) {
+          throw new BadRequestException("2FA is already off for this user");
+        }
+        after = { twoFactorEnabled: false, twoFactorRequired: false };
+        auditAction = AuditAction.USER_2FA_DISABLED;
+        break;
+      case "require":
+        if (existing.twoFactorRequired) {
+          throw new BadRequestException(
+            "2FA is already required for this user",
+          );
+        }
+        after = {
+          twoFactorEnabled: existing.twoFactorEnabled,
+          twoFactorRequired: true,
+        };
+        auditAction = AuditAction.USER_2FA_REQUIRED;
+        break;
+      case "reset":
+        if (!existing.twoFactorEnabled) {
+          throw new BadRequestException("User does not have 2FA set up");
+        }
+        after = { twoFactorEnabled: false, twoFactorRequired: true };
+        auditAction = AuditAction.USER_2FA_RESET;
+        break;
     }
 
+    const clearsAuthenticator =
+      existing.twoFactorEnabled && !after.twoFactorEnabled;
+
     await this.prisma.$transaction(async (tx) => {
-      await tx.twoFactor.deleteMany({ where: { userId: id } });
-      await tx.user.update({
-        where: { id },
-        data: { twoFactorEnabled: false },
-      });
-      await revokeTrustedDevices(tx, id);
+      if (clearsAuthenticator) {
+        await tx.twoFactor.deleteMany({ where: { userId: id } });
+        await revokeTrustedDevices(tx, id);
+      }
+      await tx.user.update({ where: { id }, data: after });
     });
 
     await this.prisma.auditLog.create({
       data: {
         userId: actor.id,
         organizationId: this.resolveAuditOrganizationId(actor, existing),
-        action: AuditAction.USER_2FA_RESET,
+        action: auditAction,
         entityType: "user",
         entityId: id,
-        oldValue: { twoFactorEnabled: true },
-        newValue: { twoFactorEnabled: false, resetBy: actor.id },
+        oldValue: before,
+        newValue: { ...after, changedBy: actor.id },
       },
     });
   }
