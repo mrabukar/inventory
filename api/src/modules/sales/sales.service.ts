@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -21,6 +22,7 @@ import { ProductsService } from "../products/products.service";
 import { PaginatedResult } from "../stores/stores.service";
 import { CorrectSaleDto } from "./dto/correct-sale.dto";
 import { CreateSaleDto } from "./dto/create-sale.dto";
+import { RejectSaleDto } from "./dto/reject-sale.dto";
 import { SaleQueryDto } from "./dto/sale-query.dto";
 import { parseAndValidateSaleDate } from "./sale-date.util";
 import { toMoneyNumber } from "../../common/utils/money.util";
@@ -38,12 +40,15 @@ const saleInclude = {
   location: true,
   invoice: true,
   soldBy: { select: { id: true, name: true, email: true } },
+  reviewedBy: { select: { id: true, name: true } },
   corrections: { orderBy: { createdAt: "desc" as const } },
 } satisfies Prisma.SaleInclude;
 
 export type SaleWithDetails = Prisma.SaleGetPayload<{
   include: typeof saleInclude;
 }>;
+
+type Tx = Prisma.TransactionClient;
 
 @Injectable()
 export class SalesService {
@@ -259,6 +264,10 @@ export class SalesService {
       );
     }
 
+    // Branch managers' sales wait for an admin. Stock is still taken now so
+    // the shelf count stays truthful; rejection puts it back.
+    const needsApproval = user.role === UserRole.branch_manager;
+
     const saleId = await this.prisma.$transaction(async (tx) => {
       const sale = await tx.sale.create({
         data: withOrganizationId(
@@ -270,7 +279,8 @@ export class SalesService {
             totalAmount,
             saleDate,
             note: dto.note,
-            status: "active",
+            status: needsApproval ? "pending" : "active",
+            paidAtSubmission: needsApproval && billingEnabled ? paidNow : null,
           },
           organizationId,
         ),
@@ -342,55 +352,14 @@ export class SalesService {
         });
       }
 
-      if (billingEnabled) {
-        // Atomically allocate the next per-org invoice number (row-locked).
-        const { nextInvoiceNumber } = await tx.organization.update({
-          where: { id: organizationId },
-          data: { nextInvoiceNumber: { increment: 1 } },
-          select: { nextInvoiceNumber: true },
-        });
-        const number = nextInvoiceNumber - 1;
-        const numberLabel = `INV-${String(number).padStart(4, "0")}`;
-
-        const invoiceStatus =
-          paidNow >= totalAmount ? "paid" : paidNow > 0 ? "partial" : "unpaid";
-
-        const invoice = await tx.invoice.create({
-          data: withOrganizationId(
-            {
-              saleId: sale.id,
-              customerId: dto.customerId ?? null,
-              number,
-              numberLabel,
-              total: totalAmount,
-              // Sale-time payment stored directly on the invoice — no payment
-              // row created so corrections can adjust this cleanly.
-              paidAtSale: paidNow,
-              paidAmount: paidNow,
-              status: invoiceStatus,
-            },
-            organizationId,
-          ),
-        });
-
-        await tx.auditLog.create({
-          data: {
-            userId: user.id,
-            organizationId,
-            action: "INVOICE_CREATED",
-            entityType: "invoice",
-            entityId: invoice.id,
-            oldValue: Prisma.JsonNull,
-            newValue: {
-              id: invoice.id,
-              numberLabel,
-              saleId: sale.id,
-              customerId: dto.customerId,
-              total: totalAmount,
-              paidAtSale: paidNow,
-              status: invoiceStatus,
-            },
-          },
+      if (billingEnabled && !needsApproval) {
+        await this.createInvoiceForSale(tx, {
+          saleId: sale.id,
+          organizationId,
+          customerId: dto.customerId ?? null,
+          totalAmount,
+          paidNow,
+          actorId: user.id,
         });
       }
 
@@ -408,6 +377,7 @@ export class SalesService {
             customerId: dto.customerId ?? null,
             totalAmount,
             saleDate,
+            status: needsApproval ? "pending" : "active",
             items: lines.map((line) => ({
               productId: line.product.id,
               productName: line.product.name,
@@ -449,6 +419,14 @@ export class SalesService {
 
     if (!sale) {
       throw new NotFoundException(`Sale with id "${saleId}" not found`);
+    }
+
+    if (sale.status === "pending" || sale.status === "rejected") {
+      throw new BadRequestException(
+        sale.status === "pending"
+          ? "This sale is waiting for approval and can't be corrected yet"
+          : "A rejected sale can't be corrected",
+      );
     }
 
     const ageMs = Date.now() - sale.createdAt.getTime();
@@ -657,6 +635,260 @@ export class SalesService {
       }),
       user,
     );
+  }
+
+  async countPending(user: CurrentUserPayload): Promise<{ count: number }> {
+    const organizationId = requireOrganizationId(user);
+    const count = await this.prisma.sale.count({
+      where: { organizationId, status: "pending" },
+    });
+    return { count };
+  }
+
+  async approve(
+    saleId: string,
+    user: CurrentUserPayload,
+  ): Promise<SaleWithDetails> {
+    const organizationId = requireOrganizationId(user);
+
+    await this.prisma.$transaction(async (tx) => {
+      const sale = await this.claimPendingSale(tx, saleId, organizationId, {
+        status: "active",
+        reviewedById: user.id,
+        reviewedAt: new Date(),
+      });
+
+      const org = await tx.organization.findUnique({
+        where: { id: organizationId },
+        select: { billingEnabled: true },
+      });
+
+      if (org?.billingEnabled) {
+        const totalAmount = toMoneyNumber(sale.totalAmount);
+        await this.createInvoiceForSale(tx, {
+          saleId,
+          organizationId,
+          customerId: sale.customerId,
+          totalAmount,
+          paidNow: Math.min(
+            toMoneyNumber(sale.paidAtSubmission ?? 0),
+            totalAmount,
+          ),
+          actorId: user.id,
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          organizationId,
+          action: "SALE_APPROVED",
+          entityType: "sale",
+          entityId: saleId,
+          oldValue: { status: "pending" },
+          newValue: { status: "active", reviewedById: user.id },
+        },
+      });
+    }, MUTATION_TRANSACTION_OPTIONS);
+
+    return this.findOne(saleId, user);
+  }
+
+  async reject(
+    saleId: string,
+    dto: RejectSaleDto,
+    user: CurrentUserPayload,
+  ): Promise<SaleWithDetails> {
+    const organizationId = requireOrganizationId(user);
+    const reason = dto.reason.trim();
+    if (!reason) {
+      throw new BadRequestException("A reason is required to reject a sale");
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const sale = await this.claimPendingSale(tx, saleId, organizationId, {
+        status: "rejected",
+        rejectionReason: reason,
+        reviewedById: user.id,
+        reviewedAt: new Date(),
+      });
+
+      const items = await tx.saleItem.findMany({
+        where: { saleId },
+        select: { productId: true, storeId: true, quantitySold: true },
+      });
+
+      // Put every unit back on the shelf it came from.
+      for (const item of items) {
+        const inventory = await lockInventoryForMutation(
+          tx,
+          organizationId,
+          item.productId,
+          item.storeId,
+        );
+        if (!inventory) {
+          throw new BadRequestException(
+            "Inventory record not found for this sale item",
+          );
+        }
+
+        const previousQty = inventory.quantity;
+        const newQty = previousQty + item.quantitySold;
+        const updated = await tx.inventory.update({
+          where: {
+            productId_storeId: {
+              productId: item.productId,
+              storeId: item.storeId,
+            },
+          },
+          data: { quantity: newQty },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            organizationId,
+            action: "INVENTORY_UPDATED",
+            entityType: "inventory",
+            entityId: updated.id,
+            oldValue: {
+              quantity: previousQty,
+              productId: item.productId,
+              storeId: item.storeId,
+            },
+            newValue: {
+              quantity: newQty,
+              productId: item.productId,
+              storeId: item.storeId,
+              reason: "sale_rejected",
+              saleId,
+            },
+          },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          organizationId,
+          action: "SALE_REJECTED",
+          entityType: "sale",
+          entityId: saleId,
+          oldValue: { status: "pending" },
+          newValue: {
+            status: "rejected",
+            reason,
+            reviewedById: user.id,
+            paidAtSubmission: sale.paidAtSubmission
+              ? toMoneyNumber(sale.paidAtSubmission)
+              : null,
+          },
+        },
+      });
+    }, MUTATION_TRANSACTION_OPTIONS);
+
+    return this.findOne(saleId, user);
+  }
+
+  /**
+   * Moves a sale out of `pending` exactly once. The conditional update is the
+   * lock: a second approve/reject racing this one updates zero rows.
+   */
+  private async claimPendingSale(
+    tx: Tx,
+    saleId: string,
+    organizationId: string,
+    data: Prisma.SaleUncheckedUpdateManyInput,
+  ) {
+    const existing = await tx.sale.findFirst({
+      where: { id: saleId, organizationId },
+      select: { id: true, status: true },
+    });
+    if (!existing) {
+      throw new NotFoundException(`Sale with id "${saleId}" not found`);
+    }
+
+    const { count } = await tx.sale.updateMany({
+      where: { id: saleId, organizationId, status: "pending" },
+      data,
+    });
+    if (count !== 1) {
+      throw new ConflictException(
+        existing.status === "rejected"
+          ? "This sale has already been rejected"
+          : "This sale has already been approved",
+      );
+    }
+
+    return tx.sale.findUniqueOrThrow({
+      where: { id: saleId },
+      select: { totalAmount: true, customerId: true, paidAtSubmission: true },
+    });
+  }
+
+  /** Allocates the next invoice number and creates the sale's invoice. */
+  private async createInvoiceForSale(
+    tx: Tx,
+    input: {
+      saleId: string;
+      organizationId: string;
+      customerId: string | null;
+      totalAmount: number;
+      paidNow: number;
+      actorId: string;
+    },
+  ): Promise<void> {
+    const { saleId, organizationId, customerId, totalAmount, paidNow } = input;
+
+    // Atomically allocate the next per-org invoice number (row-locked).
+    const { nextInvoiceNumber } = await tx.organization.update({
+      where: { id: organizationId },
+      data: { nextInvoiceNumber: { increment: 1 } },
+      select: { nextInvoiceNumber: true },
+    });
+    const number = nextInvoiceNumber - 1;
+    const numberLabel = `INV-${String(number).padStart(4, "0")}`;
+
+    const invoiceStatus =
+      paidNow >= totalAmount ? "paid" : paidNow > 0 ? "partial" : "unpaid";
+
+    const invoice = await tx.invoice.create({
+      data: withOrganizationId(
+        {
+          saleId,
+          customerId,
+          number,
+          numberLabel,
+          total: totalAmount,
+          // Sale-time payment stored directly on the invoice — no payment
+          // row created so corrections can adjust this cleanly.
+          paidAtSale: paidNow,
+          paidAmount: paidNow,
+          status: invoiceStatus,
+        },
+        organizationId,
+      ),
+    });
+
+    await tx.auditLog.create({
+      data: {
+        userId: input.actorId,
+        organizationId,
+        action: "INVOICE_CREATED",
+        entityType: "invoice",
+        entityId: invoice.id,
+        oldValue: Prisma.JsonNull,
+        newValue: {
+          id: invoice.id,
+          numberLabel,
+          saleId,
+          customerId,
+          total: totalAmount,
+          paidAtSale: paidNow,
+          status: invoiceStatus,
+        },
+      },
+    });
   }
 
   private findManagerStore(storeId: string) {
