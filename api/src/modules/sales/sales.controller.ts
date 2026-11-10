@@ -17,6 +17,7 @@ import {
 import { Roles } from "../../common/decorators/roles.decorator";
 import { CorrectSaleDto } from "./dto/correct-sale.dto";
 import { CreateSaleDto } from "./dto/create-sale.dto";
+import { RejectSaleDto } from "./dto/reject-sale.dto";
 import { SaleQueryDto } from "./dto/sale-query.dto";
 import { SalesService } from "./sales.service";
 
@@ -31,6 +32,12 @@ export class SalesController {
     @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.salesService.findAll(query, user);
+  }
+
+  @Get("pending-count")
+  @Roles(UserRole.admin)
+  pendingCount(@CurrentUser() user: CurrentUserPayload) {
+    return this.salesService.countPending(user);
   }
 
   @Get(":id")
@@ -54,5 +61,21 @@ export class SalesController {
     @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.salesService.correct(id, dto, user);
+  }
+
+  @Patch(":id/approve")
+  @Roles(UserRole.admin)
+  approve(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.salesService.approve(id, user);
+  }
+
+  @Patch(":id/reject")
+  @Roles(UserRole.admin)
+  reject(
+    @Param("id") id: string,
+    @Body() dto: RejectSaleDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.salesService.reject(id, dto, user);
   }
 }
