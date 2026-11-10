@@ -22,6 +22,7 @@ export interface AppUser {
   phone: string | null;
   role: Role;
   twoFactorEnabled: boolean;
+  twoFactorRequired: boolean;
   storeId: string | null;
   store: string | null;
   organizationId: string | null;
