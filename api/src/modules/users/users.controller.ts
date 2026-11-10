@@ -14,6 +14,7 @@ import {
   type CurrentUserPayload,
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { TwoFactorActionDto } from "./dto/two-factor-action.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UserQueryDto } from "./dto/user-query.dto";
 import { UsersService } from "./users.service";
@@ -46,11 +47,12 @@ export class UsersController {
 
   @Patch(":id/two-factor")
   @HttpCode(HttpStatus.NO_CONTENT)
-  resetTwoFactor(
+  manageTwoFactor(
     @Param("id") id: string,
+    @Body() dto: TwoFactorActionDto,
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.usersService.resetTwoFactor(id, user);
+    return this.usersService.manageTwoFactor(id, dto.action, user);
   }
 
   @Patch(":id")
