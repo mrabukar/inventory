@@ -52,6 +52,7 @@ function toUserModalUser(user: OrganizationUser): User {
     storeId: user.store?.id ?? null,
     store: user.store,
     twoFactorEnabled: false,
+    twoFactorRequired: true,
     createdAt: "",
     updatedAt: "",
   };
