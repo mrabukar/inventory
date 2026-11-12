@@ -109,6 +109,23 @@ export function saleProductSummary(sale: Sale): string {
   return rest.length > 0 ? `${firstLabel} +${rest.length} more` : firstLabel;
 }
 
+/** First line's model, with "+N more" when the sale has several products. */
+export function saleModelSummary(sale: Sale): string {
+  if (sale.items.length === 0) return "—";
+  const [first, ...rest] = sale.items;
+  const model = first.product.model?.trim() || "—";
+  return rest.length > 0 ? `${model} +${rest.length} more` : model;
+}
+
+/** CSV form of the model summary. A missing model is a blank cell, not an em dash. */
+export function saleModelExport(sale: Sale): string {
+  if (sale.items.length === 0) return "";
+  const [first, ...rest] = sale.items;
+  const model = first.product.model?.trim() ?? "";
+  if (rest.length === 0) return model;
+  return model ? `${model} +${rest.length} more` : `+${rest.length} more`;
+}
+
 export function saleProfit(sale: Sale): number {
   return sale.items.reduce((sum, item) => {
     const cost =

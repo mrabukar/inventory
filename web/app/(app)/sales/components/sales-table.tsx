@@ -14,6 +14,8 @@ import {
 } from "@/lib/sales/correction-window";
 import { fmt } from "@/lib/utils";
 import {
+  saleModelExport,
+  saleModelSummary,
   saleProductSummary,
   saleProfit,
   saleUnitsSold,
@@ -88,17 +90,31 @@ export function SalesTable({
         ),
       },
       {
-        id: "items",
+        id: "product",
         accessorFn: (row) => saleProductSummary(row),
         meta: {
-          label: "Items",
+          label: "Product",
           exportValue: (row: Sale) => saleProductSummary(row),
         },
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Items" />
+          <DataTableColumnHeader column={column} title="Product" />
         ),
         cell: ({ row }) => (
           <span className="strong">{saleProductSummary(row.original)}</span>
+        ),
+      },
+      {
+        id: "model",
+        accessorFn: (row) => saleModelExport(row),
+        meta: {
+          label: "Model",
+          exportValue: (row: Sale) => saleModelExport(row),
+        },
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Model" />
+        ),
+        cell: ({ row }) => (
+          <span className="muted">{saleModelSummary(row.original)}</span>
         ),
       },
       {
