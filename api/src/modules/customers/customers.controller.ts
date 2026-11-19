@@ -27,8 +27,11 @@ export class CustomersController {
 
   @Get()
   @Roles(UserRole.admin, UserRole.branch_manager)
-  findAll(@Query() query: CustomerQueryDto) {
-    return this.customersService.findAll(query);
+  findAll(
+    @Query() query: CustomerQueryDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.customersService.findAll(query, user);
   }
 
   @Get("receivables")
@@ -42,10 +45,7 @@ export class CustomersController {
   }
 
   @Get(":id/statement")
-  statement(
-    @Param("id") id: string,
-    @CurrentUser() user: CurrentUserPayload,
-  ) {
+  statement(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.customersService.getStatement(id, user);
   }
 
@@ -57,6 +57,7 @@ export class CustomersController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @Roles(UserRole.admin, UserRole.branch_manager)
   create(
     @Body() dto: CreateCustomerDto,
     @CurrentUser() user: CurrentUserPayload,
@@ -65,6 +66,7 @@ export class CustomersController {
   }
 
   @Patch(":id")
+  @Roles(UserRole.admin, UserRole.branch_manager)
   update(
     @Param("id") id: string,
     @Body() dto: UpdateCustomerDto,
