@@ -27,6 +27,8 @@ import { SaleLocationsModule } from "./modules/sale-locations/sale-locations.mod
 import { InvoicesModule } from "./modules/invoices/invoices.module";
 import { PaymentsModule } from "./modules/payments/payments.module";
 import { UsersModule } from "./modules/users/users.module";
+import { CreditBranchesModule } from "./modules/credit-branches/credit-branches.module";
+import { BranchPaymentsModule } from "./modules/branch-payments/branch-payments.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { TenantModule } from "./common/tenant/tenant.module";
 import { StorageModule } from "./common/storage/storage.module";
@@ -90,6 +92,8 @@ import { StorageModule } from "./common/storage/storage.module";
     InvoicesModule,
     PaymentsModule,
     UsersModule,
+    CreditBranchesModule,
+    BranchPaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
