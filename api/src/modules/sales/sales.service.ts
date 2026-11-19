@@ -26,6 +26,7 @@ import { RejectSaleDto } from "./dto/reject-sale.dto";
 import { SaleQueryDto } from "./dto/sale-query.dto";
 import { parseAndValidateSaleDate } from "./sale-date.util";
 import { toMoneyNumber } from "../../common/utils/money.util";
+import { CREDIT_BRANCH_BILLING } from "../../common/constants/credit-branch.constants";
 
 /**
  * Sales may only be corrected within this many hours of recording (`createdAt`).
@@ -202,7 +203,19 @@ export class SalesService {
       where: { id: organizationId },
       select: { billingEnabled: true },
     });
-    const billingEnabled = org?.billingEnabled ?? false;
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: { type: true },
+    });
+    const isCreditBranch = store?.type === "credit";
+    // Customer billing is switched off for credit branches for now
+    // (CREDIT_BRANCH_BILLING): their sales work like a standard branch's —
+    // no invoice, no customer, nothing recorded as paid at the sale.
+    const billingEnabled =
+      (org?.billingEnabled ?? false) &&
+      !(isCreditBranch && !CREDIT_BRANCH_BILLING);
+    const customerId = billingEnabled ? dto.customerId : undefined;
+    const locationId = billingEnabled ? dto.locationId : undefined;
 
     //! optional for customer in any sale.
     // if (billingEnabled && !dto.customerId) {
@@ -210,23 +223,23 @@ export class SalesService {
     //     "A customer is required for sales in a billing organization",
     //   );
     // }
-    if (dto.customerId) {
+    if (customerId) {
       const customer = await this.prisma.customer.findUnique({
-        where: { id: dto.customerId },
+        where: { id: customerId },
       });
       if (!customer) {
         throw new NotFoundException(
-          `Customer with id "${dto.customerId}" not found`,
+          `Customer with id "${customerId}" not found`,
         );
       }
     }
-    if (dto.locationId) {
+    if (locationId) {
       const location = await this.prisma.saleLocation.findUnique({
-        where: { id: dto.locationId },
+        where: { id: locationId },
       });
       if (!location) {
         throw new NotFoundException(
-          `Location with id "${dto.locationId}" not found`,
+          `Location with id "${locationId}" not found`,
         );
       }
     }
@@ -263,15 +276,17 @@ export class SalesService {
     // Billing rule: a customer is required only when the sale is NOT fully paid
     // (someone must carry the outstanding balance). Fully-paid walk-in cash sales
     // may omit the customer.
-    if (billingEnabled && paidNow < totalAmount - 0.001 && !dto.customerId) {
+    if (billingEnabled && paidNow < totalAmount - 0.001 && !customerId) {
       throw new BadRequestException(
         "A customer is required when the sale is not fully paid",
       );
     }
 
     // Branch managers' sales wait for an admin. Stock is still taken now so
-    // the shelf count stays truthful; rejection puts it back.
-    const needsApproval = user.role === UserRole.branch_manager;
+    // the shelf count stays truthful; rejection puts it back. Credit branches
+    // already bought their stock, so their own sales need no approval.
+    const needsApproval =
+      user.role === UserRole.branch_manager && !isCreditBranch;
 
     const saleId = await this.prisma.$transaction(async (tx) => {
       const sale = await tx.sale.create({
@@ -279,8 +294,8 @@ export class SalesService {
           {
             storeId,
             soldById: user.id,
-            customerId: dto.customerId ?? null,
-            locationId: dto.locationId ?? null,
+            customerId: customerId ?? null,
+            locationId: locationId ?? null,
             totalAmount,
             saleDate,
             note: dto.note,
@@ -361,7 +376,7 @@ export class SalesService {
         await this.createInvoiceForSale(tx, {
           saleId: sale.id,
           organizationId,
-          customerId: dto.customerId ?? null,
+          customerId: customerId ?? null,
           totalAmount,
           paidNow,
           actorId: user.id,
@@ -379,7 +394,7 @@ export class SalesService {
           newValue: {
             id: sale.id,
             storeId,
-            customerId: dto.customerId ?? null,
+            customerId: customerId ?? null,
             totalAmount,
             saleDate,
             status: needsApproval ? "pending" : "active",
