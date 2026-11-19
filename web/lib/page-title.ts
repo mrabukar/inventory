@@ -9,6 +9,9 @@ export const PAGE_TITLES: Record<string, string> = {
   "/stock-report": "Stock Report",
   "/sales": "Sales",
   "/sales/approvals": "Sale Approvals",
+  "/credit-branches": "Credit Branches",
+  "/credit-branches/payments": "Branch Payments",
+  "/my-branch": "My Branch",
   "/supply": "Distribute to Store",
   "/expenses": "Expenses",
   "/financial": "Financial Summary",
@@ -37,6 +40,7 @@ export function resolvePageTitle(pathname: string): string {
   if (pathname.startsWith("/super-admin/organizations/")) return "Organization";
   if (pathname.startsWith("/customers/")) return "Customer";
   if (pathname.startsWith("/invoices/")) return "Invoice";
+  if (pathname.startsWith("/credit-branches/")) return "Credit Branch";
   return "Dashboard";
 }
 
