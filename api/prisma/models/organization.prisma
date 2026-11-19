@@ -36,6 +36,10 @@ model Organization {
   saleLocations     SaleLocation[]
   invoices          Invoice[]
   payments          Payment[]
+  branchCredits     BranchCredit[]
+  branchCreditItems BranchCreditItem[]
+  branchReturns     BranchReturn[]
+  branchPayments    BranchPayment[]
 
   @@map("organization")
 }
