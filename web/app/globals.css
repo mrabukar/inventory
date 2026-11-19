@@ -2750,3 +2750,24 @@ table.tbl {
 .stock-report-total-card--sales {
   background: linear-gradient(135deg, #1a6578 0%, #144f5d 55%, #0f3d49 100%);
 }
+
+/* ============================================================================
+   Credit branches — repayment progress bar
+   ========================================================================== */
+.repay-fill {
+  transform-origin: left center;
+  animation: repay-grow 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes repay-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .repay-fill {
+    animation: none;
+  }
+}
