@@ -1,10 +1,13 @@
 export type ApiRole = "super_admin" | "admin" | "branch_manager";
 
+export type StoreType = "standard" | "credit";
+
 export interface MeStore {
   id: string;
   name: string;
   address: string;
   isActive: boolean;
+  type: StoreType;
 }
 
 export interface MeOrganization {
