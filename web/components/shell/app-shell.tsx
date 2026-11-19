@@ -26,6 +26,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     user != null &&
     !isRouteAllowedForRole(user.role, pathname, {
       hasStores: user.hasStores,
+      isCreditBranch: user.isCreditBranch,
     });
 
   const needs2faSetup =
@@ -81,6 +82,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         collapsed={collapsed}
         storeName={user.store}
         hasStores={user.hasStores}
+        isCreditBranch={user.isCreditBranch}
       />
       <div className="app-main">
         <Navbar
