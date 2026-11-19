@@ -17,6 +17,7 @@ const storeSelect = {
   name: true,
   address: true,
   isActive: true,
+  type: true,
 } as const;
 
 const organizationSelect = {
@@ -51,6 +52,7 @@ export type MeStore = {
   name: string;
   address: string;
   isActive: boolean;
+  type: "standard" | "credit";
 };
 
 export type MeOrganization = {
