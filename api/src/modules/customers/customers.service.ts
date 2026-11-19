@@ -1,12 +1,21 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { AuditAction, Customer, Prisma } from "@prisma/client";
+import {
+  AuditAction,
+  Customer,
+  Prisma,
+  StoreType,
+  UserRole,
+} from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
+import { CREDIT_BRANCH_BILLING } from "../../common/constants/credit-branch.constants";
 import { assertBillingEnabled } from "../../common/utils/require-billing-enabled.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
+import { assertBranchManagerHasStore } from "../../common/utils/store-scope.util";
 import { toMoneyNumber } from "../../common/utils/money.util";
 import { withOrganizationId } from "../../common/utils/with-organization-id.util";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -23,20 +32,37 @@ export class CustomersService {
     private readonly paymentsService: PaymentsService,
   ) {}
 
-  async findAll(query: CustomerQueryDto): Promise<PaginatedResult<Customer>> {
+  async findAll(
+    query: CustomerQueryDto,
+    user: CurrentUserPayload,
+  ): Promise<PaginatedResult<Customer>> {
     const { page, limit } = query;
     const skip = (page - 1) * limit;
     const search = typeof query.search === "string" ? query.search.trim() : "";
 
-    const where: Prisma.CustomerWhereInput = search
-      ? {
-          OR: [
-            { name: { contains: search, mode: "insensitive" } },
-            { phone: { contains: search, mode: "insensitive" } },
-            { email: { contains: search, mode: "insensitive" } },
-          ],
-        }
-      : {};
+    // A credit branch manager only ever sees their own branch's customers —
+    // never the organization's own, or another branch's. A standard branch
+    // manager keeps today's behaviour: every customer, org-wide (unchanged
+    // for organizations with branches). Admins may filter to one branch.
+    let storeId: string | undefined;
+    if (user.role === UserRole.branch_manager) {
+      storeId = await this.creditBranchStoreIdFor(user, { optional: true });
+    } else {
+      storeId = query.storeId?.trim() || undefined;
+    }
+
+    const where: Prisma.CustomerWhereInput = {
+      ...(storeId ? { storeId } : undefined),
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: "insensitive" } },
+              { phone: { contains: search, mode: "insensitive" } },
+              { email: { contains: search, mode: "insensitive" } },
+            ],
+          }
+        : undefined),
+    };
 
     const [data, total] = await Promise.all([
       this.prisma.customer.findMany({
@@ -54,6 +80,11 @@ export class CustomersService {
     };
   }
 
+  /**
+   * Plain lookup by id — unrestricted for every role, exactly as before this
+   * feature. Use {@link assertOwnCreditBranchCustomer} wherever a branch
+   * manager is about to change a customer or see what it owes.
+   */
   async findOne(id: string): Promise<Customer> {
     const customer = await this.prisma.customer.findUnique({ where: { id } });
     if (!customer) {
@@ -62,11 +93,64 @@ export class CustomersService {
     return customer;
   }
 
+  /**
+   * Resolves the calling branch manager's own credit branch. A standard
+   * branch manager either gets `undefined` (when `optional`) or a 403 —
+   * only credit branches manage their own customers.
+   */
+  private async creditBranchStoreIdFor(
+    user: CurrentUserPayload,
+    options: { optional?: boolean } = {},
+  ): Promise<string | undefined> {
+    const storeId = assertBranchManagerHasStore(user);
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: { type: true },
+    });
+    if (store?.type !== StoreType.credit) {
+      if (options.optional) {
+        return undefined;
+      }
+      throw new ForbiddenException(
+        "Only a credit branch manager can manage customers",
+      );
+    }
+    // Customer billing for credit branches is switched off for now.
+    if (!CREDIT_BRANCH_BILLING) {
+      throw new ForbiddenException(
+        "Customer billing isn't available for credit branches",
+      );
+    }
+    return storeId;
+  }
+
+  /** Admins reach any customer; a credit branch manager only their own. */
+  private async assertOwnCreditBranchCustomer(
+    customer: Customer,
+    user: CurrentUserPayload,
+  ): Promise<void> {
+    if (user.role === UserRole.admin || user.role === UserRole.super_admin) {
+      return;
+    }
+    const storeId = await this.creditBranchStoreIdFor(user);
+    if (customer.storeId !== storeId) {
+      throw new ForbiddenException("You cannot access this customer");
+    }
+  }
+
   async create(
     dto: CreateCustomerDto,
     user: CurrentUserPayload,
   ): Promise<Customer> {
     const organizationId = requireOrganizationId(user);
+
+    // A credit branch manager may only add customers under their own
+    // branch; a standard branch manager can't create customers at all
+    // (unchanged). Admins may optionally assign one via dto.storeId.
+    const storeId =
+      user.role === UserRole.branch_manager
+        ? ((await this.creditBranchStoreIdFor(user)) as string)
+        : dto.storeId?.trim() || null;
 
     const customer = await this.prisma.customer.create({
       data: withOrganizationId(
@@ -76,6 +160,7 @@ export class CustomersService {
           email: dto.email?.trim() || null,
           address: dto.address?.trim() || null,
           note: dto.note?.trim() || null,
+          storeId,
           createdById: user.id,
         },
         organizationId,
@@ -107,6 +192,7 @@ export class CustomersService {
     }
 
     const existing = await this.findOne(id);
+    await this.assertOwnCreditBranchCustomer(existing, user);
     const organizationId = requireOrganizationId(user);
 
     const customer = await this.prisma.customer.update({
@@ -146,7 +232,8 @@ export class CustomersService {
   async getBalance(id: string, user: CurrentUserPayload) {
     const organizationId = requireOrganizationId(user);
     await assertBillingEnabled(this.prisma, organizationId);
-    await this.findOne(id);
+    const customer = await this.findOne(id);
+    await this.assertOwnCreditBranchCustomer(customer, user);
 
     return this.paymentsService.getCustomerBalance(id);
   }
@@ -158,7 +245,8 @@ export class CustomersService {
   async getStatement(id: string, user: CurrentUserPayload) {
     const organizationId = requireOrganizationId(user);
     await assertBillingEnabled(this.prisma, organizationId);
-    await this.findOne(id);
+    const customer = await this.findOne(id);
+    await this.assertOwnCreditBranchCustomer(customer, user);
 
     const [invoices, payments] = await Promise.all([
       this.prisma.invoice.findMany({
@@ -286,6 +374,11 @@ export class CustomersService {
    * Customers with an outstanding balance (an unpaid invoice), sorted by
    * highest balance first.
    */
+  /**
+   * Customers with an outstanding balance. Scoped to the organization's own
+   * customers (storeId null) — a credit branch's customers owe the branch,
+   * not the organization, and have their own balance via the branch.
+   */
   async getReceivables(user: CurrentUserPayload) {
     const organizationId = requireOrganizationId(user);
     await assertBillingEnabled(this.prisma, organizationId);
@@ -306,7 +399,7 @@ export class CustomersService {
     if (customerIds.length === 0) return [];
 
     const customers = await this.prisma.customer.findMany({
-      where: { id: { in: customerIds } },
+      where: { id: { in: customerIds }, storeId: null },
       select: { id: true, name: true, phone: true },
     });
     const byId = new Map(customers.map((c) => [c.id, c]));
