@@ -36,6 +36,7 @@ model Product {
   saleItems     SaleItem[]
   stockSupplies StockSupply[]
   purchases     Purchase[]
+  branchCreditItems BranchCreditItem[]
 
   @@index([normalizedName])
   @@map("product")
