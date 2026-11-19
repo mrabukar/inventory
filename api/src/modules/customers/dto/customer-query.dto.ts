@@ -6,4 +6,8 @@ export class CustomerQueryDto extends PaginationQueryDto {
   @IsString()
   @MaxLength(150)
   search?: string;
+
+  @IsOptional()
+  @IsString()
+  storeId?: string;
 }
