@@ -31,4 +31,9 @@ export class CreateCustomerDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+
+  /** Admin only: assign the customer to a credit branch instead of the org. */
+  @IsOptional()
+  @IsString()
+  storeId?: string;
 }
