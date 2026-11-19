@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { assertBillingEnabled } from "../../common/utils/require-billing-enabled.util";
+import { assertBillingAllowedForBranch } from "../../common/utils/credit-branch.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { PaginatedResult } from "../stores/stores.service";
@@ -49,6 +50,7 @@ export class InvoicesService {
   ): Promise<PaginatedResult<InvoiceWithDetails>> {
     const organizationId = requireOrganizationId(user);
     await assertBillingEnabled(this.prisma, organizationId);
+    await assertBillingAllowedForBranch(this.prisma, user);
 
     const { page, limit } = query;
     const skip = (page - 1) * limit;
@@ -90,6 +92,7 @@ export class InvoicesService {
   ): Promise<InvoiceWithDetails> {
     const organizationId = requireOrganizationId(user);
     await assertBillingEnabled(this.prisma, organizationId);
+    await assertBillingAllowedForBranch(this.prisma, user);
 
     const invoice = await this.prisma.invoice.findUnique({
       where: { id },
