@@ -1,8 +1,17 @@
+enum StoreType {
+  /// Every existing branch — free stock from the organization.
+  standard
+  /// Only in organizations without branches: buys stock from the org on
+  /// credit and pays it back over time (see BranchCredit / BranchPayment).
+  credit
+}
+
 model Store {
   id             String       @id @default(cuid())
   name           String
   address        String
   isActive       Boolean      @default(true)
+  type           StoreType    @default(standard)
   /// Hidden system store for org-level inventory when Organization.hasStores is false.
   isOrgWarehouse Boolean      @default(false)
   organizationId String
@@ -10,11 +19,15 @@ model Store {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  users         User[]
-  inventory     Inventory[]
-  sales         Sale[]
-  stockSupplies StockSupply[]
-  expenses      Expense[]
+  users          User[]
+  inventory      Inventory[]
+  sales          Sale[]
+  stockSupplies  StockSupply[]
+  expenses       Expense[]
+  customers      Customer[]
+  branchCredits  BranchCredit[]  @relation("BranchCreditsForStore")
+  branchReturns  BranchReturn[]  @relation("BranchReturnsForStore")
+  branchPayments BranchPayment[] @relation("BranchPaymentsForStore")
 
   @@map("store")
 }
