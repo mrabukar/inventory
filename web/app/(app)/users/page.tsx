@@ -314,7 +314,7 @@ export default function UsersPage() {
           mode={modal.mode}
           user={modal.user}
           storeItems={storeItems}
-          showStoreField={hasStores}
+          showStoreField={hasStores || storeItems.length > 0}
           onClose={() => setModal(null)}
           onSave={(form) => void saveUser(form)}
           isSaving={isSaving}
