@@ -25,6 +25,7 @@ export interface AppUser {
   twoFactorRequired: boolean;
   storeId: string | null;
   store: string | null;
+  isCreditBranch: boolean;
   organizationId: string | null;
   organizationName: string | null;
   hasStores: boolean | null;
