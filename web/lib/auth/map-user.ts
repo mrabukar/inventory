@@ -19,6 +19,7 @@ export function mapApiUserToAppUser(apiUser: ApiUser): AppUser {
     twoFactorRequired: apiUser.twoFactorRequired ?? true,
     storeId: apiUser.storeId,
     store: apiUser.store?.name ?? null,
+    isCreditBranch: apiUser.store?.type === "credit",
     organizationId: apiUser.organization?.id ?? apiUser.organizationId ?? null,
     organizationName: apiUser.organization?.name ?? null,
     hasStores: apiUser.organization?.hasStores ?? null,
