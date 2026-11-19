@@ -7,6 +7,10 @@ model Customer {
   note           String?
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
+  /// Owning credit branch (see Store.type). Null = the organization's own
+  /// customer, visible to admins only — not to any branch manager.
+  storeId        String?
+  store          Store?       @relation(fields: [storeId], references: [id])
   createdById    String
   createdBy      User         @relation("CustomersCreatedBy", fields: [createdById], references: [id])
   createdAt      DateTime     @default(now())
@@ -18,5 +22,6 @@ model Customer {
 
   @@index([organizationId])
   @@index([name])
+  @@index([storeId])
   @@map("customer")
 }
