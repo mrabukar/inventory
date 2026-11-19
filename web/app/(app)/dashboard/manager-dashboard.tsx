@@ -8,6 +8,7 @@ import { useManagerDashboard } from "@/hooks/reports/manager-dashboard";
 import { ReportExportMenu } from "@/components/reports/report-export-menu";
 import { DashboardError, DashboardLoading } from "./components/admin/status";
 import { ManagerChartsSection } from "./components/manager/charts-section";
+import { CreditBalanceGrid } from "./components/manager/credit-balance-grid";
 import { ManagerRecentSalesTable } from "./components/manager/recent-sales-table";
 import { ManagerStatGrid } from "./components/manager/stat-grid";
 import { ManagerStockAlertsTable } from "./components/manager/stock-alerts-table";
@@ -59,6 +60,10 @@ export function ManagerDashboard({ user }: { user: AppUser }) {
   return (
     <>
       {header}
+
+      {user.isCreditBranch && user.storeId ? (
+        <CreditBalanceGrid storeId={user.storeId} />
+      ) : null}
 
       <ManagerStatGrid summary={summary} comparison={comparison} />
       <ManagerChartsSection charts={charts} />
