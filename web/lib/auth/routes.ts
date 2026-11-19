@@ -1,4 +1,5 @@
 /** Routes that require an authenticated session (under app/(app)). */
+import { CREDIT_BRANCH_BILLING } from "@/lib/credit-branch";
 import type { Role } from "@/lib/types";
 
 export const PROTECTED_ROUTE_PREFIXES = [
@@ -20,6 +21,8 @@ export const PROTECTED_ROUTE_PREFIXES = [
   "/receivables",
   "/users",
   "/audit",
+  "/credit-branches",
+  "/my-branch",
   "/submit-sale",
   "/my-stock",
   "/sales-history",
@@ -56,6 +59,7 @@ export const ADMIN_ONLY_ROUTE_PREFIXES = [
   "/users",
   "/audit",
   "/settings/organization",
+  "/credit-branches",
 ] as const;
 
 /** Manager-only routes — admins must not access these (unless hasStores is false). */
@@ -63,6 +67,7 @@ export const MANAGER_ONLY_ROUTE_PREFIXES = [
   "/submit-sale",
   "/my-stock",
   "/sales-history",
+  "/my-branch",
 ] as const;
 
 export const PUBLIC_ROUTE_PREFIXES = ["/login"] as const;
@@ -106,10 +111,17 @@ export function homePathForRole(role: Role): string {
   return role === "super_admin" ? "/super-admin" : "/dashboard";
 }
 
+/** Customer billing pages — hidden from credit branches while CREDIT_BRANCH_BILLING is off. */
+export const BILLING_ROUTE_PREFIXES = [
+  "/customers",
+  "/invoices",
+  "/payments",
+] as const;
+
 export function isRouteAllowedForRole(
   role: Role,
   pathname: string,
-  options?: { hasStores?: boolean | null },
+  options?: { hasStores?: boolean | null; isCreditBranch?: boolean },
 ): boolean {
   if (pathname === SETUP_2FA_PATH) {
     return true;
@@ -131,6 +143,15 @@ export function isRouteAllowedForRole(
   }
 
   if (role === "manager" && isAdminOnlyPath(pathname)) {
+    return false;
+  }
+
+  if (
+    role === "manager" &&
+    options?.isCreditBranch &&
+    !CREDIT_BRANCH_BILLING &&
+    BILLING_ROUTE_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix))
+  ) {
     return false;
   }
 
