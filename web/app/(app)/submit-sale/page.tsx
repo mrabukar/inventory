@@ -18,6 +18,7 @@ import { todayYmd } from "@/lib/filters/dates";
 import { formatProductLabel } from "@/lib/products/format";
 import { toNumber } from "@/lib/reports/format";
 import { cn, fmt } from "@/lib/utils";
+import { billingAppliesTo } from "@/lib/credit-branch";
 import { useAppStore } from "@/store/app";
 
 const inputClassName =
@@ -69,14 +70,20 @@ export default function SubmitSalePage() {
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const hasStores = user?.hasStores ?? true;
-  const billingEnabled = user?.billingEnabled ?? false;
-  const locationLabel = hasStores
-    ? (user?.store ?? "My Store")
+  // Credit branches sell like a standard branch: no customer, location or
+  // amount paid now (CREDIT_BRANCH_BILLING is off).
+  const billingEnabled = billingAppliesTo(user);
+  const locationLabel =
+    hasStores || user?.isCreditBranch
+      ? (user?.store ?? "My Store")
     : (user?.organizationName ?? "Organization");
 
   const { data, isLoading } = useInventory({ limit: 100 });
   const createSale = useCreateSale();
-  const { data: customersData } = useCustomers({ limit: 100 });
+  const { data: customersData } = useCustomers(
+    { limit: 100 },
+    { enabled: billingEnabled },
+  );
   const customers = useMemo(
     () => customersData?.data ?? [],
     [customersData?.data],
