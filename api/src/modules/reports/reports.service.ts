@@ -106,8 +106,12 @@ export class ReportsService {
   async getAdminDashboard(query: ReportQueryDto, user: CurrentUserPayload) {
     const organizationId = requireOrganizationId(user);
     const range = resolveReportDateRange(query.fromDate, query.toDate);
-    const storeId =
-      typeof query.storeId === "string" ? query.storeId.trim() : undefined;
+    // In an organization without branches this pins to the warehouse, so a
+    // credit branch's own sales (a different store) never mix into it.
+    const storeId = await this.tenantStoreResolver.resolveStoreFilter(
+      user,
+      query.storeId,
+    );
     const categoryId = query.categoryId;
 
     const saleWhere = this.buildSaleWhere(range, storeId, categoryId);
@@ -204,8 +208,10 @@ export class ReportsService {
   ) {
     const organizationId = requireOrganizationId(user);
     const range = resolveReportDateRange(query.fromDate, query.toDate);
-    const storeId =
-      typeof query.storeId === "string" ? query.storeId.trim() : undefined;
+    const storeId = await this.tenantStoreResolver.resolveStoreFilter(
+      user,
+      query.storeId,
+    );
     const categoryId = this.requireCategoryId(query.categoryId);
 
     const category = await this.prisma.category.findUnique({
@@ -475,7 +481,7 @@ export class ReportsService {
       ...(expenseStoreId ? { storeId: expenseStoreId } : undefined),
     };
 
-    const [salesAgg, expensesAgg, cogs] = await Promise.all([
+    const [salesAgg, expensesAgg, cogs, branchCredit] = await Promise.all([
       this.prisma.saleItem.aggregate({
         where: saleWhere,
         _sum: { lineTotal: true },
@@ -485,17 +491,26 @@ export class ReportsService {
         _sum: { amount: true },
       }),
       this.sumAllTimeCogs(saleWhere, organizationId),
+      this.sumBranchCreditTotals(organizationId),
     ]);
 
-    const totalRevenue = toMoneyNumber(salesAgg._sum.lineTotal);
+    const totalRevenue = toMoneyNumber(
+      toMoneyNumber(salesAgg._sum.lineTotal) + branchCredit.revenue,
+    );
     const totalExpenses = toMoneyNumber(expensesAgg._sum.amount);
-    const grossProfit = subtractMoney(salesAgg._sum.lineTotal, cogs);
+    // branchCredit.revenue − branchCredit.profit is the branch credit's own cost.
+    const totalCogs = toMoneyNumber(
+      cogs + branchCredit.revenue - branchCredit.profit,
+    );
+    const grossProfit = toMoneyNumber(
+      subtractMoney(salesAgg._sum.lineTotal, cogs) + branchCredit.profit,
+    );
     const netProfit = subtractMoney(grossProfit, expensesAgg._sum.amount);
 
     return {
       netProfit,
       totalRevenue,
-      cogs,
+      cogs: totalCogs,
       grossProfit,
       totalExpenses,
     };
@@ -557,7 +572,7 @@ export class ReportsService {
     organizationId: string,
     dateRange: ReportDateRange,
   ) {
-    const [salesAgg, cogs, expensesAgg] = await Promise.all([
+    const [salesAgg, cogs, expensesAgg, branchCredit] = await Promise.all([
       this.prisma.saleItem.aggregate({
         where: saleWhere,
         _sum: { lineTotal: true, quantitySold: true },
@@ -567,18 +582,27 @@ export class ReportsService {
         where: expenseWhere,
         _sum: { amount: true },
       }),
+      this.sumBranchCreditTotals(organizationId, dateRange),
     ]);
 
-    const totalRevenue = toMoneyNumber(salesAgg._sum.lineTotal);
+    const totalRevenue = toMoneyNumber(
+      toMoneyNumber(salesAgg._sum.lineTotal) + branchCredit.revenue,
+    );
     const totalUnitsSold = salesAgg._sum.quantitySold ?? 0;
     const totalExpenses = toMoneyNumber(expensesAgg._sum.amount);
-    const grossProfit = subtractMoney(salesAgg._sum.lineTotal, cogs);
+    // branchCredit.revenue − branchCredit.profit is the branch credit's own cost.
+    const totalCogs = toMoneyNumber(
+      cogs + branchCredit.revenue - branchCredit.profit,
+    );
+    const grossProfit = toMoneyNumber(
+      subtractMoney(salesAgg._sum.lineTotal, cogs) + branchCredit.profit,
+    );
     const netProfit = subtractMoney(grossProfit, expensesAgg._sum.amount);
 
     return {
       totalRevenue,
       totalUnitsSold,
-      cogs,
+      cogs: totalCogs,
       grossProfit,
       totalExpenses,
       netProfit,
@@ -627,6 +651,68 @@ export class ReportsService {
     `;
 
     return parseRawMoney(rows[0]?.cogs);
+  }
+
+  /**
+   * Stock credited to credit branches is the organization's own sale
+   * (revenue = the price charged, cost = the org's cost at credit time). A
+   * return reverses both, in the period the return happens (not the
+   * original credit's period). A credit branch's own resale to its
+   * customers is excluded from the org's reports by storeId — see
+   * resolveStoreFilter — so nothing here double-counts it.
+   */
+  private async sumBranchCreditTotals(
+    organizationId: string,
+    dateRange?: ReportDateRange,
+  ): Promise<{ revenue: number; profit: number }> {
+    const createdAt = dateRange
+      ? { gte: dateRange.fromTimestamp, lte: dateRange.toTimestamp }
+      : undefined;
+
+    const [itemsAgg, returnsAgg, costCreditedRows, costReturnedRows] =
+      await Promise.all([
+        this.prisma.branchCreditItem.aggregate({
+          where: { organizationId, ...(createdAt ? { createdAt } : undefined) },
+          _sum: { lineTotal: true },
+        }),
+        this.prisma.branchReturn.aggregate({
+          where: { organizationId, ...(createdAt ? { createdAt } : undefined) },
+          _sum: { amount: true },
+        }),
+        this.prisma.$queryRaw<{ cost: unknown }[]>`
+          SELECT COALESCE(SUM(i.quantity * i."unitCost"), 0)::numeric AS cost
+          FROM "branch_credit_item" i
+          WHERE i."organizationId" = ${organizationId}
+          ${
+            createdAt
+              ? Prisma.sql`AND i."createdAt" BETWEEN ${createdAt.gte} AND ${createdAt.lte}`
+              : Prisma.empty
+          }
+        `,
+        this.prisma.$queryRaw<{ cost: unknown }[]>`
+          SELECT COALESCE(SUM(r.quantity * i."unitCost"), 0)::numeric AS cost
+          FROM "branch_return" r
+          INNER JOIN "branch_credit_item" i ON i.id = r."branchCreditItemId"
+          WHERE r."organizationId" = ${organizationId}
+          ${
+            createdAt
+              ? Prisma.sql`AND r."createdAt" BETWEEN ${createdAt.gte} AND ${createdAt.lte}`
+              : Prisma.empty
+          }
+        `,
+      ]);
+
+    const revenue = toMoneyNumber(
+      toMoneyNumber(itemsAgg._sum.lineTotal) -
+        toMoneyNumber(returnsAgg._sum.amount),
+    );
+    const cost = toMoneyNumber(
+      parseRawMoney(costCreditedRows[0]?.cost) -
+        parseRawMoney(costReturnedRows[0]?.cost),
+    );
+    const profit = toMoneyNumber(revenue - cost);
+
+    return { revenue, profit };
   }
 
   private async sumCogs(
