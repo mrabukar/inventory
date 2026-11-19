@@ -7,6 +7,7 @@ import { AuditAction, InvoiceStatus, Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { MUTATION_TRANSACTION_OPTIONS } from "../../common/constants/prisma-transaction.constants";
 import { assertBillingEnabled } from "../../common/utils/require-billing-enabled.util";
+import { assertBillingAllowedForBranch } from "../../common/utils/credit-branch.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { withOrganizationId } from "../../common/utils/with-organization-id.util";
 import { toMoneyNumber } from "../../common/utils/money.util";
@@ -59,6 +60,7 @@ export class PaymentsService {
   ): Promise<PaginatedResult<CollectionEntry>> {
     const organizationId = requireOrganizationId(user);
     await assertBillingEnabled(this.prisma, organizationId);
+    await assertBillingAllowedForBranch(this.prisma, user);
 
     const { page, limit } = query;
     const skip = (page - 1) * limit;
@@ -145,6 +147,7 @@ export class PaymentsService {
   ): Promise<PaymentWithDetails> {
     const organizationId = requireOrganizationId(user);
     await assertBillingEnabled(this.prisma, organizationId);
+    await assertBillingAllowedForBranch(this.prisma, user);
 
     const amount = toMoneyNumber(dto.amount);
     if (amount <= 0) {
