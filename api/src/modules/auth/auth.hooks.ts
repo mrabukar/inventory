@@ -119,14 +119,11 @@ export class AuthSignUpHook {
           message: `Organization with id "${organizationId}" not found`,
         });
       }
-      if (!org.hasStores) {
-        throw new APIError("BAD_REQUEST", {
-          message:
-            "branch_manager cannot be created for an organization without stores",
-        });
-      }
-
-      await this.assertStoreInOrganization(storeId, organizationId);
+      await this.assertStoreInOrganization(
+        storeId,
+        organizationId,
+        org.hasStores,
+      );
     }
 
     if (!isBootstrap && organizationId) {
@@ -250,18 +247,34 @@ export class AuthSignUpHook {
     return session?.user?.id ?? createdUserId;
   }
 
+  /**
+   * A branch manager's store must belong to this org and be active. An org
+   * with stores only assigns `standard` branches; an org without stores only
+   * assigns `credit` branches (see Store.type) — its hidden warehouse has no
+   * manager of its own.
+   */
   private async assertStoreInOrganization(
     storeId: string,
     organizationId: string,
+    orgHasStores: boolean,
   ): Promise<void> {
     const store = await this.prisma.store.findFirst({
       where: { id: storeId, organizationId, isActive: true },
-      select: { id: true },
+      select: { id: true, type: true, isOrgWarehouse: true },
     });
 
-    if (!store) {
+    if (!store || store.isOrgWarehouse) {
       throw new APIError("BAD_REQUEST", {
         message: `Store with id "${storeId}" not found in this organization`,
+      });
+    }
+
+    const expectedType = orgHasStores ? "standard" : "credit";
+    if (store.type !== expectedType) {
+      throw new APIError("BAD_REQUEST", {
+        message: orgHasStores
+          ? "branch_manager must be assigned to a branch of this organization"
+          : "branch_manager cannot be created for an organization without stores",
       });
     }
   }
