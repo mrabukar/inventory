@@ -1,7 +1,7 @@
 # Credit Branches — Design
 
 **Date:** 2026-11-19
-**Status:** Agreed, not yet built
+**Status:** Implemented (see §11 for deviations and notes)
 
 ## 1. Summary
 
@@ -169,3 +169,34 @@ Integration tests (local Postgres, like `sales-approval.e2e-spec.ts`):
 - Credit limits.
 - Per-branch invoice numbering.
 - Credit branches in organizations that have standard branches.
+
+## 11. Implementation notes
+
+- **Balance math:** `balance = Σ credits.total − Σ returns.amount − Σ approved payments.amount`, computed on read, never stored (`branch-balance.util.ts`).
+- **Tenant isolation:** `BranchCredit`, `BranchCreditItem`, `BranchReturn`, `BranchPayment` were added to the Prisma tenant-scoping extension's model list (`src/prisma/tenant-scoping.extension.ts`), so every query through the shared `PrismaService` is automatically scoped to the caller's organization, matching how `Sale`, `Payment`, `Customer`, etc. already work.
+- **Reports isolation gap found and fixed:** `getAdminDashboard` and `getProductDistribution` read `query.storeId` directly instead of going through `TenantStoreResolver.resolveStoreFilter`. For an organization without branches that meant "no store filter" pulled in every store's sales — safe before credit branches existed (there was only ever the warehouse), but it would have mixed a credit branch's own sales into the organization's dashboard. Both now go through the resolver, which pins to the warehouse when the organization has no branches, exactly like `getFinancialSummary` and `getAllTimeCompanyNetProfit` already did.
+- **Revenue/cost timing:** a return lowers revenue and cost in the period the *return* happens, not retroactively in the original credit's period — the same approach as sale corrections.
+- **Customers:** `Customer.storeId` is nullable (`null` = the organization's own customer). Existing behavior for organizations with branches is unchanged: a standard branch manager still sees every customer, and still cannot create or update one (that stayed admin-only). Only a *credit* branch manager gets the new, scoped create/update/balance/statement access, checked by store `type`, not by role alone.
+- **Branch directory:** credit branches are plain `Store` rows (`type: credit`) so branch-manager login, inventory and sales reuse all existing machinery. `GET /stores` lists them for the "Add User" store picker; `StoresService.create` (the generic store endpoint) still only ever creates `standard` stores and still refuses to run in a no-branches organization, so nothing about existing orgs changed there.
+- **Sale approval:** a credit branch's own sales are created as `active` immediately — `SalesService.create` checks the resolved store's `type` and skips the pending-approval path only for credit branches.
+- **Tests:** `api/test/credit-branches.e2e-spec.ts` (9 cases) covering crediting, insufficient stock, sale isolation, revenue/cost counting, payment submit/approve/reject, over-payment refusal, returns, customer isolation, and a no-op check against an organization with branches.
+- **Not built:** receipt photos on payments, credit limits, a per-branch invoice number sequence, and credit branches inside an organization that also has standard branches.
+
+## 12. Customer billing switched off for credit branches (2026-11-19)
+
+A credit branch now sells exactly like a standard branch: no customers, no invoices, no customer payments, no partial payment at sale. This is behind one switch on each side rather than commented-out code, so it stays typechecked and comes back by flipping both to `true`:
+
+- API: `CREDIT_BRANCH_BILLING` in `src/common/constants/credit-branch.constants.ts`. While off, credit-branch sales ignore `customerId`, `locationId` and `paidAmount` and create no invoice, and a credit branch manager gets 403 from customers, invoices and payments endpoints (`assertBillingAllowedForBranch`).
+- Web: `CREDIT_BRANCH_BILLING` in `lib/credit-branch.ts`. While off, the Customers, Invoices and Payments links and routes are hidden from credit branch managers, and Submit Sale hides the customer, location and "paid now" fields.
+
+Standard branches and admins are unaffected. The credit branch manager's dashboard also shows the branch's outstanding balance, amount paid and payments awaiting approval, each linking to My Branch.
+
+## 13. Paging and sorting (2026-11-20)
+
+Long lists no longer grow without limit.
+
+- **Statement** (`GET /credit-branches/:id/statement`): `page`, `limit` (default 20) and `order` (`newest` default, or `oldest`). The running balance is worked out over the whole history in date order and the page is cut afterwards, so every page's balances are right in either order. Only date order is offered: sorting by another column would make the running balance meaningless. Entries with the same timestamp (a credit and the payment taken with it) keep credit, then return, then payment.
+- **Payments** (`GET /branch-payments`): `page`, `limit`, `sortBy` (`createdAt`, `amount`, `paidAt`; a whitelist) and `order`. The row `id` is the last sort key so paging stays stable when values tie.
+- **Pending total** (`GET /branch-payments/pending-count`) now returns `{ count, amount }`, so the "waiting" banner is right however many pages there are.
+- **Web:** `Pager` ("Showing 21–40 of 134", Previous/Next) and `SortSelect` are shared. Statements show 20 per page; payment lists show 10 per page (the rows are taller). The admin review queue defaults to oldest first so nothing is forgotten; history tabs default to newest first.
+- The statement still reads the branch's full history on the server to compute balances; only the response is paged. That is fine for years of normal trading, and can move to a SQL window function if a branch ever has tens of thousands of entries.
