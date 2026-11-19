@@ -31,6 +31,7 @@ import {
   Boxes,
   Warehouse,
   ClipboardCheck,
+  Landmark,
 } from "lucide-react";
 
 import { LogoMark } from "@/components/logo";
@@ -42,6 +43,8 @@ import {
 import type { Role } from "@/lib/types";
 import { fetchOrganizationLogoBlob } from "@/service/upload";
 import { usePendingSalesCount } from "@/hooks/sales/use-review-sale";
+import { usePendingBranchPaymentsCount } from "@/hooks/branch-payments/use-pending-branch-payments-count";
+import { billingAppliesTo } from "@/lib/credit-branch";
 import { useAppStore } from "@/store/app";
 
 interface NavLinkItem {
@@ -79,6 +82,7 @@ function buildAdminNav(
   hasStores: boolean,
   billingEnabled: boolean,
   pendingSales: number,
+  pendingBranchPayments: number,
 ): AdminNavEntry[] {
   const nav: AdminNavEntry[] = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -123,7 +127,23 @@ function buildAdminNav(
   if (hasStores) {
     nav.push({ href: "/stores", label: "Stores", icon: Store });
   } else {
-    nav.push({ href: "/submit-sale", label: "Submit Sale", icon: PlusCircle });
+    nav.push(
+      { href: "/submit-sale", label: "Submit Sale", icon: PlusCircle },
+      {
+        type: "group",
+        label: "Credit Branches",
+        icon: Landmark,
+        children: [
+          { href: "/credit-branches", label: "Branches", icon: Landmark },
+          {
+            href: "/credit-branches/payments",
+            label: "Payments",
+            icon: ClipboardCheck,
+            badge: pendingBranchPayments,
+          },
+        ],
+      },
+    );
   }
 
   if (billingEnabled) {
@@ -156,13 +176,21 @@ function buildAdminNav(
   return nav;
 }
 
-function buildManagerNav(billingEnabled: boolean): NavLinkItem[] {
+function buildManagerNav(
+  billingEnabled: boolean,
+  isCreditBranch: boolean,
+): NavLinkItem[] {
   const nav: NavLinkItem[] = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/submit-sale", label: "Submit Sale", icon: PlusCircle },
     { href: "/my-stock", label: "My Stock", icon: Package },
     { href: "/sales-history", label: "Sales History", icon: History },
   ];
+
+  // Only credit branches buy stock on credit and owe the organization for it.
+  if (isCreditBranch) {
+    nav.push({ href: "/my-branch", label: "My Branch", icon: Landmark });
+  }
 
   if (billingEnabled) {
     nav.push(
@@ -440,6 +468,7 @@ interface Props {
   collapsed: boolean;
   storeName?: string | null;
   hasStores?: boolean | null;
+  isCreditBranch?: boolean;
 }
 
 export function Sidebar({
@@ -447,18 +476,25 @@ export function Sidebar({
   collapsed,
   storeName,
   hasStores = true,
+  isCreditBranch = false,
 }: Props) {
   const pathname = usePathname();
   const billingEnabled = useAppStore((s) => s.user?.billingEnabled ?? false);
   const { data: pendingSales = 0 } = usePendingSalesCount(
     role === "admin" && hasStores !== false,
   );
+  const { data: pendingBranchPayments = 0 } = usePendingBranchPaymentsCount(
+    role === "admin" && hasStores === false,
+  );
   const adminNav = buildAdminNav(
     hasStores !== false,
     billingEnabled,
     pendingSales,
+    pendingBranchPayments,
   );
-  const managerNav = buildManagerNav(billingEnabled);
+  const user = useAppStore((s) => s.user);
+  // Credit branches don't do customer billing for now (CREDIT_BRANCH_BILLING).
+  const managerNav = buildManagerNav(billingAppliesTo(user), isCreditBranch);
 
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
