@@ -19,6 +19,10 @@ const TENANT_MODELS = new Set([
   "SaleLocation",
   "Invoice",
   "Payment",
+  "BranchCredit",
+  "BranchCreditItem",
+  "BranchReturn",
+  "BranchPayment",
 ]);
 
 const WHERE_OPERATIONS = new Set([
