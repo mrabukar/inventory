@@ -823,6 +823,47 @@ describeDb("Credit branches (PostgreSQL)", () => {
     });
   });
 
+  describe("a branch manager editing their own invoice details", () => {
+    it("lets them set the contact and payment details, but not the name, address or prefix", async () => {
+      const mine = await makeBranch();
+      const other = await makeBranch();
+
+      const saved = await inOrg(() =>
+        creditBranches.updateBranch(
+          mine.store.id,
+          { phone: "061555", evcNumber: "252611", edahabNumber: "252622" },
+          mine.manager,
+        ),
+      );
+      expect(saved.phone).toBe("061555");
+      expect(saved.evcNumber).toBe("252611");
+      expect(saved.edahabNumber).toBe("252622");
+
+      for (const dto of [
+        { name: "Renamed" },
+        { address: "Somewhere else" },
+        { invoicePrefix: "HACK" },
+      ]) {
+        await expect(
+          inOrg(() =>
+            creditBranches.updateBranch(mine.store.id, dto, mine.manager),
+          ),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      }
+
+      // Not another branch's details.
+      await expect(
+        inOrg(() =>
+          creditBranches.updateBranch(
+            other.store.id,
+            { phone: "061000" },
+            mine.manager,
+          ),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
   describe("paging and sorting", () => {
     it("pages the statement either way round with correct running balances", async () => {
       const { store, manager } = await makeBranch();
