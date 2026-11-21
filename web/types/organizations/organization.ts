@@ -6,6 +6,8 @@ export interface Organization {
   hasStores: boolean;
   billingEnabled: boolean;
   isActive: boolean;
+  /** The host this organization signs in on. */
+  domain?: string | null;
   phone?: string | null;
   evcNumber?: string | null;
   edahabNumber?: string | null;
@@ -55,6 +57,7 @@ export interface OrganizationListQuery {
 export interface CreateOrganizationInput {
   name: string;
   hasStores?: boolean;
+  domain?: string;
 }
 
 export interface UpdateOrganizationInput {
@@ -62,6 +65,8 @@ export interface UpdateOrganizationInput {
   hasStores?: boolean;
   billingEnabled?: boolean;
   isActive?: boolean;
+  /** Empty clears it. */
+  domain?: string | null;
 }
 
 export interface UpdateCurrentOrganizationInput {
