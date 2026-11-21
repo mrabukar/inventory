@@ -18,6 +18,18 @@ export interface InvoiceOrganization {
   signatureKey: string | null;
 }
 
+/** The store that made the sale. A credit branch's invoice shows its details, not the organization's. */
+export interface InvoiceStore {
+  id: string;
+  name: string;
+  type: "standard" | "credit";
+  address: string | null;
+  phone: string | null;
+  evcNumber: string | null;
+  edahabNumber: string | null;
+  accountNumber: string | null;
+}
+
 export interface InvoiceSale {
   id: string;
   saleDate: string;
@@ -27,6 +39,7 @@ export interface InvoiceSale {
   items: SaleItem[];
   soldBy: SaleSoldBy;
   location: SaleLocation | null;
+  store?: InvoiceStore | null;
 }
 
 export interface Invoice {
