@@ -142,6 +142,27 @@ export function isRouteAllowedForRole(
     return false;
   }
 
+  // Receivables is admin-only, except a credit branch manager sees their own
+  // branch's customers owing money.
+  if (
+    role === "manager" &&
+    options?.isCreditBranch &&
+    CREDIT_BRANCH_BILLING &&
+    matchesPrefix(pathname, "/receivables")
+  ) {
+    return true;
+  }
+
+  // A credit branch manager reads their own financial summary.
+  // Switched off for now — uncomment to bring it back.
+  // if (
+  //   role === "manager" &&
+  //   options?.isCreditBranch &&
+  //   matchesPrefix(pathname, "/financial")
+  // ) {
+  //   return true;
+  // }
+
   if (role === "manager" && isAdminOnlyPath(pathname)) {
     return false;
   }
