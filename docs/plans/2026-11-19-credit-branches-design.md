@@ -245,3 +245,15 @@ A credit branch has its own Financial Summary, separate from the organization's.
   default organization view still includes credit-branch revenue/cost and does
   not mix in branch sales.
 - **Export.** PDF/Excel use the branch's name instead of the organization's.
+
+## 17. Organizations stay on their own domain
+
+Each organization signs in on one domain; the platform super admin on the hosts listed for it.
+
+- **Where it's stored:** `Organization.domain` (migration `20261121140000_organization_domain`). Several organizations may share one domain. The super admin sets it on the new/edit organization pages.
+- **Login:** `AuthSignInHook` refuses a user on the wrong domain with the same "Invalid email or password" answer as a wrong password, so nobody can tell which domain an account belongs to.
+- **Every request:** `TenantInterceptor` checks the signed-in user against the request's `Host` on each call, so a valid session from one domain is refused on another (403).
+- **Super admin:** only on the hosts in `PLATFORM_ADMIN_HOST` (comma-separated; it may be the organizations' own domains, e.g. `fonex.mobilephoneinventory.com,sanabil.mobilephoneinventory.com`). An organization with no domain is blocked.
+- **Switch:** `ENFORCE_ORG_DOMAINS=true` (off by default). Roll out by setting every organization's domain first, then turning it on.
+- **Sign-in branding:** `GET /api/public/tenant` (and `/logo`) return the organization's name and logo when exactly one active organization uses the host; otherwise the page stays generic.
+- **Server:** nginx sends unknown hosts to a `444` default server; set `LISTEN_HOST=127.0.0.1` so the API can't be reached directly with a forged `Host`.
