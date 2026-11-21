@@ -7,6 +7,8 @@ import { AuditAction, Organization, Prisma, UserRole } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { orderByUpdatedAtDesc } from "../../common/utils/list-order.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
+import { DomainPolicyService } from "../../common/tenant/domain-policy.service";
+import { isValidHostname, normalizeHost } from "../../common/utils/host.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { StoresService } from "../stores/stores.service";
 import { UsersService } from "../users/users.service";
@@ -37,6 +39,7 @@ export type OrganizationUserRow = Prisma.UserGetPayload<{
 export class OrganizationsService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly domainPolicy: DomainPolicyService,
     private readonly storesService: StoresService,
     private readonly usersService: UsersService,
   ) {}
@@ -192,15 +195,30 @@ export class OrganizationsService {
     }
   }
 
+  /** Cleans up a domain from the form: null clears it; anything else must be a real hostname. */
+  private parseDomain(value: string | null | undefined): string | null | undefined {
+    if (value === undefined) return undefined;
+    const host = normalizeHost(value ?? "");
+    if (!host) return null;
+    if (!isValidHostname(host)) {
+      throw new BadRequestException(
+        "Domain must look like fonex.example.com (no https://, no path)",
+      );
+    }
+    return host;
+  }
+
   async create(
     dto: CreateOrganizationDto,
     actor: CurrentUserPayload,
   ): Promise<Organization> {
+    const domain = this.parseDomain(dto.domain);
     const hasStores = dto.hasStores ?? true;
     const organization = await this.prisma.organization.create({
       data: {
         name: dto.name.trim(),
         hasStores,
+        ...(domain ? { domain } : undefined),
         // Billing defaults to no-branch orgs; super-admin can flip it later.
         billingEnabled: !hasStores,
       },
@@ -233,6 +251,7 @@ export class OrganizationsService {
     }
 
     const existing = await this.findOne(id);
+    const domain = this.parseDomain(dto.domain);
 
     if (existing.hasStores && dto.hasStores === false) {
       await this.assertCanDisableStores(id);
@@ -242,6 +261,7 @@ export class OrganizationsService {
       where: { id },
       data: {
         ...(dto.name !== undefined ? { name: dto.name.trim() } : undefined),
+        ...(domain !== undefined ? { domain } : undefined),
         ...(dto.hasStores !== undefined
           ? { hasStores: dto.hasStores }
           : undefined),
@@ -253,6 +273,8 @@ export class OrganizationsService {
           : undefined),
       },
     });
+
+    this.domainPolicy.forget(organization.id);
 
     if (dto.hasStores === false) {
       await this.storesService.ensureOrgWarehouse(organization.id);
