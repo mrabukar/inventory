@@ -25,10 +25,19 @@ export function InvoiceDocument({
   const org = invoice.organization;
   const customer = invoice.customer;
   const sale = invoice.sale;
+
+  // A credit branch is its own business: its invoice shows its own name,
+  // contact and payment numbers, and none of the organization's branding.
+  const store = sale.store;
+  const isBranch = store?.type === "credit";
+  const seller = isBranch && store ? store : org;
+  const showLogo = isBranch ? null : logoUrl;
+  const showStamp = isBranch ? null : stampUrl;
+  const showSignature = isBranch ? null : signatureUrl;
   const payToEntries: { label: string; value: string }[] = [
-    { label: "EVC", value: org.evcNumber },
-    { label: "E-Dahab", value: org.edahabNumber },
-    { label: "Account", value: org.accountNumber },
+    { label: "EVC", value: seller.evcNumber },
+    { label: "E-Dahab", value: seller.edahabNumber },
+    { label: "Account", value: seller.accountNumber },
   ].filter((entry): entry is { label: string; value: string } =>
     Boolean(entry.value),
   );
@@ -38,19 +47,28 @@ export function InvoiceDocument({
       <div className="flex items-start justify-between gap-6 print:gap-4">
         {/* Logo — left */}
         <div className="flex flex-col items-start">
-          {logoUrl ? (
+          {showLogo ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={logoUrl}
+              src={showLogo}
               alt=""
               className="mb-2 size-14 rounded-lg object-cover"
             />
           ) : (
             <div className="mb-2 flex size-14 items-center justify-center rounded-lg bg-[#0B1F4B] text-sm font-semibold text-white">
-              {initials(org.name)}
+              {initials(seller.name)}
             </div>
           )}
-          <div className="text-sm font-bold text-neutral-900">{org.name}</div>
+          <div className="text-sm font-bold text-neutral-900">
+            {seller.name}
+          </div>
+          {isBranch && (store?.address || store?.phone) ? (
+            <div className="mt-0.5 text-xs text-neutral-500">
+              {store.address}
+              {store.address && store.phone ? " · " : ""}
+              {store.phone}
+            </div>
+          ) : null}
         </div>
 
         {/* Invoice title — right */}
@@ -176,10 +194,10 @@ export function InvoiceDocument({
       <div className="mt-8 flex items-end justify-between gap-8 print:mt-5">
         <div className="flex flex-col gap-1">
           <span className="text-xs text-neutral-500">Signature</span>
-          {signatureUrl ? (
+          {showSignature ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={signatureUrl}
+              src={showSignature}
               alt="Signature"
               className="h-10 w-48 object-contain object-bottom"
             />
@@ -191,10 +209,10 @@ export function InvoiceDocument({
 
         {/* Aligned under the totals block above (same w-full max-w-50 column) */}
         <div className="flex w-full max-w-50 shrink-0 justify-start">
-          {stampUrl ? (
+          {showStamp ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={stampUrl}
+              src={showStamp}
               alt="Business stamp"
               className="size-20 object-contain"
             />
