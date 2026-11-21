@@ -7,7 +7,10 @@ import { AuditAction, InvoiceStatus, Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { MUTATION_TRANSACTION_OPTIONS } from "../../common/constants/prisma-transaction.constants";
 import { assertBillingEnabled } from "../../common/utils/require-billing-enabled.util";
-import { assertBillingAllowedForBranch } from "../../common/utils/credit-branch.util";
+import {
+  assertBillingAllowedForBranch,
+  creditBranchStoreIdOf,
+} from "../../common/utils/credit-branch.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { withOrganizationId } from "../../common/utils/with-organization-id.util";
 import { toMoneyNumber } from "../../common/utils/money.util";
@@ -61,11 +64,16 @@ export class PaymentsService {
     const organizationId = requireOrganizationId(user);
     await assertBillingEnabled(this.prisma, organizationId);
     await assertBillingAllowedForBranch(this.prisma, user);
+    // A credit branch manager only ever sees their own branch's money.
+    const branchStoreId = await creditBranchStoreIdOf(this.prisma, user);
 
     const { page, limit } = query;
     const skip = (page - 1) * limit;
 
     const paymentWhere: Prisma.PaymentWhereInput = {
+      ...(branchStoreId
+        ? { invoice: { sale: { storeId: branchStoreId } } }
+        : undefined),
       ...(query.customerId ? { customerId: query.customerId } : undefined),
       ...(query.invoiceId ? { invoiceId: query.invoiceId } : undefined),
     };
@@ -74,6 +82,7 @@ export class PaymentsService {
     // paidAtSale > 0 (sale-time collections that have no payment row).
     const invoiceWhere: Prisma.InvoiceWhereInput = {
       paidAtSale: { gt: 0 },
+      ...(branchStoreId ? { sale: { storeId: branchStoreId } } : undefined),
       ...(query.customerId ? { customerId: query.customerId } : undefined),
       ...(query.invoiceId ? { id: query.invoiceId } : undefined),
     };
@@ -148,6 +157,7 @@ export class PaymentsService {
     const organizationId = requireOrganizationId(user);
     await assertBillingEnabled(this.prisma, organizationId);
     await assertBillingAllowedForBranch(this.prisma, user);
+    const branchStoreId = await creditBranchStoreIdOf(this.prisma, user);
 
     const amount = toMoneyNumber(dto.amount);
     if (amount <= 0) {
@@ -157,7 +167,8 @@ export class PaymentsService {
     const customer = await this.prisma.customer.findUnique({
       where: { id: dto.customerId },
     });
-    if (!customer) {
+    // A credit branch manager can only take payments from their own customers.
+    if (!customer || (branchStoreId && customer.storeId !== branchStoreId)) {
       throw new NotFoundException(
         `Customer with id "${dto.customerId}" not found`,
       );
@@ -173,6 +184,7 @@ export class PaymentsService {
         tx,
         dto.customerId,
         dto.invoiceId,
+        branchStoreId,
       );
 
       const remaining = Number(invoice.total) - Number(invoice.paidAmount);
@@ -316,10 +328,16 @@ export class PaymentsService {
     tx: Prisma.TransactionClient,
     customerId: string,
     invoiceId?: string,
+    branchStoreId?: string | null,
   ) {
+    // Only ever consider invoices from the caller's own branch, if they have one.
+    const ownBranch = branchStoreId
+      ? { sale: { storeId: branchStoreId } }
+      : undefined;
+
     if (invoiceId) {
-      const invoice = await tx.invoice.findUnique({
-        where: { id: invoiceId },
+      const invoice = await tx.invoice.findFirst({
+        where: { id: invoiceId, ...ownBranch },
         select: {
           id: true,
           customerId: true,
@@ -347,7 +365,11 @@ export class PaymentsService {
 
     // Default: oldest unpaid invoice for this customer.
     const oldest = await tx.invoice.findFirst({
-      where: { customerId, status: { in: ["unpaid", "partial"] } },
+      where: {
+        customerId,
+        status: { in: ["unpaid", "partial"] },
+        ...ownBranch,
+      },
       orderBy: [{ number: "asc" }],
       select: {
         id: true,
