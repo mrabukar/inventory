@@ -2,6 +2,7 @@ import { CallHandler, ExecutionContext, ForbiddenException } from "@nestjs/commo
 import { UserRole } from "@prisma/client";
 import { of } from "rxjs";
 import { TenantContextService } from "./tenant-context.service";
+import type { DomainPolicyService } from "./domain-policy.service";
 import { TenantInterceptor } from "./tenant.interceptor";
 
 function createExecutionContext(user?: Record<string, unknown>): ExecutionContext {
@@ -24,7 +25,9 @@ describe("TenantInterceptor", () => {
 
   beforeEach(() => {
     tenantContext = new TenantContextService();
-    interceptor = new TenantInterceptor(tenantContext);
+    interceptor = new TenantInterceptor(tenantContext, {
+      isEnforced: () => false,
+    } as unknown as DomainPolicyService);
   });
 
   it("proceeds without tenant context when there is no user", (done) => {
