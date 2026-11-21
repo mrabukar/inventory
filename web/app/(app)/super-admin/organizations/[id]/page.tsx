@@ -264,7 +264,12 @@ export default function OrganizationDetailPage() {
                   className="mt-0.5"
                   checked={hasStores}
                   disabled={updateMutation.isPending}
-                  onCheckedChange={(value) => setHasStores(value === true)}
+                  onCheckedChange={(value) => {
+                    const on = value === true;
+                    setHasStores(on);
+                    // Stores and billing are alternatives: picking one clears the other.
+                    if (on) setBillingEnabled(false);
+                  }}
                 />
                 <span>
                   <span className="font-medium">Uses stores and branch managers</span>
@@ -279,7 +284,11 @@ export default function OrganizationDetailPage() {
                   className="mt-0.5"
                   checked={billingEnabled}
                   disabled={updateMutation.isPending}
-                  onCheckedChange={(value) => setBillingEnabled(value === true)}
+                  onCheckedChange={(value) => {
+                    const on = value === true;
+                    setBillingEnabled(on);
+                    if (on) setHasStores(false);
+                  }}
                 />
                 <span>
                   <span className="font-medium">Billing enabled</span>
