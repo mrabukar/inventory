@@ -8,6 +8,12 @@ import { AuditAction, Prisma, StoreType, UserRole } from "@prisma/client";
 import { MUTATION_TRANSACTION_OPTIONS } from "../../common/constants/prisma-transaction.constants";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { getBranchBalance } from "../../common/utils/branch-balance.util";
+import {
+  allocateUniquePrefix,
+  assertPrefixAvailable,
+  derivePrefixFromName,
+  normalizeInvoicePrefix,
+} from "../../common/utils/branch-invoice-prefix.util";
 import { lockInventoryForMutation } from "../../common/utils/inventory-lock.util";
 import { orderByUpdatedAtDesc } from "../../common/utils/list-order.util";
 import { toMoneyNumber } from "../../common/utils/money.util";
@@ -18,7 +24,11 @@ import { ProductsService } from "../products/products.service";
 import { StoresService } from "../stores/stores.service";
 import { BranchStatementQueryDto } from "./dto/branch-statement-query.dto";
 import { CreateBranchReturnDto } from "./dto/create-branch-return.dto";
-import { CreateCreditBranchDto } from "./dto/create-credit-branch.dto";
+import {
+  BranchDetailsDto,
+  CreateCreditBranchDto,
+} from "./dto/create-credit-branch.dto";
+import { UpdateCreditBranchDto } from "./dto/update-credit-branch.dto";
 import { CreditStockDto } from "./dto/credit-stock.dto";
 
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
@@ -134,9 +144,28 @@ export class CreditBranchesService {
       );
     }
 
+    // The branch numbers its own invoices ("HARG-0001"): use the prefix the
+    // admin gave, or make one from the name.
+    const invoicePrefix = dto.invoicePrefix
+      ? normalizeInvoicePrefix(dto.invoicePrefix)
+      : await allocateUniquePrefix(
+          this.prisma,
+          organizationId,
+          derivePrefixFromName(dto.name),
+        );
+    if (dto.invoicePrefix) {
+      await assertPrefixAvailable(this.prisma, organizationId, invoicePrefix);
+    }
+
     const store = await this.prisma.store.create({
       data: withOrganizationId(
-        { name: dto.name, address: dto.address, type: StoreType.credit },
+        {
+          name: dto.name,
+          address: dto.address,
+          type: StoreType.credit,
+          invoicePrefix,
+          ...this.detailsData(dto),
+        },
         organizationId,
       ),
     });
@@ -149,6 +178,87 @@ export class CreditBranchesService {
         entityType: "store",
         entityId: store.id,
         oldValue: Prisma.JsonNull,
+        newValue: store,
+      },
+    });
+
+    return store;
+  }
+
+  /** Empty strings from a form mean "clear it". */
+  private detailsData(dto: BranchDetailsDto) {
+    const clean = (value?: string) =>
+      value === undefined ? undefined : value.trim() || null;
+    return {
+      phone: clean(dto.phone),
+      evcNumber: clean(dto.evcNumber),
+      edahabNumber: clean(dto.edahabNumber),
+      accountNumber: clean(dto.accountNumber),
+    };
+  }
+
+  /** Edit a branch's name, address, and the details printed on its invoices. */
+  async updateBranch(
+    id: string,
+    dto: UpdateCreditBranchDto,
+    user: CurrentUserPayload,
+  ) {
+    const organizationId = requireOrganizationId(user);
+    const existing = await this.findCreditStore(id, organizationId);
+
+    if (dto.name && dto.name !== existing.name) {
+      const clash = await this.prisma.store.findFirst({
+        where: {
+          organizationId,
+          name: dto.name,
+          isActive: true,
+          id: { not: id },
+        },
+      });
+      if (clash) {
+        throw new BadRequestException(
+          `A branch named "${dto.name}" already exists`,
+        );
+      }
+    }
+
+    // Changing the prefix after invoices went out would leave the branch with
+    // two styles of invoice number, so it's only allowed before the first one.
+    let invoicePrefix: string | undefined;
+    if (dto.invoicePrefix !== undefined) {
+      const wanted = normalizeInvoicePrefix(dto.invoicePrefix);
+      if (wanted !== existing.invoicePrefix) {
+        const issued = await this.prisma.invoice.count({
+          where: { series: id },
+        });
+        if (issued > 0) {
+          throw new BadRequestException(
+            "The invoice prefix can't change once the branch has issued invoices",
+          );
+        }
+        await assertPrefixAvailable(this.prisma, organizationId, wanted, id);
+        invoicePrefix = wanted;
+      }
+    }
+
+    const store = await this.prisma.store.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name } : undefined),
+        ...(dto.address !== undefined ? { address: dto.address } : undefined),
+        ...(invoicePrefix !== undefined ? { invoicePrefix } : undefined),
+        ...this.detailsData(dto),
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        organizationId,
+        action: AuditAction.STORE_UPDATED,
+        entityType: "store",
+        entityId: id,
+        oldValue: existing,
         newValue: store,
       },
     });
