@@ -113,7 +113,8 @@ function buildAdminNav(
   });
 
   nav.push({ href: "/sales", label: "Sales", icon: ShoppingCart, match: "exact" });
-  // Branch managers' sales wait here; orgs without stores have none.
+  // Branch managers' sales wait here. An organization without stores gets the
+  // same queue under Credit Branches, for its credit branches' sales.
   if (hasStores) {
     nav.push({
       href: "/sales/approvals",
@@ -140,6 +141,12 @@ function buildAdminNav(
             label: "Payments",
             icon: ClipboardCheck,
             badge: pendingBranchPayments,
+          },
+          {
+            href: "/sales/approvals",
+            label: "Sale approvals",
+            icon: ClipboardCheck,
+            badge: pendingSales,
           },
         ],
       },
@@ -190,6 +197,12 @@ function buildManagerNav(
   // Only credit branches buy stock on credit and owe the organization for it.
   if (isCreditBranch) {
     nav.push({ href: "/my-branch", label: "My Branch", icon: Landmark });
+    // Credit branch financial summary — switched off for now, uncomment to bring it back.
+    // nav.push({
+    //   href: "/financial",
+    //   label: "Financial Summary",
+    //   icon: TrendingUp,
+    // });
   }
 
   if (billingEnabled) {
@@ -198,6 +211,10 @@ function buildManagerNav(
       { href: "/invoices", label: "Invoices", icon: FileText },
       { href: "/payments", label: "Payments", icon: Wallet },
     );
+    // A credit branch also tracks what its own customers owe.
+    if (isCreditBranch) {
+      nav.push({ href: "/receivables", label: "Receivables", icon: HandCoins });
+    }
   }
 
   return nav;
@@ -480,9 +497,7 @@ export function Sidebar({
 }: Props) {
   const pathname = usePathname();
   const billingEnabled = useAppStore((s) => s.user?.billingEnabled ?? false);
-  const { data: pendingSales = 0 } = usePendingSalesCount(
-    role === "admin" && hasStores !== false,
-  );
+  const { data: pendingSales = 0 } = usePendingSalesCount(role === "admin");
   const { data: pendingBranchPayments = 0 } = usePendingBranchPaymentsCount(
     role === "admin" && hasStores === false,
   );
