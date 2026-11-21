@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import { Prisma, StoreType, UserRole } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { TenantStoreResolver } from "../../common/tenant/tenant-store-resolver.service";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
@@ -379,13 +379,59 @@ export class ReportsService {
     };
   }
 
+  /**
+   * Which store a report covers, and whether it is a credit branch's own
+   * business. A branch manager gets their own store; an admin gets the
+   * organization's usual scope, except that an admin can open a credit
+   * branch's figures by passing its store id (an organization without stores
+   * otherwise pins everything to its own stock).
+   */
+  async resolveReportStore(
+    user: CurrentUserPayload,
+    queryStoreId?: string,
+  ): Promise<{ storeId: string | undefined; creditBranch: boolean }> {
+    const organizationId = requireOrganizationId(user);
+    const wanted = typeof queryStoreId === "string" ? queryStoreId.trim() : "";
+
+    if (user.role === UserRole.admin && wanted) {
+      const branch = await this.prisma.store.findFirst({
+        where: { id: wanted, organizationId, type: StoreType.credit },
+        select: { id: true },
+      });
+      if (branch) {
+        return { storeId: branch.id, creditBranch: true };
+      }
+    }
+
+    const storeId = await this.tenantStoreResolver.resolveStoreFilter(
+      user,
+      queryStoreId,
+    );
+    if (user.role === UserRole.branch_manager && storeId) {
+      const own = await this.prisma.store.findUnique({
+        where: { id: storeId },
+        select: { type: true },
+      });
+      return { storeId, creditBranch: own?.type === StoreType.credit };
+    }
+    return { storeId, creditBranch: false };
+  }
+
   async getFinancialSummary(query: ReportQueryDto, user: CurrentUserPayload) {
     const organizationId = requireOrganizationId(user);
     const range = resolveReportDateRange(query.fromDate, query.toDate);
-    const [storeId, expenseStoreId] = await Promise.all([
-      this.tenantStoreResolver.resolveStoreFilter(user, query.storeId),
-      this.tenantStoreResolver.resolveExpenseStoreFilter(user, query.storeId),
-    ]);
+    const { storeId, creditBranch } = await this.resolveReportStore(
+      user,
+      query.storeId,
+    );
+    // A credit branch's view looks at expenses booked to that branch (none,
+    // unless an admin booked some), not the organization's company-wide ones.
+    const expenseStoreId = creditBranch
+      ? storeId
+      : await this.tenantStoreResolver.resolveExpenseStoreFilter(
+          user,
+          query.storeId,
+        );
 
     const saleWhere = this.buildSaleWhere(range, storeId);
     const expenseWhere = this.buildExpenseWhere(range, expenseStoreId);
@@ -403,11 +449,12 @@ export class ReportsService {
         storeId,
         organizationId,
         range,
+        creditBranch,
       ),
       this.fetchMonthlySales(saleWhere, range, organizationId),
       this.fetchMonthlyExpenses(expenseWhere, range, organizationId),
       this.fetchExpenseBreakdown(expenseWhere),
-      this.fetchStockInvestment(range, storeId, organizationId),
+      this.fetchStockInvestment(range, storeId, organizationId, creditBranch),
     ]);
 
     const monthKeys = buildMonthSeries(range.fromCalendar, range.toCalendar);
@@ -571,6 +618,9 @@ export class ReportsService {
     expenseWhere: Prisma.ExpenseWhereInput,
     organizationId: string,
     dateRange: ReportDateRange,
+    // Stock credited to credit branches is the organization's own sale. It
+    // is not part of a credit branch's view of its own business.
+    includeBranchCredit = true,
   ) {
     const [salesAgg, cogs, expensesAgg, branchCredit] = await Promise.all([
       this.prisma.saleItem.aggregate({
@@ -582,7 +632,9 @@ export class ReportsService {
         where: expenseWhere,
         _sum: { amount: true },
       }),
-      this.sumBranchCreditTotals(organizationId, dateRange),
+      includeBranchCredit
+        ? this.sumBranchCreditTotals(organizationId, dateRange)
+        : Promise.resolve({ revenue: 0, profit: 0 }),
     ]);
 
     const totalRevenue = toMoneyNumber(
@@ -615,6 +667,7 @@ export class ReportsService {
     storeId: string | undefined,
     organizationId: string,
     dateRange: ReportDateRange,
+    creditBranch = false,
   ) {
     const [metrics, stockMetrics] = await Promise.all([
       this.computePeriodMetrics(
@@ -622,8 +675,9 @@ export class ReportsService {
         expenseWhere,
         organizationId,
         dateRange,
+        !creditBranch,
       ),
-      this.computeLiveStockMetrics(storeId, organizationId),
+      this.computeLiveStockMetrics(storeId, organizationId, creditBranch),
     ]);
 
     return {
@@ -1192,7 +1246,31 @@ export class ReportsService {
   private async computeLiveStockMetrics(
     storeId: string | undefined,
     organizationId: string,
+    creditBranch = false,
   ) {
+    // A credit branch's stock is worth what it paid for it: the prices it was
+    // credited at, averaged, with returned units taken out.
+    const useBranchCost = creditBranch && Boolean(storeId);
+    const unitCost = useBranchCost
+      ? Prisma.sql`COALESCE(bc.avg_cost, ${productUnitCostSql})`
+      : productUnitCostSql;
+    const branchCostJoin = useBranchCost
+      ? Prisma.sql`LEFT JOIN (
+          SELECT
+            ci."productId",
+            SUM((ci.quantity - COALESCE(r.returned, 0)) * ci."unitPrice")
+              / NULLIF(SUM(ci.quantity - COALESCE(r.returned, 0)), 0) AS avg_cost
+          FROM "branch_credit_item" ci
+          LEFT JOIN (
+            SELECT "branchCreditItemId", SUM(quantity) AS returned
+            FROM "branch_return"
+            GROUP BY "branchCreditItemId"
+          ) r ON r."branchCreditItemId" = ci.id
+          WHERE ci."storeId" = ${storeId}
+          GROUP BY ci."productId"
+        ) bc ON bc."productId" = p.id`
+      : Prisma.empty;
+
     const rows = await this.prisma.$queryRaw<
       {
         stockValue: unknown;
@@ -1202,13 +1280,14 @@ export class ReportsService {
       }[]
     >`
       SELECT
-        COALESCE(SUM(i.quantity * ${productUnitCostSql}), 0)::numeric AS "stockValue",
+        COALESCE(SUM(i.quantity * ${unitCost}), 0)::numeric AS "stockValue",
         COALESCE(SUM(i.quantity), 0)::int AS units,
         COALESCE(SUM(CASE WHEN i.quantity > 0 AND i.quantity <= i."lowStockThreshold" THEN 1 ELSE 0 END), 0)::int AS "lowStockCount",
         COALESCE(SUM(CASE WHEN i.quantity = 0 THEN 1 ELSE 0 END), 0)::int AS "outOfStockCount"
       FROM "inventory" i
       INNER JOIN "product" p ON p.id = i."productId"
       INNER JOIN "store" st ON st.id = i."storeId"
+      ${branchCostJoin}
       WHERE p."isActive" = true
         AND st."isActive" = true
         AND i."organizationId" = ${organizationId}
@@ -1227,7 +1306,31 @@ export class ReportsService {
     range: ReportDateRange,
     storeId: string | undefined,
     organizationId: string,
+    creditBranch = false,
   ): Promise<number> {
+    // A credit branch's "investment" is the stock it bought from the
+    // organization in the period (what it was charged), less what it returned.
+    if (creditBranch && storeId) {
+      const createdAt = {
+        gte: range.fromTimestamp,
+        lte: range.toTimestamp,
+      };
+      const [credited, returned] = await Promise.all([
+        this.prisma.branchCredit.aggregate({
+          where: { storeId, createdAt },
+          _sum: { total: true },
+        }),
+        this.prisma.branchReturn.aggregate({
+          where: { storeId, createdAt },
+          _sum: { amount: true },
+        }),
+      ]);
+      return toMoneyNumber(
+        toMoneyNumber(credited._sum.total) -
+          toMoneyNumber(returned._sum.amount),
+      );
+    }
+
     const rows = await this.prisma.$queryRaw<{ total: unknown }[]>`
       SELECT COALESCE(SUM(p."totalCost"), 0)::numeric AS total
       FROM "purchase" p
