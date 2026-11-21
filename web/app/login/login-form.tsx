@@ -9,6 +9,10 @@ import { LogoMark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useSignIn } from "@/hooks/auth/sign-in";
+import {
+  publicTenantLogoUrl,
+  usePublicTenant,
+} from "@/hooks/tenant/use-public-tenant";
 import { getPostLoginRedirect } from "@/lib/auth/redirect";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +51,7 @@ export function LoginForm() {
   const returnUrl = getPostLoginRedirect(searchParams);
   const { isLoading: authLoading, isFetched, isAuthenticated } = useAuth();
   const signIn = useSignIn();
+  const { data: tenant } = usePublicTenant();
 
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
@@ -96,9 +101,18 @@ export function LoginForm() {
           <div className="flex flex-col justify-center px-8 py-10 sm:px-10 sm:py-12">
             <div className="mx-auto w-full max-w-[380px]">
               <div className="mb-8 flex items-center gap-2.5">
-                <LogoMark size={32} />
+                {tenant?.hasLogo ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- served by the API for this domain
+                  <img
+                    src={publicTenantLogoUrl()}
+                    alt=""
+                    className="size-8 rounded-md object-contain"
+                  />
+                ) : (
+                  <LogoMark size={32} />
+                )}
                 <span className="text-xl font-bold tracking-tight text-foreground">
-                  inventory
+                  {tenant?.name ?? "inventory"}
                 </span>
               </div>
 
