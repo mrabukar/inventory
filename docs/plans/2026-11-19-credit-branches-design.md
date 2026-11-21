@@ -182,7 +182,7 @@ Integration tests (local Postgres, like `sales-approval.e2e-spec.ts`):
 - **Tests:** `api/test/credit-branches.e2e-spec.ts` (9 cases) covering crediting, insufficient stock, sale isolation, revenue/cost counting, payment submit/approve/reject, over-payment refusal, returns, customer isolation, and a no-op check against an organization with branches.
 - **Not built:** receipt photos on payments, credit limits, a per-branch invoice number sequence, and credit branches inside an organization that also has standard branches.
 
-## 12. Customer billing switched off for credit branches (2026-11-19)
+## 12. Customer billing switched off for credit branches (2026-11-19) — superseded by §14
 
 A credit branch now sells exactly like a standard branch: no customers, no invoices, no customer payments, no partial payment at sale. This is behind one switch on each side rather than commented-out code, so it stays typechecked and comes back by flipping both to `true`:
 
@@ -200,3 +200,48 @@ Long lists no longer grow without limit.
 - **Pending total** (`GET /branch-payments/pending-count`) now returns `{ count, amount }`, so the "waiting" banner is right however many pages there are.
 - **Web:** `Pager` ("Showing 21–40 of 134", Previous/Next) and `SortSelect` are shared. Statements show 20 per page; payment lists show 10 per page (the rows are taller). The admin review queue defaults to oldest first so nothing is forgotten; history tabs default to newest first.
 - The statement still reads the branch's full history on the server to compute balances; only the response is paged. That is fine for years of normal trading, and can move to a SQL window function if a branch ever has tens of thousands of entries.
+
+## 14. Customer billing back on for credit branches (2026-11-21)
+
+The client wants a credit branch to have everything the organization has: customers, partial payment at the sale, invoices, customer payments, outstanding balances and receivables. `CREDIT_BRANCH_BILLING` is now `true` on both sides (API `src/common/constants/credit-branch.constants.ts`, web `lib/credit-branch.ts`). Setting both back to `false` turns it off again.
+
+Turning it on was not safe by itself: the invoices and customer payments endpoints never limited a branch manager to their own branch (which was invisible while billing was off). So a credit branch manager is now confined to their own branch.
+
+- **Invoices:** list and detail return only invoices of sales made at the manager's branch; another branch's invoice looks like it doesn't exist (404).
+- **Customer payments:** the list shows only that branch's payments and sale-time collections; recording a payment works only for the branch's own customers and invoices.
+- **Customers, balances, statements, receivables:** a credit branch manager gets their own branch's customers (list, by id, balance, statement) and a Receivables page of their own debtors. The admin's receivables stay the organization's own customers (a branch's customers owe the branch). Standard branch managers and admins behave exactly as before.
+- **Selling:** a credit branch sells only to its own customers (with an optional partial payment at the sale). Any other store may use the organization's customers but not a credit branch's.
+- **Invoice numbering:** a branch numbers its own invoices from 1 with its prefix (`HARG-0001`), so it never sees gaps from the organization's other sales. The organization keeps `INV-0001…`. Storage: `Invoice.series` (`""` for the organization, the store id for a branch) and uniqueness on `(organizationId, series, number)`; `Store.invoicePrefix` and `Store.nextInvoiceNumber` on the branch. The prefix comes from the branch name unless one is given (2–6 letters or numbers, unique within the organization, never `INV`), and is locked once the branch has issued an invoice. A branch created before this change gets a prefix the first time it bills.
+- **What an invoice shows:** a credit branch is its own business, so its invoice prints the branch's name, address, phone and its own EVC, eDahab and bank numbers, and none of the organization's logo, stamp or signature. The admin sets these when adding or editing the branch (`PATCH /credit-branches/:id`, "Edit branch" on the branch page).
+- **Migration:** `20261121120000_credit_branch_invoicing` (adds the columns above and swaps the invoice uniqueness rule; existing invoices all fall in the organization's own list).
+- **Tests:** `api/test/credit-branches.e2e-spec.ts` covers separate numbering, the printed details, one branch not seeing another's invoices, payments, customers or balances, receivables scoping, partial payment at the sale, the customer rules, default and legacy prefixes, and the prefix lock.
+- **Still true:** the admin's Customers, Invoices and Payments lists show every branch's records together (branch invoices are told apart by their prefix); there is no per-branch filter yet.
+
+## 15. Credit branch sales wait for the admin again (2026-11-21)
+
+This reverses the earlier choice that a credit branch's own sales need no approval. Every branch manager's sale, credit branches included, is now `pending` until an admin approves or rejects it. Stock still comes off at submission and goes back on rejection.
+
+- **Invoice at approval:** a credit branch's invoice (and any partial payment taken at the counter, held in `paidAtSubmission`) is created when the admin approves, from the branch's own numbering (`HARG-0001`). A pending sale makes no invoice, so the customer owes nothing and the sale isn't in the branch's receivables until it is approved. A rejected sale makes none at all.
+- **The admin's queue:** an organization without stores pins the admin's sale lists to its own stock. The pending queue is the one exception (`GET /sales?status=pending`): pending sales can only come from branch managers, so the admin sees every branch's, credit branches included. The count is organization-wide.
+- **Where the admin finds it:** "Sale approvals" under Credit Branches in the sidebar (organizations with stores keep their "Approvals" link), with the pending count.
+- **Unchanged:** a credit branch's sales still stay out of the organization's own reports, before and after approval; the admin's Sales page still lists the organization's own stock only.
+- **Submit Sale:** a credit branch manager no longer sees the Location field (a credit branch is its own business, not a location of the organization's). Customer and the partial "paid now" amount stay.
+
+## 16. Financial summary for a credit branch
+
+A credit branch has its own Financial Summary, separate from the organization's.
+
+- **Cost of goods = what the branch paid.** Each branch sale line stores the
+  branch's weighted-average credit price (credits minus returns) in
+  `SaleItem.unitPurchasePrice`, not the organization's own cost. Migration
+  `20261121130000_credit_branch_sale_cost` re-costs existing branch sales using
+  the current average (an approximation for history).
+- **No expenses.** The branch manager does not record expenses, so
+  profit = revenue − cost (net = gross).
+- **Stock bought** = credits received − returns in the period; **stock value** =
+  units held × the branch's own cost.
+- **Who sees what.** The branch manager sees only their branch. The admin picks a
+  branch in the Financial Summary filter (`storeId` of a credit branch); the
+  default organization view still includes credit-branch revenue/cost and does
+  not mix in branch sales.
+- **Export.** PDF/Excel use the branch's name instead of the organization's.
