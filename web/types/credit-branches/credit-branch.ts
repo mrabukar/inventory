@@ -1,7 +1,19 @@
 import type { PaginationMeta } from "@/types/common/pagination";
 import type { Product } from "@/types/products/product";
 
-export interface CreditBranch {
+/** Contact and payment details printed on a credit branch's own invoices. */
+export interface BranchDetails {
+  phone: string | null;
+  evcNumber: string | null;
+  edahabNumber: string | null;
+  accountNumber: string | null;
+  /** The branch's invoice numbers read "PREFIX-0001". */
+  invoicePrefix: string | null;
+  /** The next invoice number to hand out; above 1 once an invoice has been issued. */
+  nextInvoiceNumber?: number;
+}
+
+export interface CreditBranch extends BranchDetails {
   id: string;
   name: string;
   address: string;
@@ -20,7 +32,15 @@ export interface CreditBranch {
 export interface CreateCreditBranchInput {
   name: string;
   address: string;
+  phone?: string;
+  evcNumber?: string;
+  edahabNumber?: string;
+  accountNumber?: string;
+  /** Leave out to make one from the name. */
+  invoicePrefix?: string;
 }
+
+export type UpdateCreditBranchInput = Partial<CreateCreditBranchInput>;
 
 export const BRANCH_PAYMENT_METHODS = ["cash", "evc", "edahab", "bank"] as const;
 export type BranchPaymentMethod = (typeof BRANCH_PAYMENT_METHODS)[number];
