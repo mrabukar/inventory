@@ -5,6 +5,8 @@ model Organization {
   billingEnabled    Boolean   @default(false)
   nextInvoiceNumber Int       @default(1)
   isActive          Boolean   @default(true)
+  /// The host this organization signs in on (e.g. fonex.example.com). Several organizations may share one.
+  domain            String?
   phone             String?
   evcNumber         String?
   edahabNumber      String?
@@ -41,5 +43,6 @@ model Organization {
   branchReturns     BranchReturn[]
   branchPayments    BranchPayment[]
 
+  @@index([domain])
   @@map("organization")
 }
