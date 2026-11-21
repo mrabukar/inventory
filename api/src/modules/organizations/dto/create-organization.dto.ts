@@ -1,4 +1,4 @@
-import { IsBoolean, IsNotEmpty, IsOptional, IsString } from "class-validator";
+import { IsBoolean, MaxLength, IsNotEmpty, IsOptional, IsString } from "class-validator";
 
 export class CreateOrganizationDto {
   @IsString()
@@ -8,4 +8,10 @@ export class CreateOrganizationDto {
   @IsOptional()
   @IsBoolean()
   hasStores?: boolean;
+
+  /** The host this organization signs in on. Empty clears it. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(253)
+  domain?: string | null;
 }
