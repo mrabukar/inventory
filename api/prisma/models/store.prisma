@@ -14,6 +14,16 @@ model Store {
   type           StoreType    @default(standard)
   /// Hidden system store for org-level inventory when Organization.hasStores is false.
   isOrgWarehouse Boolean      @default(false)
+  /// A credit branch is its own business, so its invoices show these details
+  /// instead of the organization's.
+  phone          String?
+  evcNumber      String?
+  edahabNumber   String?
+  accountNumber  String?
+  /// Credit branches number their own invoices ("TEST-0001"): a prefix, and
+  /// the next number to hand out. Unused by standard branches.
+  invoicePrefix     String?
+  nextInvoiceNumber Int     @default(1)
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   createdAt      DateTime     @default(now())
@@ -29,5 +39,6 @@ model Store {
   branchReturns  BranchReturn[]  @relation("BranchReturnsForStore")
   branchPayments BranchPayment[] @relation("BranchPaymentsForStore")
 
+  @@unique([organizationId, invoicePrefix])
   @@map("store")
 }
