@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Clock, HandCoins, Plus, Wallet } from "lucide-react";
 
+import { InvoiceDetailsDialog } from "./components/invoice-details-dialog";
 import { SubmitPaymentModal } from "./components/submit-payment-modal";
 import { BalancePanel } from "@/components/credit-branches/balance-panel";
 import { BranchPaymentStatusBadge } from "@/components/credit-branches/payment-status-badge";
@@ -23,6 +24,7 @@ import { useSession } from "@/hooks/auth/session";
 import { useBranchPayments } from "@/hooks/branch-payments/use-branch-payments";
 import { useSubmitBranchPayment } from "@/hooks/branch-payments/use-submit-branch-payment";
 import { useCreditBranch } from "@/hooks/credit-branches/use-credit-branch";
+import { useUpdateCreditBranch } from "@/hooks/credit-branches/use-update-credit-branch";
 import { toNumber } from "@/lib/reports/format";
 import { cn, fmt } from "@/lib/utils";
 import { useAppStore } from "@/store/app";
@@ -30,6 +32,7 @@ import {
   branchPaymentMethodLabel,
   type BranchPaymentStatus,
   type SubmitBranchPaymentInput,
+  type UpdateCreditBranchInput,
 } from "@/types/credit-branches/credit-branch";
 
 const PAYMENTS_PAGE_SIZE = 10;
@@ -75,7 +78,9 @@ export default function MyBranchPage() {
   });
   const submitPayment = useSubmitBranchPayment();
 
+  const updateBranch = useUpdateCreditBranch();
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingDetails, setEditingDetails] = useState(false);
   const payments = paymentsData?.data ?? [];
   const paymentsTotal = paymentsData?.meta.total ?? 0;
 
@@ -90,6 +95,20 @@ export default function MyBranchPage() {
     } catch (e) {
       addErrorToast({
         title: "Couldn't submit payment",
+        sub: e instanceof Error ? e.message : "Something went wrong",
+      });
+    }
+  };
+
+  const handleSaveDetails = async (input: UpdateCreditBranchInput) => {
+    if (!storeId) return;
+    try {
+      await updateBranch.mutateAsync({ id: storeId, input });
+      addToast({ title: "Invoice details saved" });
+      setEditingDetails(false);
+    } catch (e) {
+      addErrorToast({
+        title: "Couldn't save the details",
         sub: e instanceof Error ? e.message : "Something went wrong",
       });
     }
@@ -168,6 +187,48 @@ export default function MyBranchPage() {
           tone={branch.totalPending > 0 ? "amber" : "slate"}
         />
       </div>
+
+      <section
+        aria-label="Shown on invoices"
+        className="mb-6 rounded-[var(--r-lg)] border border-border bg-card px-5 py-4 shadow-[var(--shadow-xs)]"
+      >
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">
+              Shown on your invoices
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              So customers know how to pay you.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setEditingDetails(true)}
+          >
+            Edit
+          </Button>
+        </div>
+        <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            ["Phone", branch.phone],
+            ["EVC", branch.evcNumber],
+            ["eDahab", branch.edahabNumber],
+            ["Bank account", branch.accountNumber],
+          ].map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {label}
+              </dt>
+              <dd className="num mt-0.5 break-all font-medium text-foreground">
+                {value || (
+                  <span className="text-muted-foreground">Not set</span>
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </section>
 
       <div className="mb-6">
         <div className="card overflow-hidden">
@@ -272,6 +333,15 @@ export default function MyBranchPage() {
       </div>
 
       {storeId ? <BranchStatementCard branchId={storeId} /> : null}
+
+      {editingDetails && (
+        <InvoiceDetailsDialog
+          branch={branch}
+          isSaving={updateBranch.isPending}
+          onClose={() => setEditingDetails(false)}
+          onSave={(input) => void handleSaveDetails(input)}
+        />
+      )}
 
       {modalOpen && (
         <SubmitPaymentModal
