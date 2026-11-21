@@ -94,6 +94,24 @@ export class CustomersService {
   }
 
   /**
+   * The customer as the caller may see it: a credit branch manager only gets
+   * their own branch's customers (anything else looks like it doesn't exist).
+   * Admins and standard branch managers get today's unrestricted lookup.
+   */
+  async findOneFor(id: string, user: CurrentUserPayload): Promise<Customer> {
+    const customer = await this.findOne(id);
+    if (user.role === UserRole.branch_manager) {
+      const branchStoreId = await this.creditBranchStoreIdFor(user, {
+        optional: true,
+      });
+      if (branchStoreId && customer.storeId !== branchStoreId) {
+        throw new NotFoundException(`Customer with id "${id}" not found`);
+      }
+    }
+    return customer;
+  }
+
+  /**
    * Resolves the calling branch manager's own credit branch. A standard
    * branch manager either gets `undefined` (when `optional`) or a 403 —
    * only credit branches manage their own customers.
@@ -371,21 +389,29 @@ export class CustomersService {
   }
 
   /**
-   * Customers with an outstanding balance (an unpaid invoice), sorted by
-   * highest balance first.
-   */
-  /**
-   * Customers with an outstanding balance. Scoped to the organization's own
-   * customers (storeId null) — a credit branch's customers owe the branch,
-   * not the organization, and have their own balance via the branch.
+   * Customers with an outstanding balance (an unpaid invoice), highest first.
+   * An admin sees the organization's own customers (storeId null): a credit
+   * branch's customers owe the branch, not the organization. A credit branch
+   * manager sees only their own branch's customers.
    */
   async getReceivables(user: CurrentUserPayload) {
     const organizationId = requireOrganizationId(user);
     await assertBillingEnabled(this.prisma, organizationId);
 
+    // Throws for a standard branch manager, who never had this page.
+    const branchStoreId =
+      user.role === UserRole.branch_manager
+        ? ((await this.creditBranchStoreIdFor(user)) as string)
+        : null;
+
     const groups = await this.prisma.invoice.groupBy({
       by: ["customerId"],
-      where: { status: { in: ["unpaid", "partial"] } },
+      where: {
+        status: { in: ["unpaid", "partial"] },
+        ...(branchStoreId
+          ? { customer: { storeId: branchStoreId } }
+          : undefined),
+      },
       _sum: { total: true, paidAmount: true },
       _count: { _all: true },
     });
@@ -399,7 +425,7 @@ export class CustomersService {
     if (customerIds.length === 0) return [];
 
     const customers = await this.prisma.customer.findMany({
-      where: { id: { in: customerIds }, storeId: null },
+      where: { id: { in: customerIds }, storeId: branchStoreId },
       select: { id: true, name: true, phone: true },
     });
     const byId = new Map(customers.map((c) => [c.id, c]));
