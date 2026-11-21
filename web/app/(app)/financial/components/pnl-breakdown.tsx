@@ -36,7 +36,19 @@ const ROWS: {
   },
 ];
 
-export function PnlBreakdown({ breakdown }: { breakdown: FinancialBreakdown }) {
+export function PnlBreakdown({
+  breakdown,
+  hideExpenses = false,
+}: {
+  breakdown: FinancialBreakdown;
+  hideExpenses?: boolean;
+}) {
+  // Branch view: just revenue and profit (cost and expenses stay out of sight).
+  const rows = hideExpenses
+    ? ROWS.filter((row) => row.key !== "expenses" &&
+          row.key !== "netProfit" &&
+          row.key !== "cogs")
+    : ROWS;
   const base = breakdown.revenue > 0 ? breakdown.revenue : 1;
 
   return (
@@ -44,7 +56,7 @@ export function PnlBreakdown({ breakdown }: { breakdown: FinancialBreakdown }) {
       <h3 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 600 }}>
         P&L Breakdown
       </h3>
-      {ROWS.map((row) => {
+      {rows.map((row) => {
         const value = breakdown[row.key];
         const width = Math.min(100, Math.round((value / base) * 100));
 
