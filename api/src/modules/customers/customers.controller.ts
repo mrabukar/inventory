@@ -35,24 +35,27 @@ export class CustomersController {
   }
 
   @Get("receivables")
+  @Roles(UserRole.admin, UserRole.branch_manager)
   receivables(@CurrentUser() user: CurrentUserPayload) {
     return this.customersService.getReceivables(user);
   }
 
   @Get(":id/balance")
+  @Roles(UserRole.admin, UserRole.branch_manager)
   balance(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.customersService.getBalance(id, user);
   }
 
   @Get(":id/statement")
+  @Roles(UserRole.admin, UserRole.branch_manager)
   statement(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.customersService.getStatement(id, user);
   }
 
   @Get(":id")
   @Roles(UserRole.admin, UserRole.branch_manager)
-  findOne(@Param("id") id: string) {
-    return this.customersService.findOne(id);
+  findOne(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.customersService.findOneFor(id, user);
   }
 
   @Post()
