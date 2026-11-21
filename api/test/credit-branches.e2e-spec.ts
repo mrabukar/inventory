@@ -5,7 +5,12 @@
  *
  *   TEST_DATABASE_URL=postgresql://…/inv_test pnpm test:e2e -- credit-branches
  */
-import { BadRequestException, ForbiddenException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
 import { UserRole } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import type { CurrentUserPayload } from "../src/common/decorators/current-user.decorator";
@@ -16,6 +21,7 @@ import { BranchPaymentsService } from "../src/modules/branch-payments/branch-pay
 import { CreditBranchesService } from "../src/modules/credit-branches/credit-branches.service";
 import { CustomersService } from "../src/modules/customers/customers.service";
 import { InvoicesService } from "../src/modules/invoices/invoices.service";
+import { PaymentsService } from "../src/modules/payments/payments.service";
 import { ProductsService } from "../src/modules/products/products.service";
 import { ReportsService } from "../src/modules/reports/reports.service";
 import { SalesService } from "../src/modules/sales/sales.service";
@@ -41,6 +47,7 @@ describeDb("Credit branches (PostgreSQL)", () => {
   let sales: SalesService;
   let customers: CustomersService;
   let invoices: InvoicesService;
+  let payments: PaymentsService;
   let reports: ReportsService;
 
   let organizationId: string;
@@ -105,16 +112,8 @@ describeDb("Credit branches (PostgreSQL)", () => {
     sales = new SalesService(prisma, products, resolver);
     reports = new ReportsService(prisma, resolver);
     invoices = new InvoicesService(prisma);
-    // CustomersService needs PaymentsService, which isn't exercised by
-    // these tests (no billing). A minimal stand-in keeps the constructor happy.
-    customers = new CustomersService(prisma, {
-      getCustomerBalance: async () => ({
-        totalBilled: 0,
-        totalPaid: 0,
-        balance: 0,
-        unpaidInvoiceCount: 0,
-      }),
-    } as unknown as ConstructorParameters<typeof CustomersService>[1]);
+    payments = new PaymentsService(prisma);
+    customers = new CustomersService(prisma, payments);
 
     const org = await prisma.organization.create({
       data: {
@@ -199,7 +198,7 @@ describeDb("Credit branches (PostgreSQL)", () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it("branch sales go through immediately and never reach the org's own reports", async () => {
+  it("holds a branch's sale for the admin and keeps it out of the org's own reports, before and after approval", async () => {
     const { store, manager } = await makeBranch();
     await inOrg(() =>
       creditBranches.creditStock(
@@ -217,7 +216,10 @@ describeDb("Credit branches (PostgreSQL)", () => {
         manager,
       ),
     );
-    expect(sale.status).toBe("active"); // no approval wait, unlike a standard branch
+    expect(sale.status).toBe("pending"); // waits for the admin, like any branch
+    expect(await qty(store.id)).toBe(7); // stock comes off straight away
+
+    await inOrg(() => sales.approve(sale.id, admin));
 
     const after = await inOrg(() => reports.getAllTimeCompanyNetProfit(admin));
     // The branch's own sale adds no revenue to the org — only crediting does.
@@ -357,9 +359,12 @@ describeDb("Credit branches (PostgreSQL)", () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  // CREDIT_BRANCH_BILLING is off: a credit branch sells like a standard
-  // branch, with no customers, invoices or customer payments.
-  describe("with customer billing switched off for credit branches", () => {
+  // A credit branch is its own business: own customers, invoices, payments
+  // and invoice numbers, all confined to the branch.
+  describe("customer billing for credit branches", () => {
+    let prefixCount = 0;
+    const nextPrefix = () => `P${String(++prefixCount).padStart(2, "0")}`;
+
     beforeAll(async () => {
       await prisma.organization.update({
         where: { id: organizationId },
@@ -374,26 +379,377 @@ describeDb("Credit branches (PostgreSQL)", () => {
       });
     });
 
-    it("blocks customers and invoices for a credit branch manager, not for the admin", async () => {
-      const { manager } = await makeBranch();
+    /** A branch with its own prefix and details, stock, a manager and one customer. */
+    async function makeBilledBranch(prefix = nextPrefix()) {
+      const store = await inOrg(() =>
+        creditBranches.createBranch(
+          {
+            name: `Shop ${prefix} ${randomUUID().slice(0, 6)}`,
+            address: "Main St",
+            invoicePrefix: prefix,
+            phone: "061111",
+            evcNumber: `EVC-${prefix}`,
+            edahabNumber: `EDH-${prefix}`,
+            accountNumber: `ACC-${prefix}`,
+          },
+          admin,
+        ),
+      );
+      const manager = await makeUser(UserRole.branch_manager, store.id);
+      await inOrg(() =>
+        creditBranches.creditStock(
+          store.id,
+          { items: [{ productId, quantity: 50, unitPrice: 10 }] },
+          admin,
+        ),
+      );
+      const customer = await inOrg(() =>
+        customers.create({ name: `Customer ${prefix}` }, manager),
+      );
+      return { store, manager, customer, prefix };
+    }
 
-      await expect(
-        inOrg(() => customers.findAll({ page: 1, limit: 20 }, manager)),
-      ).rejects.toBeInstanceOf(ForbiddenException);
-      await expect(
-        inOrg(() => customers.create({ name: "Amina" }, manager)),
-      ).rejects.toBeInstanceOf(ForbiddenException);
-      await expect(
-        inOrg(() => invoices.findAll({ page: 1, limit: 20 }, manager)),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+    /** What the branch manager does: the sale then waits for the admin. */
+    const submitSale = (
+      manager: CurrentUserPayload,
+      customerId: string | undefined,
+      quantitySold: number,
+      paidAmount = 0,
+    ) =>
+      inOrg(() =>
+        sales.create(
+          {
+            items: [{ productId, quantitySold }],
+            saleDate: today,
+            customerId,
+            paidAmount,
+          },
+          manager,
+        ),
+      );
 
-      await expect(
-        inOrg(() => invoices.findAll({ page: 1, limit: 20 }, admin)),
-      ).resolves.toBeDefined();
+    /** Submit, then have the admin approve: the sale (with its invoice) as it ends up. */
+    const sellTo = async (
+      manager: CurrentUserPayload,
+      customerId: string | undefined,
+      quantitySold: number,
+      paidAmount = 0,
+    ) => {
+      const pending = await submitSale(
+        manager,
+        customerId,
+        quantitySold,
+        paidAmount,
+      );
+      return inOrg(() => sales.approve(pending.id, admin));
+    };
+
+    it("holds a branch's sale until the admin approves it, then bills it from the branch's own numbers", async () => {
+      const a = await makeBilledBranch();
+
+      const pending = await submitSale(a.manager, a.customer.id, 4, 25); // $60, $25 now
+
+      expect(pending.status).toBe("pending");
+      expect(pending.invoice).toBeNull();
+      expect(await qty(a.store.id)).toBe(46);
+
+      // It shows up in the admin's approval queue, even though the admin's own
+      // lists are limited to the organization's stock.
+      const queue = await inOrg(() =>
+        sales.findAll({ page: 1, limit: 100, status: "pending" }, admin),
+      );
+      expect(queue.data.map((x) => x.id)).toContain(pending.id);
+      const waiting = await inOrg(() => sales.countPending(admin));
+      expect(waiting.count).toBeGreaterThanOrEqual(1);
+
+      const approved = await inOrg(() => sales.approve(pending.id, admin));
+
+      expect(approved.status).toBe("active");
+      expect(approved.invoice?.numberLabel).toBe(`${a.prefix}-0001`);
+      expect(approved.invoice?.status).toBe("partial");
+      expect(Number(approved.invoice?.paidAtSale)).toBe(25);
+      const balance = await inOrg(() =>
+        customers.getBalance(a.customer.id, a.manager),
+      );
+      expect(balance.balance).toBe(35);
     });
 
-    it("records a credit branch's sale with no customer and no invoice", async () => {
-      const { store, manager } = await makeBranch();
+    it("doesn't charge the customer until the sale is approved", async () => {
+      const a = await makeBilledBranch();
+
+      const pending = await submitSale(a.manager, a.customer.id, 3); // $45
+
+      const whilePending = await inOrg(() =>
+        customers.getBalance(a.customer.id, a.manager),
+      );
+      expect(whilePending.balance).toBe(0);
+      const owedWhilePending = await inOrg(() =>
+        customers.getReceivables(a.manager),
+      );
+      expect(owedWhilePending).toHaveLength(0);
+
+      await inOrg(() => sales.approve(pending.id, admin));
+
+      const afterApproval = await inOrg(() =>
+        customers.getBalance(a.customer.id, a.manager),
+      );
+      expect(afterApproval.balance).toBe(45);
+    });
+
+    it("puts the stock back and makes no invoice when the admin rejects a branch's sale", async () => {
+      const a = await makeBilledBranch();
+
+      const pending = await submitSale(a.manager, a.customer.id, 3);
+      expect(await qty(a.store.id)).toBe(47);
+
+      const rejected = await inOrg(() =>
+        sales.reject(pending.id, { reason: "Wrong customer" }, admin),
+      );
+
+      expect(rejected.status).toBe("rejected");
+      expect(await qty(a.store.id)).toBe(50);
+      expect(
+        await prisma.invoice.count({ where: { saleId: pending.id } }),
+      ).toBe(0);
+      const balance = await inOrg(() =>
+        customers.getBalance(a.customer.id, a.manager),
+      );
+      expect(balance.balance).toBe(0);
+    });
+
+    it("numbers a branch's invoices from its own list, leaving the organization's alone", async () => {
+      const a = await makeBilledBranch();
+      const b = await makeBilledBranch();
+
+      const a1 = await sellTo(a.manager, a.customer.id, 2);
+      const a2 = await sellTo(a.manager, a.customer.id, 1);
+      const b1 = await sellTo(b.manager, b.customer.id, 1);
+      const orgSale = await inOrg(() =>
+        sales.create(
+          {
+            items: [{ productId, quantitySold: 1 }],
+            saleDate: today,
+            paidAmount: 15,
+          },
+          admin,
+        ),
+      );
+
+      expect(a1.invoice?.numberLabel).toBe(`${a.prefix}-0001`);
+      expect(a2.invoice?.numberLabel).toBe(`${a.prefix}-0002`);
+      expect(b1.invoice?.numberLabel).toBe(`${b.prefix}-0001`);
+      expect(orgSale.invoice?.numberLabel).toMatch(/^INV-\d{4}$/);
+
+      const rows = await prisma.invoice.findMany({
+        where: {
+          id: { in: [a1.invoice!.id, b1.invoice!.id, orgSale.invoice!.id] },
+        },
+        select: { id: true, series: true },
+      });
+      const seriesOf = (id: string) => rows.find((r) => r.id === id)?.series;
+      expect(seriesOf(a1.invoice!.id)).toBe(a.store.id);
+      expect(seriesOf(b1.invoice!.id)).toBe(b.store.id);
+      expect(seriesOf(orgSale.invoice!.id)).toBe("");
+    });
+
+    it("sends the branch's own details with its invoice, for printing", async () => {
+      const a = await makeBilledBranch();
+      const sale = await sellTo(a.manager, a.customer.id, 1);
+
+      const invoice = await inOrg(() =>
+        invoices.findOne(sale.invoice!.id, a.manager),
+      );
+
+      expect(invoice.sale.store.type).toBe("credit");
+      expect(invoice.sale.store.evcNumber).toBe(`EVC-${a.prefix}`);
+      expect(invoice.sale.store.edahabNumber).toBe(`EDH-${a.prefix}`);
+      expect(invoice.sale.store.accountNumber).toBe(`ACC-${a.prefix}`);
+      expect(invoice.sale.store.phone).toBe("061111");
+    });
+
+    it("keeps a branch manager to their own branch's invoices", async () => {
+      const a = await makeBilledBranch();
+      const b = await makeBilledBranch();
+      const aSale = await sellTo(a.manager, a.customer.id, 1);
+      const bSale = await sellTo(b.manager, b.customer.id, 1);
+
+      const aList = await inOrg(() =>
+        invoices.findAll({ page: 1, limit: 100 }, a.manager),
+      );
+      const ids = aList.data.map((i) => i.id);
+      expect(ids).toContain(aSale.invoice!.id);
+      expect(ids).not.toContain(bSale.invoice!.id);
+      expect(aList.data.every((i) => i.sale.storeId === a.store.id)).toBe(true);
+
+      await expect(
+        inOrg(() => invoices.findOne(bSale.invoice!.id, a.manager)),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      // The admin sees both.
+      const all = await inOrg(() =>
+        invoices.findAll({ page: 1, limit: 100 }, admin),
+      );
+      const allIds = all.data.map((i) => i.id);
+      expect(allIds).toEqual(
+        expect.arrayContaining([aSale.invoice!.id, bSale.invoice!.id]),
+      );
+    });
+
+    it("lets a branch take payments from its own customers only", async () => {
+      const a = await makeBilledBranch();
+      const b = await makeBilledBranch();
+      const aSale = await sellTo(a.manager, a.customer.id, 2); // $30 owed
+      await sellTo(b.manager, b.customer.id, 2);
+
+      await inOrg(() =>
+        payments.create(
+          { customerId: a.customer.id, amount: 10, paidAt: today },
+          a.manager,
+        ),
+      );
+      const invoice = await prisma.invoice.findUniqueOrThrow({
+        where: { id: aSale.invoice!.id },
+      });
+      expect(Number(invoice.paidAmount)).toBe(10);
+      expect(invoice.status).toBe("partial");
+
+      await expect(
+        inOrg(() =>
+          payments.create(
+            { customerId: b.customer.id, amount: 5, paidAt: today },
+            a.manager,
+          ),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      const list = await inOrg(() =>
+        payments.findAll({ page: 1, limit: 100 }, a.manager),
+      );
+      expect(list.data.length).toBeGreaterThan(0);
+      expect(list.data.every((p) => p.customerId === a.customer.id)).toBe(true);
+    });
+
+    it("limits customers, balances and receivables to the branch", async () => {
+      const a = await makeBilledBranch();
+      const b = await makeBilledBranch();
+      await sellTo(a.manager, a.customer.id, 3); // $45 owed
+      await sellTo(b.manager, b.customer.id, 2);
+
+      // Customers
+      const aCustomers = await inOrg(() =>
+        customers.findAll({ page: 1, limit: 50 }, a.manager),
+      );
+      expect(aCustomers.data.map((c) => c.id)).toEqual([a.customer.id]);
+      await expect(
+        inOrg(() => customers.findOneFor(b.customer.id, a.manager)),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      // Balances
+      const balance = await inOrg(() =>
+        customers.getBalance(a.customer.id, a.manager),
+      );
+      expect(balance.balance).toBe(45);
+      await expect(
+        inOrg(() => customers.getBalance(b.customer.id, a.manager)),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      // Receivables: the branch's own debtors only.
+      const aOwed = await inOrg(() => customers.getReceivables(a.manager));
+      expect(aOwed.map((r) => r.customer?.id)).toEqual([a.customer.id]);
+      expect(aOwed[0].balance).toBe(45);
+
+      // The admin's receivables are the organization's own customers, not
+      // either branch's.
+      const orgDebtor = await inOrg(() =>
+        customers.create({ name: "Org debtor" }, admin),
+      );
+      await inOrg(() =>
+        sales.create(
+          {
+            items: [{ productId, quantitySold: 1 }],
+            saleDate: today,
+            customerId: orgDebtor.id,
+            paidAmount: 0,
+          },
+          admin,
+        ),
+      );
+      const adminOwed = await inOrg(() => customers.getReceivables(admin));
+      const adminIds = adminOwed.map((r) => r.customer?.id);
+      expect(adminIds).toContain(orgDebtor.id);
+      expect(adminIds).not.toContain(a.customer.id);
+      expect(adminIds).not.toContain(b.customer.id);
+    });
+
+    it("records a partial payment at the sale and leaves the rest owing", async () => {
+      const a = await makeBilledBranch();
+
+      const sale = await sellTo(a.manager, a.customer.id, 4, 25); // $60, $25 now
+
+      expect(sale.invoice?.status).toBe("partial");
+      expect(Number(sale.invoice?.paidAtSale)).toBe(25);
+      const balance = await inOrg(() =>
+        customers.getBalance(a.customer.id, a.manager),
+      );
+      expect(balance.balance).toBe(35);
+    });
+
+    it("lets a branch sell only to its own customers, and keeps the organization off them", async () => {
+      const a = await makeBilledBranch();
+      const b = await makeBilledBranch();
+      const orgCustomer = await inOrg(() =>
+        customers.create({ name: "Org customer" }, admin),
+      );
+
+      await expect(sellTo(a.manager, b.customer.id, 1)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      await expect(sellTo(a.manager, orgCustomer.id, 1)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      await expect(
+        inOrg(() =>
+          sales.create(
+            {
+              items: [{ productId, quantitySold: 1 }],
+              saleDate: today,
+              customerId: a.customer.id,
+              paidAmount: 0,
+            },
+            admin,
+          ),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it("makes a prefix from the branch name, nudging it when another branch has it", async () => {
+      const first = await inOrg(() =>
+        creditBranches.createBranch(
+          { name: "Qalbi Main", address: "Main St" },
+          admin,
+        ),
+      );
+      const second = await inOrg(() =>
+        creditBranches.createBranch(
+          { name: "Qalbi Two", address: "Main St" },
+          admin,
+        ),
+      );
+
+      expect(first.invoicePrefix).toBe("QALB");
+      expect(second.invoicePrefix).toBe("QALB2");
+    });
+
+    it("gives a branch made before prefixes existed one when it first bills", async () => {
+      const store = await prisma.store.create({
+        data: {
+          name: "Legacy shop",
+          address: "Old Rd",
+          type: "credit",
+          organizationId,
+        },
+      });
+      const manager = await makeUser(UserRole.branch_manager, store.id);
       await inOrg(() =>
         creditBranches.creditStock(
           store.id,
@@ -402,25 +758,68 @@ describeDb("Credit branches (PostgreSQL)", () => {
         ),
       );
       const customer = await inOrg(() =>
-        customers.create({ name: "Org's own customer" }, admin),
+        customers.create({ name: "Legacy customer" }, manager),
       );
 
-      const sale = await inOrg(() =>
-        sales.create(
-          {
-            items: [{ productId, quantitySold: 2 }],
-            saleDate: today,
-            customerId: customer.id,
-            paidAmount: 5,
-          },
-          manager,
+      const sale = await sellTo(manager, customer.id, 1);
+
+      expect(sale.invoice?.numberLabel).toBe("LEGA-0001");
+      const saved = await prisma.store.findUniqueOrThrow({
+        where: { id: store.id },
+      });
+      expect(saved.invoicePrefix).toBe("LEGA");
+    });
+
+    it("edits a branch's details, refuses a taken prefix, and locks the prefix after the first invoice", async () => {
+      const a = await makeBilledBranch();
+      const c = await makeBilledBranch();
+
+      const edited = await inOrg(() =>
+        creditBranches.updateBranch(
+          c.store.id,
+          { phone: "061999", invoicePrefix: "NEWC" },
+          admin,
         ),
       );
+      expect(edited.phone).toBe("061999");
+      expect(edited.invoicePrefix).toBe("NEWC");
 
-      expect(sale.status).toBe("active");
-      expect(sale.customerId).toBeNull();
-      expect(sale.invoice).toBeNull();
-      expect(await qty(store.id)).toBe(3);
+      await expect(
+        inOrg(() =>
+          creditBranches.updateBranch(
+            c.store.id,
+            { invoicePrefix: a.prefix },
+            admin,
+          ),
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(
+        inOrg(() =>
+          creditBranches.updateBranch(
+            c.store.id,
+            { invoicePrefix: "INV" },
+            admin,
+          ),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      await sellTo(c.manager, c.customer.id, 1);
+
+      await expect(
+        inOrg(() =>
+          creditBranches.updateBranch(
+            c.store.id,
+            { invoicePrefix: "OTHR" },
+            admin,
+          ),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      // Everything else can still change.
+      await expect(
+        inOrg(() =>
+          creditBranches.updateBranch(c.store.id, { phone: "061888" }, admin),
+        ),
+      ).resolves.toBeDefined();
     });
   });
 
@@ -578,6 +977,141 @@ describeDb("Credit branches (PostgreSQL)", () => {
       const after = await inOrg(() => branchPayments.countPending(admin));
       expect(after.count).toBe(before.count + 2);
       expect(after.amount).toBe(before.amount + 20);
+    });
+  });
+
+  describe("a credit branch's own financial summary", () => {
+    const range = { fromDate: today, toDate: today };
+
+    async function soldAndApproved(
+      manager: CurrentUserPayload,
+      quantitySold: number,
+    ) {
+      const pending = await inOrg(() =>
+        sales.create(
+          { items: [{ productId, quantitySold }], saleDate: today },
+          manager,
+        ),
+      );
+      return inOrg(() => sales.approve(pending.id, admin));
+    }
+
+    it("records what the branch paid as the cost of what it sells, not the organization's cost", async () => {
+      const { store, manager } = await makeBranch();
+      await inOrg(() =>
+        creditBranches.creditStock(
+          store.id,
+          { items: [{ productId, quantity: 10, unitPrice: 10 }] },
+          admin,
+        ),
+      );
+      const second = await inOrg(() =>
+        creditBranches.creditStock(
+          store.id,
+          { items: [{ productId, quantity: 10, unitPrice: 20 }] },
+          admin,
+        ),
+      );
+      await inOrg(() =>
+        creditBranches.createReturn(
+          store.id,
+          {
+            branchCreditItemId: second.items[0].id,
+            quantity: 5,
+            reason: "Wrong colour",
+          },
+          admin,
+        ),
+      );
+
+      // 10 @ $10 and 5 left @ $20 → $200 over 15 units ≈ $13.33 (the
+      // organization's own cost of the product is $7).
+      const sale = await soldAndApproved(manager, 2);
+
+      const line = await prisma.saleItem.findFirstOrThrow({
+        where: { saleId: sale.id },
+      });
+      expect(Number(line.unitPurchasePrice)).toBe(13.33);
+      const product = await prisma.product.findUniqueOrThrow({
+        where: { id: productId },
+      });
+      expect(Number(product.averageCost)).toBe(7);
+    });
+
+    it("gives the branch its own revenue, cost, profit, stock bought and stock value", async () => {
+      const { store, manager } = await makeBranch();
+      const other = await makeBranch();
+      await inOrg(() =>
+        creditBranches.creditStock(
+          store.id,
+          { items: [{ productId, quantity: 10, unitPrice: 10 }] }, // $100 bought
+          admin,
+        ),
+      );
+      const orgBefore = await inOrg(() =>
+        reports.getFinancialSummary(range, admin),
+      );
+
+      await soldAndApproved(manager, 4); // sells at $15 → $60; cost 4 × $10
+
+      const summary = await inOrg(() =>
+        reports.getFinancialSummary(range, manager),
+      );
+      expect(summary.summary.totalRevenue).toBe(60);
+      expect(summary.summary.cogs).toBe(40);
+      expect(summary.summary.grossProfit).toBe(20);
+      expect(summary.summary.totalExpenses).toBe(0);
+      expect(summary.summary.netProfit).toBe(20);
+      expect(summary.summary.stockInvestment).toBe(100);
+      expect(summary.summary.inStockBalance).toBe(6);
+      expect(summary.summary.currentStockValue).toBe(60); // 6 units at what it paid
+
+      // Returning stock lowers what it has bought and what it holds.
+      const credits = await inOrg(() =>
+        creditBranches.listCredits(store.id, admin),
+      );
+      await inOrg(() =>
+        creditBranches.createReturn(
+          store.id,
+          {
+            branchCreditItemId: credits[0].items[0].id,
+            quantity: 2,
+            reason: "Damaged",
+          },
+          admin,
+        ),
+      );
+      const afterReturn = await inOrg(() =>
+        reports.getFinancialSummary(range, manager),
+      );
+      expect(afterReturn.summary.stockInvestment).toBe(80);
+      expect(afterReturn.summary.currentStockValue).toBe(40);
+
+      // The admin can open the branch's own figures by its store id...
+      const adminView = await inOrg(() =>
+        reports.getFinancialSummary({ ...range, storeId: store.id }, admin),
+      );
+      expect(adminView.summary.totalRevenue).toBe(60);
+      expect(adminView.summary.cogs).toBe(40);
+      expect(adminView.summary.stockInvestment).toBe(80);
+
+      // ...but the organization's own view is unchanged by the branch's sale.
+      const orgAfter = await inOrg(() =>
+        reports.getFinancialSummary(range, admin),
+      );
+      expect(orgAfter.summary.totalRevenue).toBe(
+        orgBefore.summary.totalRevenue - 20, // only the returned $20 of credit moved
+      );
+      expect(orgAfter.summary.cogs).toBe(orgBefore.summary.cogs - 14); // 2 × $7 cost returned
+
+      // A branch manager can't read another branch by passing its id.
+      const peek = await inOrg(() =>
+        reports.getFinancialSummary(
+          { ...range, storeId: store.id },
+          other.manager,
+        ),
+      );
+      expect(peek.summary.totalRevenue).toBe(0);
     });
   });
 
