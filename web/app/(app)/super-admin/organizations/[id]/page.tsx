@@ -9,6 +9,7 @@ import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { OrganizationLogoUpload } from "@/components/organization/organization-logo-upload";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
+import { OrganizationDomainSelect } from "@/components/organization/organization-domain-select";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 // import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -102,6 +103,7 @@ export default function OrganizationDetailPage() {
   const [hasStores, setHasStores] = useState(true);
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [isActive, setIsActive] = useState(true);
+  const [domain, setDomain] = useState("");
 
   const [adminName, setAdminName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
@@ -120,6 +122,7 @@ export default function OrganizationDetailPage() {
     setHasStores(org.hasStores);
     setBillingEnabled(org.billingEnabled);
     setIsActive(org.isActive);
+    setDomain(org.domain ?? "");
   }, [org]);
 
   const updateMutation = useMutation({
@@ -129,6 +132,7 @@ export default function OrganizationDetailPage() {
         hasStores,
         billingEnabled,
         isActive,
+        domain: domain.trim() || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
@@ -141,6 +145,7 @@ export default function OrganizationDetailPage() {
         setHasStores(org.hasStores);
         setBillingEnabled(org.billingEnabled);
         setIsActive(org.isActive);
+        setDomain(org.domain ?? "");
       }
     },
   });
@@ -155,7 +160,8 @@ export default function OrganizationDetailPage() {
     (name.trim() !== org.name ||
       hasStores !== org.hasStores ||
       billingEnabled !== org.billingEnabled ||
-      isActive !== org.isActive);
+      isActive !== org.isActive ||
+      domain.trim() !== (org.domain ?? ""));
 
   if (isPending || !org) {
     return <p className="text-muted-foreground">Loading…</p>;
@@ -236,6 +242,21 @@ export default function OrganizationDetailPage() {
                   onChange={(e) => setName(e.target.value)}
                   disabled={updateMutation.isPending}
                 />
+              </div>
+
+              <div className="grid gap-2">
+                <label htmlFor="org-domain" className="text-sm font-medium leading-none">
+                  Domain
+                </label>
+                <OrganizationDomainSelect
+                  value={domain}
+                  onChange={setDomain}
+                  disabled={updateMutation.isPending}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Where this organization&apos;s people sign in. They can&apos;t
+                  sign in on any other domain; with none set, they are blocked.
+                </p>
               </div>
 
               <label className="flex items-start gap-3 text-sm">
