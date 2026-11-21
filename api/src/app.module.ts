@@ -29,6 +29,7 @@ import { PaymentsModule } from "./modules/payments/payments.module";
 import { UsersModule } from "./modules/users/users.module";
 import { CreditBranchesModule } from "./modules/credit-branches/credit-branches.module";
 import { BranchPaymentsModule } from "./modules/branch-payments/branch-payments.module";
+import { PublicTenantModule } from "./modules/public-tenant/public-tenant.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { TenantModule } from "./common/tenant/tenant.module";
 import { StorageModule } from "./common/storage/storage.module";
@@ -94,6 +95,7 @@ import { StorageModule } from "./common/storage/storage.module";
     UsersModule,
     CreditBranchesModule,
     BranchPaymentsModule,
+    PublicTenantModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
