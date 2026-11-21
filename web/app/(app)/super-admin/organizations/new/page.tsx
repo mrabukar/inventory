@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 
+import { OrganizationDomainSelect } from "@/components/organization/organization-domain-select";
 import { OrganizationLogoPicker } from "@/components/organization/organization-logo-picker";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -24,11 +25,16 @@ export default function NewOrganizationPage() {
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const [name, setName] = useState("");
   const [hasStores, setHasStores] = useState(true);
+  const [domain, setDomain] = useState("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const org = await createOrganization({ name: name.trim(), hasStores });
+      const org = await createOrganization({
+        name: name.trim(),
+        hasStores,
+        ...(domain.trim() ? { domain: domain.trim() } : undefined),
+      });
       if (logoFile) {
         await uploadOrganizationLogo(org.id, logoFile);
       }
@@ -84,6 +90,21 @@ export default function NewOrganizationPage() {
               />
               <p className="text-sm text-muted-foreground">
                 This name appears in the app and on exported reports.
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <label htmlFor="org-domain" className="text-sm font-medium leading-none">
+                Domain
+              </label>
+              <OrganizationDomainSelect
+                value={domain}
+                onChange={setDomain}
+                disabled={mutation.isPending}
+              />
+              <p className="text-sm text-muted-foreground">
+                The address this organization&apos;s people sign in on. They
+                can&apos;t sign in on any other domain.
               </p>
             </div>
 
