@@ -2,7 +2,10 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { assertBillingEnabled } from "../../common/utils/require-billing-enabled.util";
-import { assertBillingAllowedForBranch } from "../../common/utils/credit-branch.util";
+import {
+  assertBillingAllowedForBranch,
+  creditBranchStoreIdOf,
+} from "../../common/utils/credit-branch.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { PaginatedResult } from "../stores/stores.service";
@@ -18,6 +21,19 @@ const invoiceInclude = {
       },
       soldBy: { select: { id: true, name: true, email: true } },
       location: true,
+      // A credit branch's invoice shows the branch's own details.
+      store: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          address: true,
+          phone: true,
+          evcNumber: true,
+          edahabNumber: true,
+          accountNumber: true,
+        },
+      },
     },
   },
   organization: {
@@ -51,12 +67,15 @@ export class InvoicesService {
     const organizationId = requireOrganizationId(user);
     await assertBillingEnabled(this.prisma, organizationId);
     await assertBillingAllowedForBranch(this.prisma, user);
+    // A credit branch manager only ever sees their own branch's invoices.
+    const branchStoreId = await creditBranchStoreIdOf(this.prisma, user);
 
     const { page, limit } = query;
     const skip = (page - 1) * limit;
     const search = typeof query.search === "string" ? query.search.trim() : "";
 
     const where: Prisma.InvoiceWhereInput = {
+      ...(branchStoreId ? { sale: { storeId: branchStoreId } } : undefined),
       ...(query.status ? { status: query.status } : undefined),
       ...(query.customerId ? { customerId: query.customerId } : undefined),
       ...(search
@@ -93,13 +112,15 @@ export class InvoicesService {
     const organizationId = requireOrganizationId(user);
     await assertBillingEnabled(this.prisma, organizationId);
     await assertBillingAllowedForBranch(this.prisma, user);
+    const branchStoreId = await creditBranchStoreIdOf(this.prisma, user);
 
     const invoice = await this.prisma.invoice.findUnique({
       where: { id },
       include: invoiceInclude,
     });
 
-    if (!invoice) {
+    // Someone else's invoice looks the same as one that doesn't exist.
+    if (!invoice || (branchStoreId && invoice.sale.storeId !== branchStoreId)) {
       throw new NotFoundException(`Invoice with id "${id}" not found`);
     }
 
