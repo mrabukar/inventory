@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
 } from "@nestjs/common";
@@ -19,6 +20,7 @@ import { BranchStatementQueryDto } from "./dto/branch-statement-query.dto";
 import { CreateBranchReturnDto } from "./dto/create-branch-return.dto";
 import { CreateCreditBranchDto } from "./dto/create-credit-branch.dto";
 import { CreditStockDto } from "./dto/credit-stock.dto";
+import { UpdateCreditBranchDto } from "./dto/update-credit-branch.dto";
 
 @Controller("credit-branches")
 export class CreditBranchesController {
@@ -63,6 +65,16 @@ export class CreditBranchesController {
     @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.creditBranches.createBranch(dto, user);
+  }
+
+  @Patch(":id")
+  @Roles(UserRole.admin)
+  updateBranch(
+    @Param("id") id: string,
+    @Body() dto: UpdateCreditBranchDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.creditBranches.updateBranch(id, dto, user);
   }
 
   @Post(":id/credits")
