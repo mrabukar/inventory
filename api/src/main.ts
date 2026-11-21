@@ -36,6 +36,7 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(process.env.PORT ?? 4000);
+  // In production set LISTEN_HOST=127.0.0.1 so the API is reachable only through nginx.
+  await app.listen(process.env.PORT ?? 4000, process.env.LISTEN_HOST ?? "0.0.0.0");
 }
 void bootstrap();
