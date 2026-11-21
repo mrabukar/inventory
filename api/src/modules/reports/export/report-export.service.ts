@@ -42,6 +42,7 @@ export class ReportExportService {
         timezone: data.period.timezone,
       },
       "Financial Summary",
+      true,
     );
 
     const file =
@@ -91,13 +92,21 @@ export class ReportExportService {
     query: ReportExportQueryDto,
     period: ReportPeriodInfo,
     reportTitle: string,
+    // The financial summary can be a credit branch's own: then the report is
+    // the branch's (its name, not the organization's name and logo).
+    allowBranchView = false,
   ): Promise<ReportExportContext> {
     const organizationId = requireOrganizationId(user);
     const exportTimezone = resolveExportTimezone(query.timezone);
-    const storeId = await this.tenantStoreResolver.resolveStoreFilter(
-      user,
-      query.storeId,
-    );
+    const { storeId, creditBranch } = allowBranchView
+      ? await this.reportsService.resolveReportStore(user, query.storeId)
+      : {
+          storeId: await this.tenantStoreResolver.resolveStoreFilter(
+            user,
+            query.storeId,
+          ),
+          creditBranch: false,
+        };
 
     const [organization, store, category, logo] = await Promise.all([
       this.prisma.organization.findUnique({
@@ -122,7 +131,7 @@ export class ReportExportService {
     let logoDataUrl: string | null = null;
     let logoAspectRatio: number | null = null;
 
-    if (logo) {
+    if (logo && !creditBranch) {
       const metadata = await sharp(logo.buffer).metadata();
       logoDataUrl = `data:${logo.contentType};base64,${logo.buffer.toString("base64")}`;
       if (metadata.width && metadata.height) {
@@ -131,8 +140,11 @@ export class ReportExportService {
     }
 
     return {
-      organizationName: organization?.name ?? "Organization",
-      storeName: store?.name ?? null,
+      organizationName:
+        creditBranch && store
+          ? store.name
+          : (organization?.name ?? "Organization"),
+      storeName: creditBranch ? null : (store?.name ?? null),
       categoryName: category?.name ?? null,
       reportTitle,
       periodFrom: period.from,
