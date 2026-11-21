@@ -29,6 +29,9 @@ const defaultRange = getLastSixMonthsRange();
 
 export default function FinancialPage() {
   const hasStores = useAppStore((s) => s.user?.hasStores ?? true);
+  const user = useAppStore((s) => s.user);
+  const isAdmin = user?.role === "admin";
+  const isCreditBranchManager = user?.isCreditBranch === true;
   const filters = useReportFilters(defaultRange);
   const [exportBusy, setExportBusy] = useState(false);
   const { data, isLoading, isError, error } = useFinancialSummary(filters.query);
@@ -52,15 +55,25 @@ export default function FinancialPage() {
     [data?.charts.netProfitTrend],
   );
 
+  // A credit branch has no expenses: its profit is revenue minus what it paid.
+  const branchView =
+    isCreditBranchManager || (!hasStores && !!filters.query.storeId);
+
   const header = (
     <PageHeader
       title="Financial Summary"
-      desc="Revenue, cost, and profit for the selected period"
+      desc={
+        branchView
+          ? "This branch's revenue and profit for the selected period"
+          : "Revenue, cost, and profit for the selected period"
+      }
       action={
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <ReportFilterBar
             filters={filters}
             showStoreFilter={hasStores}
+            // Admin branch picker — switched off for now, uncomment to bring it back.
+            // showBranchFilter={isAdmin && !hasStores}
             disabled={exportBusy}
           />
           <ReportExportMenu
@@ -110,36 +123,42 @@ export default function FinancialPage() {
           value={fmt(s.totalRevenue)}
           label="Total Revenue"
         />
-        <StatCard
-          icon={Package}
-          color="violet"
-          value={fmt(s.cogs)}
-          label="Cost of Goods Sold"
-          valueColor="var(--cost-slate)"
-        />
+        {branchView ? null : (
+          <StatCard
+            icon={Package}
+            color="violet"
+            value={fmt(s.cogs)}
+            label="Cost of Goods Sold"
+            valueColor="var(--cost-slate)"
+          />
+        )}
         <StatCard
           icon={TrendingUp}
           color="teal"
           value={fmt(s.grossProfit)}
-          label="Gross Profit"
+          label={branchView ? "Profit" : "Gross Profit"}
         />
-        <StatCard
-          icon={CreditCard}
-          color="amber"
-          value={fmt(s.totalExpenses)}
-          label="Total Expenses"
-        />
-        <StatCard
-          icon={TrendingUp}
-          color="violet"
-          value={fmt(s.netProfit)}
-          label="Net Profit"
-        />
+        {branchView ? null : (
+          <>
+            <StatCard
+              icon={CreditCard}
+              color="amber"
+              value={fmt(s.totalExpenses)}
+              label="Total Expenses"
+            />
+            <StatCard
+              icon={TrendingUp}
+              color="violet"
+              value={fmt(s.netProfit)}
+              label="Net Profit"
+            />
+          </>
+        )}
         <StatCard
           icon={Truck}
           color="indigo"
           value={fmt(s.stockInvestment)}
-          label="Stock Capital Invested"
+          label={branchView ? "Stock Bought" : "Stock Capital Invested"}
         />
         <StatCard
           icon={Layers}
@@ -150,13 +169,18 @@ export default function FinancialPage() {
       </div>
 
       <div className="mb-16">
-        <PnlBreakdown breakdown={breakdown} />
+        <PnlBreakdown breakdown={breakdown} hideExpenses={branchView} />
       </div>
 
       <div className="grid-2">
-        <Card title="Revenue vs COGS vs Expenses" pad>
+        <Card
+          title={branchView ? "Revenue" : "Revenue vs COGS vs Expenses"}
+          pad
+        >
           {revenueChart.length > 0 ? (
-            <GroupedBar data={revenueChart} />
+            <GroupedBar data={revenueChart} showExpenses={!branchView}
+              showCogs={!branchView}
+            />
           ) : (
             <p className="muted" style={{ padding: "24px 0" }}>
               No sales or expenses in this period.
