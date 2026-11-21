@@ -4,19 +4,32 @@ import type { CurrentUserPayload } from "../decorators/current-user.decorator";
 import { CREDIT_BRANCH_BILLING } from "../constants/credit-branch.constants";
 import type { PrismaService } from "../../prisma/prisma.service";
 
-/** True when the caller is a branch manager whose store is a credit branch. */
-export async function isCreditBranchManager(
+/**
+ * The store id of the caller's own credit branch, or null when the caller is
+ * not a credit branch manager (an admin, or a standard branch manager).
+ * Callers use it to confine a credit branch manager to their own branch's
+ * invoices, payments, customers and balances.
+ */
+export async function creditBranchStoreIdOf(
   prisma: PrismaService,
   user: CurrentUserPayload,
-): Promise<boolean> {
+): Promise<string | null> {
   if (user.role !== UserRole.branch_manager || !user.storeId) {
-    return false;
+    return null;
   }
   const store = await prisma.store.findUnique({
     where: { id: user.storeId },
     select: { type: true },
   });
-  return store?.type === StoreType.credit;
+  return store?.type === StoreType.credit ? user.storeId : null;
+}
+
+/** True when the caller is a branch manager whose store is a credit branch. */
+export async function isCreditBranchManager(
+  prisma: PrismaService,
+  user: CurrentUserPayload,
+): Promise<boolean> {
+  return (await creditBranchStoreIdOf(prisma, user)) !== null;
 }
 
 /**
