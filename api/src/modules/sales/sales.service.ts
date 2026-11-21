@@ -27,6 +27,11 @@ import { SaleQueryDto } from "./dto/sale-query.dto";
 import { parseAndValidateSaleDate } from "./sale-date.util";
 import { toMoneyNumber } from "../../common/utils/money.util";
 import { CREDIT_BRANCH_BILLING } from "../../common/constants/credit-branch.constants";
+import { branchUnitCost } from "../../common/utils/branch-cost.util";
+import {
+  allocateUniquePrefix,
+  derivePrefixFromName,
+} from "../../common/utils/branch-invoice-prefix.util";
 
 /**
  * Sales may only be corrected within this many hours of recording (`createdAt`).
@@ -74,10 +79,17 @@ export class SalesService {
     if (queryStoreId) {
       assertStoreAccess(queryStoreId, user);
     }
-    const storeId = await this.tenantStoreResolver.resolveStoreFilter(
-      user,
-      query.storeId,
-    );
+    // An organization without stores pins the admin's lists to its own stock.
+    // The approval queue is the exception: pending sales can only come from
+    // branch managers (the admin's own sales are never pending), so an admin
+    // sees every branch's, including credit branches'.
+    const storeId =
+      user.role === UserRole.admin && query.status === "pending"
+        ? queryStoreId || undefined
+        : await this.tenantStoreResolver.resolveStoreFilter(
+            user,
+            query.storeId,
+          );
     const searchTerm =
       typeof query.search === "string" ? query.search.trim() : "";
     const fromDate =
@@ -208,9 +220,8 @@ export class SalesService {
       select: { type: true },
     });
     const isCreditBranch = store?.type === "credit";
-    // Customer billing is switched off for credit branches for now
-    // (CREDIT_BRANCH_BILLING): their sales work like a standard branch's —
-    // no invoice, no customer, nothing recorded as paid at the sale.
+    // While CREDIT_BRANCH_BILLING is off, a credit branch sells like a
+    // standard branch: no invoice, no customer, nothing paid at the sale.
     const billingEnabled =
       (org?.billingEnabled ?? false) &&
       !(isCreditBranch && !CREDIT_BRANCH_BILLING);
@@ -230,6 +241,18 @@ export class SalesService {
       if (!customer) {
         throw new NotFoundException(
           `Customer with id "${customerId}" not found`,
+        );
+      }
+      // A credit branch sells only to its own customers. Every other store
+      // may use the organization's customers, but not a credit branch's.
+      const mayUseCustomer = isCreditBranch
+        ? customer.storeId === storeId
+        : customer.storeId === null || customer.storeId === storeId;
+      if (!mayUseCustomer) {
+        throw new BadRequestException(
+          isCreditBranch
+            ? "Choose one of your own branch's customers"
+            : "That customer belongs to a credit branch",
         );
       }
     }
@@ -255,7 +278,12 @@ export class SalesService {
       dto.items.map(async (item) => {
         const product = await this.productsService.findOne(item.productId);
         const unitPrice = Number(product.sellingPrice);
-        const unitPurchasePrice = Number(product.averageCost);
+        // A credit branch's cost is what it paid the organization, not the
+        // organization's own cost of the product.
+        const branchCost = isCreditBranch
+          ? await branchUnitCost(this.prisma, storeId, product.id)
+          : null;
+        const unitPurchasePrice = branchCost ?? Number(product.averageCost);
         return {
           product,
           quantitySold: item.quantitySold,
@@ -282,11 +310,10 @@ export class SalesService {
       );
     }
 
-    // Branch managers' sales wait for an admin. Stock is still taken now so
-    // the shelf count stays truthful; rejection puts it back. Credit branches
-    // already bought their stock, so their own sales need no approval.
-    const needsApproval =
-      user.role === UserRole.branch_manager && !isCreditBranch;
+    // Branch managers' sales wait for an admin, credit branches included. Stock
+    // is still taken now so the shelf count stays truthful; rejection puts it
+    // back. A credit branch's invoice is made when the admin approves.
+    const needsApproval = user.role === UserRole.branch_manager;
 
     const saleId = await this.prisma.$transaction(async (tx) => {
       const sale = await tx.sale.create({
@@ -376,6 +403,7 @@ export class SalesService {
         await this.createInvoiceForSale(tx, {
           saleId: sale.id,
           organizationId,
+          storeId,
           customerId: customerId ?? null,
           totalAmount,
           paidNow,
@@ -691,11 +719,20 @@ export class SalesService {
         select: { billingEnabled: true },
       });
 
-      if (org?.billingEnabled) {
+      const saleStore = await tx.store.findUnique({
+        where: { id: sale.storeId },
+        select: { type: true },
+      });
+      const billsCustomers =
+        (org?.billingEnabled ?? false) &&
+        !(saleStore?.type === "credit" && !CREDIT_BRANCH_BILLING);
+
+      if (billsCustomers) {
         const totalAmount = toMoneyNumber(sale.totalAmount);
         await this.createInvoiceForSale(tx, {
           saleId,
           organizationId,
+          storeId: sale.storeId,
           customerId: sale.customerId,
           totalAmount,
           paidNow: Math.min(
@@ -850,7 +887,12 @@ export class SalesService {
 
     return tx.sale.findUniqueOrThrow({
       where: { id: saleId },
-      select: { totalAmount: true, customerId: true, paidAtSubmission: true },
+      select: {
+        totalAmount: true,
+        customerId: true,
+        storeId: true,
+        paidAtSubmission: true,
+      },
     });
   }
 
@@ -860,6 +902,7 @@ export class SalesService {
     input: {
       saleId: string;
       organizationId: string;
+      storeId: string;
       customerId: string | null;
       totalAmount: number;
       paidNow: number;
@@ -868,14 +911,14 @@ export class SalesService {
   ): Promise<void> {
     const { saleId, organizationId, customerId, totalAmount, paidNow } = input;
 
-    // Atomically allocate the next per-org invoice number (row-locked).
-    const { nextInvoiceNumber } = await tx.organization.update({
-      where: { id: organizationId },
-      data: { nextInvoiceNumber: { increment: 1 } },
-      select: { nextInvoiceNumber: true },
-    });
-    const number = nextInvoiceNumber - 1;
-    const numberLabel = `INV-${String(number).padStart(4, "0")}`;
+    // Atomically allocate the next invoice number (row-locked): from the
+    // credit branch's own list if the sale is from one ("HARG-0001"), else
+    // from the organization's ("INV-0001").
+    const { number, numberLabel, series } = await this.allocateInvoiceNumber(
+      tx,
+      organizationId,
+      input.storeId,
+    );
 
     const invoiceStatus =
       paidNow >= totalAmount ? "paid" : paidNow > 0 ? "partial" : "unpaid";
@@ -886,6 +929,7 @@ export class SalesService {
           saleId,
           customerId,
           number,
+          series,
           numberLabel,
           total: totalAmount,
           // Sale-time payment stored directly on the invoice — no payment
@@ -917,6 +961,56 @@ export class SalesService {
         },
       },
     });
+  }
+
+  private async allocateInvoiceNumber(
+    tx: Tx,
+    organizationId: string,
+    storeId: string,
+  ): Promise<{ number: number; numberLabel: string; series: string }> {
+    const store = await tx.store.findUnique({
+      where: { id: storeId },
+      select: { type: true, name: true, invoicePrefix: true },
+    });
+
+    if (store?.type === "credit") {
+      // A branch made before prefixes existed gets one the first time it bills.
+      let prefix = store.invoicePrefix;
+      if (!prefix) {
+        prefix = await allocateUniquePrefix(
+          tx,
+          organizationId,
+          derivePrefixFromName(store.name),
+        );
+        await tx.store.update({
+          where: { id: storeId },
+          data: { invoicePrefix: prefix },
+        });
+      }
+      const { nextInvoiceNumber } = await tx.store.update({
+        where: { id: storeId },
+        data: { nextInvoiceNumber: { increment: 1 } },
+        select: { nextInvoiceNumber: true },
+      });
+      const number = nextInvoiceNumber - 1;
+      return {
+        number,
+        numberLabel: `${prefix}-${String(number).padStart(4, "0")}`,
+        series: storeId,
+      };
+    }
+
+    const { nextInvoiceNumber } = await tx.organization.update({
+      where: { id: organizationId },
+      data: { nextInvoiceNumber: { increment: 1 } },
+      select: { nextInvoiceNumber: true },
+    });
+    const number = nextInvoiceNumber - 1;
+    return {
+      number,
+      numberLabel: `INV-${String(number).padStart(4, "0")}`,
+      series: "",
+    };
   }
 
   private findManagerStore(storeId: string) {
