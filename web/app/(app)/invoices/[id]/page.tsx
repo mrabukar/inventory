@@ -40,9 +40,18 @@ export default function InvoiceDetailPage() {
   const [stampUrl, setStampUrl] = useState<string | null>(null);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
 
-  const logoKey = invoice?.organization.logoKey ?? null;
-  const stampKey = invoice?.organization.stampKey ?? null;
-  const signatureKey = invoice?.organization.signatureKey ?? null;
+  // A credit branch's invoice doesn't carry the organization's logo, stamp or
+  // signature: the branch is its own business.
+  const isBranchInvoice = invoice?.sale.store?.type === "credit";
+  const logoKey = isBranchInvoice
+    ? null
+    : (invoice?.organization.logoKey ?? null);
+  const stampKey = isBranchInvoice
+    ? null
+    : (invoice?.organization.stampKey ?? null);
+  const signatureKey = isBranchInvoice
+    ? null
+    : (invoice?.organization.signatureKey ?? null);
   const numberLabel = invoice?.numberLabel;
 
   useEffect(() => {
