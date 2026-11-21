@@ -197,7 +197,7 @@ export class CreditBranchesService {
     };
   }
 
-  /** Edit a branch's name, address, and the details printed on its invoices. */
+  /** Edit a branch's details. Admins edit everything; the branch manager only the invoice details. */
   async updateBranch(
     id: string,
     dto: UpdateCreditBranchDto,
@@ -205,6 +205,20 @@ export class CreditBranchesService {
   ) {
     const organizationId = requireOrganizationId(user);
     const existing = await this.findCreditStore(id, organizationId);
+    this.assertBranchAccess(existing.id, user);
+
+    // A branch manager keeps their own contact and payment details up to date.
+    // The name, address and invoice prefix stay with the admin.
+    if (
+      user.role === UserRole.branch_manager &&
+      (dto.name !== undefined ||
+        dto.address !== undefined ||
+        dto.invoicePrefix !== undefined)
+    ) {
+      throw new ForbiddenException(
+        "Only an admin can change the branch name, address or invoice prefix",
+      );
+    }
 
     if (dto.name && dto.name !== existing.name) {
       const clash = await this.prisma.store.findFirst({
