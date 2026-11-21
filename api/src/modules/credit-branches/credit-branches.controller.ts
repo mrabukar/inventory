@@ -68,7 +68,7 @@ export class CreditBranchesController {
   }
 
   @Patch(":id")
-  @Roles(UserRole.admin)
+  @Roles(UserRole.admin, UserRole.branch_manager)
   updateBranch(
     @Param("id") id: string,
     @Body() dto: UpdateCreditBranchDto,
