@@ -73,6 +73,9 @@ export default function SubmitSalePage() {
   // Credit branches sell like a standard branch: no customer, location or
   // amount paid now (CREDIT_BRANCH_BILLING is off).
   const billingEnabled = billingAppliesTo(user);
+  // A credit branch is its own business, not a sale location of the
+  // organization's, so it has no location to pick.
+  const showLocation = billingEnabled && !user?.isCreditBranch;
   const locationLabel =
     hasStores || user?.isCreditBranch
       ? (user?.store ?? "My Store")
@@ -88,7 +91,7 @@ export default function SubmitSalePage() {
     () => customersData?.data ?? [],
     [customersData?.data],
   );
-  const { data: saleLocations } = useSaleLocations(billingEnabled);
+  const { data: saleLocations } = useSaleLocations(showLocation);
   const createLocation = useCreateSaleLocation();
 
   const inStock = useMemo(
@@ -210,7 +213,7 @@ export default function SubmitSalePage() {
         })),
         saleDate,
         customerId: billingEnabled ? customerId : undefined,
-        locationId: billingEnabled ? locationId : undefined,
+        locationId: showLocation ? locationId : undefined,
         paidAmount: billingEnabled ? parsedPaid || 0 : undefined,
         note: note.trim() || undefined,
       });
@@ -329,7 +332,13 @@ export default function SubmitSalePage() {
           </FormField>
 
           {billingEnabled ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div
+              className={
+                showLocation
+                  ? "grid grid-cols-1 gap-3 sm:grid-cols-2"
+                  : "grid grid-cols-1 gap-3"
+              }
+            >
               <FormField label="Customer">
                 <Combobox
                   value={customerId}
@@ -341,60 +350,62 @@ export default function SubmitSalePage() {
                   className="h-9 w-full"
                 />
               </FormField>
-              <FormField label="Location">
-                {addingLocation ? (
-                  <div className="flex gap-2">
-                    <input
-                      className={inputClassName}
-                      value={newLocation}
-                      onChange={(e) => setNewLocation(e.target.value)}
-                      placeholder="New location name"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void addLocation()}
-                      disabled={createLocation.isPending || !newLocation.trim()}
-                    >
-                      Add
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setAddingLocation(false);
-                        setNewLocation("");
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <Combobox
-                      value={locationId}
-                      onValueChange={setLocationId}
-                      items={locationItems}
-                      placeholder="Select a location…"
-                      searchPlaceholder="Search locations…"
-                      emptyText="No locations yet."
-                      className="h-9 w-full min-w-0"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0"
-                      onClick={() => setAddingLocation(true)}
-                    >
-                      <Plus className="size-4" />
-                      New
-                    </Button>
-                  </div>
-                )}
-              </FormField>
+              {showLocation ? (
+                <FormField label="Location">
+                  {addingLocation ? (
+                    <div className="flex gap-2">
+                      <input
+                        className={inputClassName}
+                        value={newLocation}
+                        onChange={(e) => setNewLocation(e.target.value)}
+                        placeholder="New location name"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void addLocation()}
+                        disabled={createLocation.isPending || !newLocation.trim()}
+                      >
+                        Add
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setAddingLocation(false);
+                          setNewLocation("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Combobox
+                        value={locationId}
+                        onValueChange={setLocationId}
+                        items={locationItems}
+                        placeholder="Select a location…"
+                        searchPlaceholder="Search locations…"
+                        emptyText="No locations yet."
+                        className="h-9 w-full min-w-0"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0"
+                        onClick={() => setAddingLocation(true)}
+                      >
+                        <Plus className="size-4" />
+                        New
+                      </Button>
+                    </div>
+                  )}
+                </FormField>
+              ) : null}
             </div>
           ) : null}
 
