@@ -7,6 +7,7 @@ import type {
   CreateCreditBranchInput,
   CreditBranch,
   CreditStockInput,
+  UpdateCreditBranchInput,
 } from "@/types/credit-branches/credit-branch";
 
 export function listCreditBranches(): Promise<CreditBranch[]> {
@@ -40,6 +41,16 @@ export function createCreditBranch(
 ): Promise<CreditBranch> {
   return apiFetch<CreditBranch>("/api/credit-branches", {
     method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateCreditBranch(
+  id: string,
+  input: UpdateCreditBranchInput,
+): Promise<CreditBranch> {
+  return apiFetch<CreditBranch>(`/api/credit-branches/${id}`, {
+    method: "PATCH",
     body: JSON.stringify(input),
   });
 }
