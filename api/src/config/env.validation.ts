@@ -6,6 +6,7 @@ export const envValidationSchema = Joi.object({
     .default("development"),
   DATABASE_URL: Joi.string().required(),
   PORT: Joi.number().default(4000),
+  LISTEN_HOST: Joi.string().optional(),
   BETTER_AUTH_SECRET: Joi.when("NODE_ENV", {
     is: "production",
     then: Joi.string().min(32).required(),
@@ -18,6 +19,14 @@ export const envValidationSchema = Joi.object({
   }),
   BETTER_AUTH_TRUSTED_ORIGINS: Joi.when("NODE_ENV", {
     is: "production",
+    then: Joi.string().required(),
+    otherwise: Joi.string().optional(),
+  }),
+  // Keep each organization on its own domain (see DomainPolicyService).
+  // PLATFORM_ADMIN_HOST: the host(s) the super admin may use, comma-separated.
+  ENFORCE_ORG_DOMAINS: Joi.string().valid("true", "false").optional(),
+  PLATFORM_ADMIN_HOST: Joi.when("ENFORCE_ORG_DOMAINS", {
+    is: "true",
     then: Joi.string().required(),
     otherwise: Joi.string().optional(),
   }),
