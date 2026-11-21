@@ -11,7 +11,7 @@ interface DataPoint {
   exp: number;
 }
 
-const SERIES: { key: keyof DataPoint; label: string; color: string }[] = [
+const ALL_SERIES: { key: keyof DataPoint; label: string; color: string }[] = [
   { key: "rev", label: "Revenue", color: "var(--brand-indigo)" },
   { key: "cogs", label: "COGS", color: "var(--cost-slate)" },
   { key: "exp", label: "Expenses", color: "var(--status-amber)" },
@@ -31,10 +31,19 @@ function svgX(event: MouseEvent<SVGRectElement>): number | null {
 export function GroupedBar({
   data,
   height = 240,
+  showExpenses = true,
+  showCogs = true,
 }: {
   data: DataPoint[];
   height?: number;
+  showExpenses?: boolean;
+  showCogs?: boolean;
 }) {
+  const SERIES = ALL_SERIES.filter(
+    (series) =>
+      (showExpenses || series.key !== "exp") &&
+      (showCogs || series.key !== "cogs"),
+  );
   const [on, setOn] = useState(false);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
