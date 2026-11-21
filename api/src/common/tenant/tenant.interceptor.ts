@@ -6,11 +6,13 @@ import {
   NestInterceptor,
 } from "@nestjs/common";
 import { UserRole } from "@prisma/client";
-import { Observable } from "rxjs";
+import { from, mergeMap, Observable } from "rxjs";
 import type { CurrentUserPayload } from "../decorators/current-user.decorator";
+import { DomainPolicyService } from "./domain-policy.service";
 import { TenantContextService } from "./tenant-context.service";
 
 interface SessionRequest {
+  headers?: Record<string, string | string[] | undefined>;
   user?: CurrentUserPayload | null;
   session?: { user?: Record<string, unknown> };
 }
@@ -42,16 +44,43 @@ function resolveOrganizationId(
 
 @Injectable()
 export class TenantInterceptor implements NestInterceptor {
-  constructor(private readonly tenantContext: TenantContextService) {}
+  constructor(
+    private readonly tenantContext: TenantContextService,
+    private readonly domainPolicy: DomainPolicyService,
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest<SessionRequest>();
     const organizationId = resolveOrganizationId(request);
 
-    if (organizationId === undefined) {
-      return next.handle();
+    const run = (): Observable<unknown> =>
+      organizationId === undefined
+        ? next.handle()
+        : this.tenantContext.run(organizationId, () => next.handle());
+
+    const user = request.user ?? request.session?.user;
+    if (!user || !this.domainPolicy.isEnforced()) {
+      return run();
     }
 
-    return this.tenantContext.run(organizationId, () => next.handle());
+    // Everyone stays on their own domain: a valid session from one domain is
+    // refused on another.
+    const hostHeader = request.headers?.host;
+    const host = Array.isArray(hostHeader) ? hostHeader[0] : hostHeader;
+    return from(
+      this.domainPolicy.isAllowed(host, {
+        role: user.role as string | undefined,
+        organizationId: user.organizationId as string | undefined,
+      }),
+    ).pipe(
+      mergeMap((allowed) => {
+        if (!allowed) {
+          throw new ForbiddenException(
+            "This account can't be used on this domain",
+          );
+        }
+        return run();
+      }),
+    );
   }
 }
