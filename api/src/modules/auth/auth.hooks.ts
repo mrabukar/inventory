@@ -13,6 +13,7 @@ import {
 } from "@thallesp/nestjs-better-auth";
 import { APIError } from "better-auth/api";
 import { isBootstrapSignupAllowed } from "../../config/signup-policy.util";
+import { DomainPolicyService } from "../../common/tenant/domain-policy.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { isUserRole, UserRole } from "./auth.constants";
 import type { AppAuth } from "./auth.config";
@@ -283,7 +284,10 @@ export class AuthSignUpHook {
 @Hook()
 @Injectable()
 export class AuthSignInHook {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly domainPolicy: DomainPolicyService,
+  ) {}
 
   @BeforeHook("/sign-in/email")
   async blockInactiveUsers(ctx: AuthHookContext): Promise<void> {
@@ -296,12 +300,24 @@ export class AuthSignInHook {
 
     const user = await this.prisma.user.findUnique({
       where: { email },
-      select: { isActive: true },
+      select: { isActive: true, role: true, organizationId: true },
     });
 
     if (user?.isActive === false) {
       throw new APIError("UNAUTHORIZED", {
         message: "Unauthorized",
+      });
+    }
+
+    // Each organization signs in on its own domain (the platform super admin
+    // on the admin domain). Answer exactly like a wrong password so nobody can
+    // tell which domain an account belongs to.
+    if (
+      user &&
+      !(await this.domainPolicy.isAllowed(ctx.headers?.get("host"), user))
+    ) {
+      throw new APIError("UNAUTHORIZED", {
+        message: "Invalid email or password",
       });
     }
   }
