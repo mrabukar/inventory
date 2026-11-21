@@ -26,6 +26,9 @@ model Invoice {
   customerId     String?
   customer       Customer?     @relation(fields: [customerId], references: [id])
   number         Int
+  /// Which numbering list this invoice belongs to: "" for the organization's
+  /// own list, or a credit branch's store id for that branch's list.
+  series         String        @default("")
   numberLabel    String
   total          Decimal       @db.Decimal(10, 2)
   paidAtSale     Decimal       @default(0) @db.Decimal(10, 2)
@@ -37,7 +40,7 @@ model Invoice {
 
   payments Payment[]
 
-  @@unique([organizationId, number])
+  @@unique([organizationId, series, number])
   @@index([customerId])
   @@index([status])
   @@map("invoice")
