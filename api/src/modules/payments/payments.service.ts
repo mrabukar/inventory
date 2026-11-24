@@ -1,14 +1,16 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { AuditAction, InvoiceStatus, Prisma } from "@prisma/client";
+import { AuditAction, InvoiceStatus, Prisma, UserRole } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { MUTATION_TRANSACTION_OPTIONS } from "../../common/constants/prisma-transaction.constants";
 import { assertBillingEnabled } from "../../common/utils/require-billing-enabled.util";
 import {
   assertBillingAllowedForBranch,
+  billingSaleScopeOf,
   creditBranchStoreIdOf,
 } from "../../common/utils/credit-branch.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
@@ -64,16 +66,19 @@ export class PaymentsService {
     const organizationId = requireOrganizationId(user);
     await assertBillingEnabled(this.prisma, organizationId);
     await assertBillingAllowedForBranch(this.prisma, user);
-    // A credit branch manager only ever sees their own branch's money.
-    const branchStoreId = await creditBranchStoreIdOf(this.prisma, user);
+    // A credit branch manager only sees their own branch's money; an admin
+    // sees the organization's own, or one credit branch's when they pick it.
+    const saleScope = await billingSaleScopeOf(
+      this.prisma,
+      user,
+      query.storeId,
+    );
 
     const { page, limit } = query;
     const skip = (page - 1) * limit;
 
     const paymentWhere: Prisma.PaymentWhereInput = {
-      ...(branchStoreId
-        ? { invoice: { sale: { storeId: branchStoreId } } }
-        : undefined),
+      invoice: { sale: saleScope },
       ...(query.customerId ? { customerId: query.customerId } : undefined),
       ...(query.invoiceId ? { invoiceId: query.invoiceId } : undefined),
     };
@@ -82,7 +87,7 @@ export class PaymentsService {
     // paidAtSale > 0 (sale-time collections that have no payment row).
     const invoiceWhere: Prisma.InvoiceWhereInput = {
       paidAtSale: { gt: 0 },
-      ...(branchStoreId ? { sale: { storeId: branchStoreId } } : undefined),
+      sale: saleScope,
       ...(query.customerId ? { customerId: query.customerId } : undefined),
       ...(query.invoiceId ? { id: query.invoiceId } : undefined),
     };
@@ -171,6 +176,13 @@ export class PaymentsService {
     if (!customer || (branchStoreId && customer.storeId !== branchStoreId)) {
       throw new NotFoundException(
         `Customer with id "${dto.customerId}" not found`,
+      );
+    }
+    // The organization can look at a credit branch's money but not record it:
+    // the branch's own manager does that.
+    if (user.role === UserRole.admin && customer.storeId) {
+      throw new ForbiddenException(
+        "Payments from a credit branch's customers are recorded by the branch",
       );
     }
 
