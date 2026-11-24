@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   CreditCard,
   HandCoins,
+  Landmark,
   Layers,
   Package,
   ShoppingCart,
@@ -18,11 +19,33 @@ interface Props {
   comparison: AdminPeriodComparison;
   billingEnabled: boolean;
   outstandingBalance: number;
+  /** Looking at a credit branch: no expenses, no cost lines. */
+  branchView?: boolean;
+  /** What the branch being viewed still owes the organization for its stock. */
+  branchOwes?: number;
+  /** On the organization's own dashboard: what all its credit branches owe it. */
+  branchesOwe?: number;
+  /** The branch being viewed, for the link from the "owes" card. */
+  branchId?: string;
+  /** Show the Cost of Goods Sold card (kept for organizations with stores). */
+  showCogs?: boolean;
 }
 
-export function AdminStatGrid({ summary: s, comparison, billingEnabled, outstandingBalance }: Props) {
+export function AdminStatGrid({
+  summary: s,
+  comparison,
+  billingEnabled,
+  outstandingBalance,
+  branchView = false,
+  branchOwes,
+  branchesOwe,
+  branchId,
+  showCogs = true,
+}: Props) {
   return (
-    <div className="stat-grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 mb-16">
+    <div
+      className={`stat-grid grid-cols-2 md:grid-cols-4 mb-16 ${branchView ? "lg:grid-cols-4" : "lg:grid-cols-5"}`}
+    >
       <StatCard
         icon={TrendingUp}
         color="indigo"
@@ -34,36 +57,61 @@ export function AdminStatGrid({ summary: s, comparison, billingEnabled, outstand
         icon={TrendingUp}
         color="teal"
         value={fmt(s.grossProfit)}
-        label="Gross Profit"
+        label={branchView ? "Profit" : "Gross Profit"}
         {...formatPeriodTrend(comparison.grossProfit)}
       />
-      <StatCard
-        icon={CreditCard}
-        color="amber"
-        value={fmt(s.totalExpenses)}
-        label="Total Expenses"
-        {...formatExpenseTrend(comparison.totalExpenses)}
-      />
-      <StatCard
-        icon={TrendingUp}
-        color="violet"
-        value={fmt(s.netProfit)}
-        label="Net Profit"
-        valueColor={s.netProfit < 0 ? "var(--status-rose)" : undefined}
-        {...formatPeriodTrend(comparison.netProfit)}
-      />
+      {branchView && branchOwes !== undefined ? (
+        <StatCard
+          icon={Landmark}
+          color="rose"
+          value={fmt(branchOwes)}
+          label="Owes the Organization"
+          valueColor={branchOwes > 0 ? "var(--status-rose)" : undefined}
+          href={branchId ? `/credit-branches/${branchId}` : undefined}
+        />
+      ) : null}
+      {branchView ? null : (
+        <>
+          <StatCard
+            icon={CreditCard}
+            color="amber"
+            value={fmt(s.totalExpenses)}
+            label="Total Expenses"
+            {...formatExpenseTrend(comparison.totalExpenses)}
+          />
+          <StatCard
+            icon={TrendingUp}
+            color="violet"
+            value={fmt(s.netProfit)}
+            label="Net Profit"
+            valueColor={s.netProfit < 0 ? "var(--status-rose)" : undefined}
+            {...formatPeriodTrend(comparison.netProfit)}
+          />
+        </>
+      )}
+      {branchesOwe !== undefined ? (
+        <StatCard
+          icon={Landmark}
+          color="rose"
+          value={fmt(branchesOwe)}
+          label="Branches Owe"
+          valueColor={branchesOwe > 0 ? "var(--status-rose)" : undefined}
+          href="/credit-branches"
+        />
+      ) : null}
       {billingEnabled ? (
         <>
           <StatCard
             icon={HandCoins}
             color="rose"
             value={fmt(outstandingBalance)}
-            label="Outstanding Balance"
+            label={branchView ? "Customers Owe" : "Outstanding Balance"}
             valueColor={
               outstandingBalance > 0 ? "var(--status-rose)" : undefined
             }
             href="/receivables"
           />
+
           <StatCard
             icon={Layers}
             color="indigo"
@@ -119,12 +167,16 @@ export function AdminStatGrid({ summary: s, comparison, billingEnabled, outstand
         label="Units Sold"
         {...formatPeriodTrend(comparison.totalUnitsSold)}
       />
-      <StatCard
-        icon={CreditCard}
-        color="indigo"
-        value={fmt(s.cogs)}
-        label="Cost of Goods Sold"
-      />
+      {/* Organizations with stores keep this card. Hidden for organizations
+          without stores (and their credit branches) — pass showCogs to bring it back. */}
+      {showCogs ? (
+        <StatCard
+          icon={CreditCard}
+          color="indigo"
+          value={fmt(s.cogs)}
+          label="Cost of Goods Sold"
+        />
+      ) : null}
     </div>
   );
 }
