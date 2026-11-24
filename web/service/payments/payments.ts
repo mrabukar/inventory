@@ -12,6 +12,7 @@ function toQueryString(params: PaymentListQuery = {}): string {
   if (params.limit != null) search.set("limit", String(params.limit));
   if (params.customerId) search.set("customerId", params.customerId);
   if (params.invoiceId) search.set("invoiceId", params.invoiceId);
+  if (params.storeId) search.set("storeId", params.storeId);
   const qs = search.toString();
   return qs ? `?${qs}` : "";
 }
