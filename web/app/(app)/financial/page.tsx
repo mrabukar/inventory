@@ -20,6 +20,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/app/(app)/dashboard/components/stat-card";
 import { Card } from "@/components/ui/card";
 import { useReportFilters } from "@/hooks/filters/use-report-filters";
+import { useViewBranchId } from "@/hooks/branch-view/use-branch-view";
 import { useFinancialSummary } from "@/hooks/reports/use-financial-summary";
 import { getLastSixMonthsRange } from "@/lib/filters/dates";
 import { fmt } from "@/lib/utils";
@@ -29,9 +30,8 @@ const defaultRange = getLastSixMonthsRange();
 
 export default function FinancialPage() {
   const hasStores = useAppStore((s) => s.user?.hasStores ?? true);
-  const user = useAppStore((s) => s.user);
-  const isAdmin = user?.role === "admin";
-  const isCreditBranchManager = user?.isCreditBranch === true;
+  const isCreditBranchManager = useAppStore((s) => s.user?.isCreditBranch === true);
+  const viewBranchId = useViewBranchId();
   const filters = useReportFilters(defaultRange);
   const [exportBusy, setExportBusy] = useState(false);
   const { data, isLoading, isError, error } = useFinancialSummary(filters.query);
@@ -56,8 +56,7 @@ export default function FinancialPage() {
   );
 
   // A credit branch has no expenses: its profit is revenue minus what it paid.
-  const branchView =
-    isCreditBranchManager || (!hasStores && !!filters.query.storeId);
+  const branchView = isCreditBranchManager || Boolean(viewBranchId);
 
   const header = (
     <PageHeader
@@ -72,8 +71,6 @@ export default function FinancialPage() {
           <ReportFilterBar
             filters={filters}
             showStoreFilter={hasStores}
-            // Admin branch picker — switched off for now, uncomment to bring it back.
-            // showBranchFilter={isAdmin && !hasStores}
             disabled={exportBusy}
           />
           <ReportExportMenu
