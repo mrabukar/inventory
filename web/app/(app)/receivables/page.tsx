@@ -1,5 +1,6 @@
 "use client";
 
+import { useViewBranchId } from "@/hooks/branch-view/use-branch-view";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -23,6 +24,8 @@ import { Button } from "@/components/ui/button";
 import { RecordPaymentModal } from "../payments/components/record-payment-modal";
 
 export default function ReceivablesPage() {
+  // Looking at a credit branch is read-only.
+  const browsingBranch = Boolean(useViewBranchId());
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const [payTarget, setPayTarget] = useState<string | null>(null);
@@ -105,7 +108,7 @@ export default function ReceivablesPage() {
         header: "Actions",
         enableSorting: false,
         cell: ({ row }) =>
-          row.original.customer ? (
+          row.original.customer && !browsingBranch ? (
             <Button
               variant="outline"
               size="sm"
@@ -116,7 +119,7 @@ export default function ReceivablesPage() {
           ) : null,
       },
     ],
-    [],
+    [browsingBranch],
   );
 
   const handleCreate = async (input: CreatePaymentInput) => {
