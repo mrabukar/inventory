@@ -1,5 +1,6 @@
 "use client";
 
+import { useViewBranchId } from "@/hooks/branch-view/use-branch-view";
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 
@@ -20,6 +21,8 @@ import type {
 } from "@/types/customers/customer";
 
 export default function CustomersPage() {
+  // Looking at a credit branch is read-only.
+  const browsingBranch = Boolean(useViewBranchId());
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const [pageIndex, setPageIndex] = useState(0);
@@ -81,10 +84,12 @@ export default function CustomersPage() {
         title="Customers"
         desc="Manage customers used for sales, invoices, and balances"
         action={
-          <Button onClick={() => setShowCreate(true)}>
-            <Plus className="size-4" />
-            Add Customer
-          </Button>
+          browsingBranch ? null : (
+            <Button onClick={() => setShowCreate(true)}>
+              <Plus className="size-4" />
+              Add Customer
+            </Button>
+          )
         }
       />
 
@@ -109,7 +114,7 @@ export default function CustomersPage() {
           setPageSize(nextSize);
         }}
         isLoading={isLoading}
-        onEdit={setEditTarget}
+        onEdit={browsingBranch ? undefined : setEditTarget}
       />
 
       <CustomerModal
