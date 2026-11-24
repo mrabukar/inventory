@@ -1,13 +1,15 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useBranchScoped } from "@/hooks/branch-view/use-branch-view";
 import { getInvoice, listInvoices } from "@/service/invoices/invoices";
 import type { InvoiceListQuery } from "@/types/invoices/invoice";
 
 export function useInvoices(
-  params: InvoiceListQuery = {},
+  rawParams: InvoiceListQuery = {},
   options: { enabled?: boolean } = {},
 ) {
+  const params = useBranchScoped(rawParams);
   return useQuery({
     queryKey: ["invoices", params],
     queryFn: () => listInvoices(params),
