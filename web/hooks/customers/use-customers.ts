@@ -1,13 +1,15 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useBranchScoped } from "@/hooks/branch-view/use-branch-view";
 import { getCustomer, listCustomers } from "@/service/customers/list-customers";
 import type { CustomerListQuery } from "@/types/customers/customer";
 
 export function useCustomers(
-  params: CustomerListQuery = {},
+  rawParams: CustomerListQuery = {},
   options: { enabled?: boolean } = {},
 ) {
+  const params = useBranchScoped(rawParams);
   return useQuery({
     queryKey: ["customers", params],
     queryFn: () => listCustomers(params),
