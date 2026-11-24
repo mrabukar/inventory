@@ -13,6 +13,7 @@ import {
 } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { CREDIT_BRANCH_BILLING } from "../../common/constants/credit-branch.constants";
+import { creditBranchViewIdOf } from "../../common/utils/credit-branch.util";
 import { assertBillingEnabled } from "../../common/utils/require-billing-enabled.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { assertBranchManagerHasStore } from "../../common/utils/store-scope.util";
@@ -23,6 +24,7 @@ import { PaymentsService } from "../payments/payments.service";
 import { PaginatedResult } from "../stores/stores.service";
 import { CreateCustomerDto } from "./dto/create-customer.dto";
 import { CustomerQueryDto } from "./dto/customer-query.dto";
+import { ReceivablesQueryDto } from "./dto/receivables-query.dto";
 import { UpdateCustomerDto } from "./dto/update-customer.dto";
 
 @Injectable()
@@ -43,16 +45,20 @@ export class CustomersService {
     // A credit branch manager only ever sees their own branch's customers —
     // never the organization's own, or another branch's. A standard branch
     // manager keeps today's behaviour: every customer, org-wide (unchanged
-    // for organizations with branches). Admins may filter to one branch.
-    let storeId: string | undefined;
+    // for organizations with branches). An admin sees the organization's own
+    // customers, or one credit branch's when they pick it.
+    let storeId: string | null | undefined;
     if (user.role === UserRole.branch_manager) {
       storeId = await this.creditBranchStoreIdFor(user, { optional: true });
     } else {
-      storeId = query.storeId?.trim() || undefined;
+      storeId = await creditBranchViewIdOf(this.prisma, user, query.storeId);
+      if (!storeId) {
+        storeId = null;
+      }
     }
 
     const where: Prisma.CustomerWhereInput = {
-      ...(storeId ? { storeId } : undefined),
+      ...(storeId !== undefined ? { storeId } : undefined),
       ...(search
         ? {
             OR: [
@@ -168,7 +174,12 @@ export class CustomersService {
     const storeId =
       user.role === UserRole.branch_manager
         ? ((await this.creditBranchStoreIdFor(user)) as string)
-        : dto.storeId?.trim() || null;
+        : null;
+    if (user.role === UserRole.admin && dto.storeId?.trim()) {
+      throw new ForbiddenException(
+        "A credit branch's customers are added by the branch",
+      );
+    }
 
     const customer = await this.prisma.customer.create({
       data: withOrganizationId(
@@ -210,6 +221,13 @@ export class CustomersService {
     }
 
     const existing = await this.findOne(id);
+    // The organization can look at a credit branch's customers but not change
+    // them: the branch's own manager does that.
+    if (user.role === UserRole.admin && existing.storeId) {
+      throw new ForbiddenException(
+        "A credit branch's customers are changed by the branch",
+      );
+    }
     await this.assertOwnCreditBranchCustomer(existing, user);
     const organizationId = requireOrganizationId(user);
 
@@ -394,23 +412,22 @@ export class CustomersService {
    * branch's customers owe the branch, not the organization. A credit branch
    * manager sees only their own branch's customers.
    */
-  async getReceivables(user: CurrentUserPayload) {
+  async getReceivables(user: CurrentUserPayload, query?: ReceivablesQueryDto) {
     const organizationId = requireOrganizationId(user);
     await assertBillingEnabled(this.prisma, organizationId);
 
-    // Throws for a standard branch manager, who never had this page.
+    // Throws for a standard branch manager, who never had this page. An admin
+    // sees the organization's own customers, or one credit branch's.
     const branchStoreId =
       user.role === UserRole.branch_manager
         ? ((await this.creditBranchStoreIdFor(user)) as string)
-        : null;
+        : await creditBranchViewIdOf(this.prisma, user, query?.storeId);
 
     const groups = await this.prisma.invoice.groupBy({
       by: ["customerId"],
       where: {
         status: { in: ["unpaid", "partial"] },
-        ...(branchStoreId
-          ? { customer: { storeId: branchStoreId } }
-          : undefined),
+        customer: { storeId: branchStoreId },
       },
       _sum: { total: true, paidAmount: true },
       _count: { _all: true },
