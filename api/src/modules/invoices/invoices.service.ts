@@ -4,6 +4,7 @@ import { CurrentUserPayload } from "../../common/decorators/current-user.decorat
 import { assertBillingEnabled } from "../../common/utils/require-billing-enabled.util";
 import {
   assertBillingAllowedForBranch,
+  billingSaleScopeOf,
   creditBranchStoreIdOf,
 } from "../../common/utils/credit-branch.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
@@ -67,15 +68,20 @@ export class InvoicesService {
     const organizationId = requireOrganizationId(user);
     await assertBillingEnabled(this.prisma, organizationId);
     await assertBillingAllowedForBranch(this.prisma, user);
-    // A credit branch manager only ever sees their own branch's invoices.
-    const branchStoreId = await creditBranchStoreIdOf(this.prisma, user);
+    // A credit branch manager only sees their own branch's invoices; an admin
+    // sees the organization's own, or one credit branch's when they pick it.
+    const saleScope = await billingSaleScopeOf(
+      this.prisma,
+      user,
+      query.storeId,
+    );
 
     const { page, limit } = query;
     const skip = (page - 1) * limit;
     const search = typeof query.search === "string" ? query.search.trim() : "";
 
     const where: Prisma.InvoiceWhereInput = {
-      ...(branchStoreId ? { sale: { storeId: branchStoreId } } : undefined),
+      sale: saleScope,
       ...(query.status ? { status: query.status } : undefined),
       ...(query.customerId ? { customerId: query.customerId } : undefined),
       ...(search
