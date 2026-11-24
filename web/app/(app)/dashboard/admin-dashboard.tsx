@@ -4,6 +4,9 @@ import { useMemo } from "react";
 
 import { useAdminDashboard } from "@/hooks/reports/admin-dashboard";
 import { useReportFilters } from "@/hooks/filters/use-report-filters";
+import { useViewBranchId } from "@/hooks/branch-view/use-branch-view";
+import { useCreditBranch } from "@/hooks/credit-branches/use-credit-branch";
+import { useCreditBranches } from "@/hooks/credit-branches/use-credit-branches";
 import { useReceivables } from "@/hooks/payments/use-payments";
 import { AdminPerformanceCharts } from "./components/admin/performance-charts";
 // import { AdminProductDistributionChart } from "./components/admin/product-distribution-chart";
@@ -18,6 +21,19 @@ import { useAppStore } from "@/store/app";
 export function AdminDashboard() {
   const billingEnabled = useAppStore((s) => s.user?.billingEnabled ?? false);
   const filters = useReportFilters();
+  // Looking at a credit branch: it has no expenses, and its profit is revenue less what it paid.
+  const viewBranchId = useViewBranchId();
+  const branchView = Boolean(viewBranchId);
+  const { data: branch } = useCreditBranch(viewBranchId);
+  // On the organization's own dashboard: what all its credit branches owe it.
+  const hasStores = useAppStore((s) => s.user?.hasStores ?? true);
+  const { data: branches } = useCreditBranches({
+    enabled: !hasStores && !branchView,
+  });
+  const branchesOwe =
+    !hasStores && !branchView && branches && branches.length > 0
+      ? branches.reduce((sum, b) => sum + b.balance, 0)
+      : undefined;
   const dashboardQuery = useMemo(
     () => ({
       fromDate: filters.query.fromDate,
@@ -64,10 +80,15 @@ export function AdminDashboard() {
         comparison={comparison}
         billingEnabled={billingEnabled}
         outstandingBalance={outstandingBalance}
+        branchView={branchView}
+        branchOwes={branch?.balance}
+        branchesOwe={branchesOwe}
+        showCogs={hasStores}
+        branchId={viewBranchId}
       />
-      <AdminRevenueCharts charts={charts} />
+      <AdminRevenueCharts charts={charts} branchView={branchView} />
       {/* <AdminProductDistributionChart filters={filters} /> */}
-      <AdminPerformanceCharts charts={charts} />
+      <AdminPerformanceCharts charts={charts} branchView={branchView} />
       <AdminStockSection stockByCategory={charts.stockByCategory} recentSales={recentSales} />
       <AdminStockAlertsTable
         storeId={filters.query.storeId}
