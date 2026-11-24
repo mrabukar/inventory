@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useBranchScoped } from "@/hooks/branch-view/use-branch-view";
 import { getLastSixMonthsRange } from "@/lib/filters/dates";
 import { getFinancialSummary } from "@/service/reports/financial-summary";
 import type { FinancialSummaryQuery } from "@/types/reports/financial-summary";
@@ -12,8 +13,9 @@ export const financialSummaryQueryKey = (
 ) => ["reports", "financial-summary", params] as const;
 
 export function useFinancialSummary(
-  params: FinancialSummaryQuery = defaultQuery(),
+  rawParams: FinancialSummaryQuery = defaultQuery(),
 ) {
+  const params = useBranchScoped(rawParams);
   return useQuery({
     queryKey: financialSummaryQueryKey(params),
     queryFn: () => getFinancialSummary(params),
