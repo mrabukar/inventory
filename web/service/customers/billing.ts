@@ -17,6 +17,7 @@ export function getCustomerStatement(
   return apiFetch<CustomerStatement>(`/api/customers/${customerId}/statement`);
 }
 
-export function getReceivables(): Promise<ReceivableRow[]> {
-  return apiFetch<ReceivableRow[]>("/api/customers/receivables");
+export function getReceivables(storeId?: string): Promise<ReceivableRow[]> {
+  const qs = storeId ? `?storeId=${encodeURIComponent(storeId)}` : "";
+  return apiFetch<ReceivableRow[]>(`/api/customers/receivables${qs}`);
 }
