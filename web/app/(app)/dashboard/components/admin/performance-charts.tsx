@@ -8,12 +8,14 @@ import type { AdminDashboardCharts } from "@/types/reports/admin-dashboard";
 
 interface Props {
   charts: AdminDashboardCharts;
+  /** Looking at a credit branch: no store ranking, and profit is not net of expenses. */
+  branchView?: boolean;
 }
 
-export function AdminPerformanceCharts({ charts }: Props) {
+export function AdminPerformanceCharts({ charts, branchView = false }: Props) {
   return (
-    <div className="grid-3 mb-16">
-      <Card title="Net Profit Trend" pad>
+    <div className={`${branchView ? "grid-2" : "grid-3"} mb-16`}>
+      <Card title={branchView ? "Profit Trend" : "Net Profit Trend"} pad>
         {charts.netProfitTrend.length > 0 ? (
           <LineArea
             values={charts.netProfitTrend.map((row) => row.netProfit)}
@@ -39,22 +41,24 @@ export function AdminPerformanceCharts({ charts }: Props) {
           <EmptyState title="No product sales" sub="No products sold in the selected period." />
         )}
       </Card>
-      <Card title="Top Performing Stores" pad>
-        {charts.topStores.length > 0 ? (
-          <HBars
-            data={charts.topStores.map((row) => ({
-              name: row.storeName,
-              revenue: row.revenue,
-            }))}
-            valueKey="revenue"
-            labelKey="name"
-            color="var(--brand-indigo)"
-            format={fmt}
-          />
-        ) : (
-          <EmptyState title="No store rankings" sub="Store rankings appear when viewing all stores." />
-        )}
-      </Card>
+      {branchView ? null : (
+        <Card title="Top Performing Stores" pad>
+          {charts.topStores.length > 0 ? (
+            <HBars
+              data={charts.topStores.map((row) => ({
+                name: row.storeName,
+                revenue: row.revenue,
+              }))}
+              valueKey="revenue"
+              labelKey="name"
+              color="var(--brand-indigo)"
+              format={fmt}
+            />
+          ) : (
+            <EmptyState title="No store rankings" sub="Store rankings appear when viewing all stores." />
+          )}
+        </Card>
+      )}
     </div>
   );
 }
