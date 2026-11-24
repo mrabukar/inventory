@@ -17,6 +17,7 @@ import {
 import { Roles } from "../../common/decorators/roles.decorator";
 import { CustomersService } from "./customers.service";
 import { CreateCustomerDto } from "./dto/create-customer.dto";
+import { ReceivablesQueryDto } from "./dto/receivables-query.dto";
 import { CustomerQueryDto } from "./dto/customer-query.dto";
 import { UpdateCustomerDto } from "./dto/update-customer.dto";
 
@@ -36,8 +37,11 @@ export class CustomersController {
 
   @Get("receivables")
   @Roles(UserRole.admin, UserRole.branch_manager)
-  receivables(@CurrentUser() user: CurrentUserPayload) {
-    return this.customersService.getReceivables(user);
+  receivables(
+    @Query() query: ReceivablesQueryDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.customersService.getReceivables(user, query);
   }
 
   @Get(":id/balance")
