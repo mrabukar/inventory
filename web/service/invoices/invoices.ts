@@ -12,6 +12,7 @@ function toQueryString(params: InvoiceListQuery = {}): string {
   if (params.search) search.set("search", params.search);
   if (params.status) search.set("status", params.status);
   if (params.customerId) search.set("customerId", params.customerId);
+  if (params.storeId) search.set("storeId", params.storeId);
   const qs = search.toString();
   return qs ? `?${qs}` : "";
 }
