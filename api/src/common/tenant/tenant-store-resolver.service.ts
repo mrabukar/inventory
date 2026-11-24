@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { UserRole } from "@prisma/client";
 import type { CurrentUserPayload } from "../decorators/current-user.decorator";
+import { creditBranchViewIdOf } from "../utils/credit-branch.util";
 import { requireOrganizationId } from "../utils/require-organization-id.util";
 import {
   assertBranchManagerHasStore,
@@ -41,6 +42,15 @@ export class TenantStoreResolver {
     }
 
     if (!org.hasStores) {
+      // An admin may browse one of the organization's credit branches.
+      const branchId = await creditBranchViewIdOf(
+        this.prisma,
+        user,
+        queryStoreId,
+      );
+      if (branchId) {
+        return branchId;
+      }
       const warehouse =
         await this.storesService.ensureOrgWarehouse(organizationId);
       return warehouse.id;
