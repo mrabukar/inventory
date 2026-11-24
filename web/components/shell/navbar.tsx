@@ -4,6 +4,7 @@ import { PanelLeft, Sun, Moon, LogOut, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSignOut } from "@/hooks/auth/sign-out";
+import { BranchSwitcher } from "./branch-switcher";
 import { useAppStore } from "@/store/app";
 import { appRoleLabel } from "@/lib/types";
 import { initials } from "@/lib/utils";
@@ -45,6 +46,7 @@ export function Navbar({ title, collapsed, onToggle }: Props) {
       </div>
 
       <div className="nb-right">
+        <BranchSwitcher />
         <button
           className="icon-btn"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
