@@ -10,6 +10,7 @@ import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { PageHeader } from "@/components/ui/page-header";
 import { useSession } from "@/hooks/auth/session";
 import { useCategories } from "@/hooks/categories/use-categories";
+import { useViewBranchId } from "@/hooks/branch-view/use-branch-view";
 import { useCorrectSale } from "@/hooks/sales/use-correct-sale";
 import { useSales } from "@/hooks/sales/use-sales";
 import { useStores } from "@/hooks/stores/list-stores";
@@ -28,7 +29,9 @@ import {
 
 export default function SalesPage() {
   const { user } = useSession();
-  const canCorrect = user?.hasStores === false;
+  const browsingBranch = Boolean(useViewBranchId());
+  // A credit branch's sales are read-only here.
+  const canCorrect = user?.hasStores === false && !browsingBranch;
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const correctSale = useCorrectSale();
@@ -168,19 +171,21 @@ export default function SalesPage() {
           resetPage();
         }}
       />
-      <Combobox
-        value={storeId}
-        onValueChange={(value) => {
-          setStoreId(value);
-          resetPage();
-        }}
-        items={storeItems}
-        placeholder="All stores"
-        searchPlaceholder="Search stores…"
-        emptyText="No stores found."
-        clearOption={{ label: "All stores" }}
-        className="min-w-[160px]"
-      />
+      {user?.hasStores === false ? null : (
+        <Combobox
+          value={storeId}
+          onValueChange={(value) => {
+            setStoreId(value);
+            resetPage();
+          }}
+          items={storeItems}
+          placeholder="All stores"
+          searchPlaceholder="Search stores…"
+          emptyText="No stores found."
+          clearOption={{ label: "All stores" }}
+          className="min-w-[160px]"
+        />
+      )}
       <Combobox
         value={categoryId}
         onValueChange={(value) => {
