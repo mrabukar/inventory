@@ -1,5 +1,6 @@
 "use client";
 
+import { useViewBranchId } from "@/hooks/branch-view/use-branch-view";
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -99,6 +100,8 @@ function DetailRow({ label, value }: { label: string; value: string | null }) {
 }
 
 export default function CustomerDetailPage() {
+  // Looking at a credit branch is read-only.
+  const browsingBranch = Boolean(useViewBranchId());
   const params = useParams<{ id: string }>();
   const id = params?.id;
   const addToast = useAppStore((s) => s.addToast);
@@ -168,18 +171,20 @@ export default function CustomerDetailPage() {
             title={customer.name}
             desc="Customer profile"
             action={
-              <div className="flex flex-wrap gap-2">
-                {billingEnabled ? (
-                  <Button onClick={() => setPayOpen(true)}>
-                    <Plus className="size-4" />
-                    Record payment
+              browsingBranch ? null : (
+                <div className="flex flex-wrap gap-2">
+                  {billingEnabled ? (
+                    <Button onClick={() => setPayOpen(true)}>
+                      <Plus className="size-4" />
+                      Record payment
+                    </Button>
+                  ) : null}
+                  <Button variant="outline" onClick={() => setEditing(true)}>
+                    <Pencil className="size-4" />
+                    Edit
                   </Button>
-                ) : null}
-                <Button variant="outline" onClick={() => setEditing(true)}>
-                  <Pencil className="size-4" />
-                  Edit
-                </Button>
-              </div>
+                </div>
+              )
             }
           />
 
