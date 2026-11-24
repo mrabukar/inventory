@@ -1,5 +1,6 @@
 "use client";
 
+import { useViewBranchId } from "@/hooks/branch-view/use-branch-view";
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import Link from "next/link";
@@ -23,6 +24,8 @@ import type { CreatePaymentInput, Payment } from "@/types/payments/payment";
 import { RecordPaymentModal } from "./components/record-payment-modal";
 
 export default function PaymentsPage() {
+  // Looking at a credit branch is read-only.
+  const browsingBranch = Boolean(useViewBranchId());
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const [pageIndex, setPageIndex] = useState(0);
@@ -162,10 +165,12 @@ export default function PaymentsPage() {
         title="Payments"
         desc="Payments received from customers"
         action={
-          <Button onClick={() => setOpenRecord(true)}>
-            <Plus className="size-4" />
-            Record Payment
-          </Button>
+          browsingBranch ? null : (
+            <Button onClick={() => setOpenRecord(true)}>
+              <Plus className="size-4" />
+              Record Payment
+            </Button>
+          )
         }
       />
 
