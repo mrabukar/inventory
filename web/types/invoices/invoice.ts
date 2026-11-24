@@ -60,6 +60,8 @@ export interface Invoice {
 }
 
 export interface InvoiceListQuery {
+  /** A credit branch to browse (admin only). */
+  storeId?: string;
   page?: number;
   limit?: number;
   search?: string;
