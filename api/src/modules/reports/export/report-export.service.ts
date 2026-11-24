@@ -42,7 +42,6 @@ export class ReportExportService {
         timezone: data.period.timezone,
       },
       "Financial Summary",
-      true,
     );
 
     const file =
@@ -92,21 +91,13 @@ export class ReportExportService {
     query: ReportExportQueryDto,
     period: ReportPeriodInfo,
     reportTitle: string,
-    // The financial summary can be a credit branch's own: then the report is
-    // the branch's (its name, not the organization's name and logo).
-    allowBranchView = false,
   ): Promise<ReportExportContext> {
     const organizationId = requireOrganizationId(user);
     const exportTimezone = resolveExportTimezone(query.timezone);
-    const { storeId, creditBranch } = allowBranchView
-      ? await this.reportsService.resolveReportStore(user, query.storeId)
-      : {
-          storeId: await this.tenantStoreResolver.resolveStoreFilter(
-            user,
-            query.storeId,
-          ),
-          creditBranch: false,
-        };
+    // A credit branch's own report carries the branch's name, not the
+    // organization's name and logo.
+    const { storeId, creditBranch } =
+      await this.reportsService.resolveReportStore(user, query.storeId);
 
     const [organization, store, category, logo] = await Promise.all([
       this.prisma.organization.findUnique({
