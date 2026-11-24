@@ -9,4 +9,9 @@ export class PaymentQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   invoiceId?: string;
+
+  /** A credit branch to browse (admin only). Leave out for the organization's own. */
+  @IsOptional()
+  @IsString()
+  storeId?: string;
 }
