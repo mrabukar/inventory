@@ -148,7 +148,7 @@ describeDb("Credit branches (PostgreSQL)", () => {
         productId,
         storeId: warehouse.id,
         organizationId,
-        quantity: 1000,
+        quantity: 5000,
       },
     });
   });
@@ -585,14 +585,197 @@ describeDb("Credit branches (PostgreSQL)", () => {
         inOrg(() => invoices.findOne(bSale.invoice!.id, a.manager)),
       ).rejects.toBeInstanceOf(NotFoundException);
 
-      // The admin sees both.
-      const all = await inOrg(() =>
+      // The admin's own list is the organization's, not a branch's; picking a
+      // branch shows that branch's only.
+      const own = await inOrg(() =>
         invoices.findAll({ page: 1, limit: 100 }, admin),
       );
-      const allIds = all.data.map((i) => i.id);
-      expect(allIds).toEqual(
-        expect.arrayContaining([aSale.invoice!.id, bSale.invoice!.id]),
+      const ownIds = own.data.map((i) => i.id);
+      expect(ownIds).not.toContain(aSale.invoice!.id);
+      expect(ownIds).not.toContain(bSale.invoice!.id);
+
+      const browsingA = await inOrg(() =>
+        invoices.findAll({ page: 1, limit: 100, storeId: a.store.id }, admin),
       );
+      const aIds = browsingA.data.map((i) => i.id);
+      expect(aIds).toContain(aSale.invoice!.id);
+      expect(aIds).not.toContain(bSale.invoice!.id);
+    });
+
+    describe("an admin browsing a credit branch", () => {
+      it("accepts the organization's own credit branches and nothing else", async () => {
+        const a = await makeBilledBranch();
+        const resolver = new TenantStoreResolver(prisma, stores);
+        const otherOrg = await prisma.organization.create({
+          data: { name: `Other ${randomUUID().slice(0, 6)}`, hasStores: false },
+        });
+        const foreign = await prisma.store.create({
+          data: {
+            organizationId: otherOrg.id,
+            name: "Foreign branch",
+            address: "x",
+            type: "credit",
+          },
+        });
+        const standard = await prisma.store.create({
+          data: {
+            organizationId,
+            name: `Standard ${randomUUID().slice(0, 6)}`,
+            address: "x",
+            type: "standard",
+          },
+        });
+
+        const warehouse = await inOrg(() => resolver.resolveStoreFilter(admin));
+        expect(
+          await inOrg(() => resolver.resolveStoreFilter(admin, a.store.id)),
+        ).toBe(a.store.id);
+        for (const id of [foreign.id, standard.id, "nope"]) {
+          expect(
+            await inOrg(() => resolver.resolveStoreFilter(admin, id)),
+          ).toBe(warehouse);
+        }
+      });
+
+      it("shows the organization's own invoices, payments, customers and receivables by default, and a branch's when picked", async () => {
+        const a = await makeBilledBranch();
+        const orgCustomer = await inOrg(() =>
+          customers.create(
+            { name: `Org customer ${randomUUID().slice(0, 6)}` },
+            admin,
+          ),
+        );
+        const aSale = await sellTo(a.manager, a.customer.id, 3); // $45 owed
+        await inOrg(() =>
+          payments.create(
+            { customerId: a.customer.id, amount: 10, paidAt: today },
+            a.manager,
+          ),
+        );
+        const ownSale = await inOrg(() =>
+          sales.create(
+            {
+              items: [{ productId, quantitySold: 1 }],
+              saleDate: today,
+              customerId: orgCustomer.id,
+              paidAmount: 0,
+            },
+            admin,
+          ),
+        );
+
+        const page = { page: 1, limit: 100 };
+
+        // Invoices
+        const ownInvoices = await inOrg(() =>
+          invoices.findAll({ ...page, customerId: orgCustomer.id }, admin),
+        );
+        expect(ownInvoices.data.map((i) => i.id)).toContain(
+          ownSale.invoice!.id,
+        );
+        expect(
+          (
+            await inOrg(() =>
+              invoices.findAll({ ...page, customerId: a.customer.id }, admin),
+            )
+          ).data,
+        ).toHaveLength(0);
+        const branchInvoices = await inOrg(() =>
+          invoices.findAll(
+            { ...page, customerId: a.customer.id, storeId: a.store.id },
+            admin,
+          ),
+        );
+        expect(branchInvoices.data.map((i) => i.id)).toEqual([
+          aSale.invoice!.id,
+        ]);
+
+        // Payments
+        expect(
+          (
+            await inOrg(() =>
+              payments.findAll({ ...page, customerId: a.customer.id }, admin),
+            )
+          ).data,
+        ).toHaveLength(0);
+        const branchPaymentsList = await inOrg(() =>
+          payments.findAll(
+            { ...page, customerId: a.customer.id, storeId: a.store.id },
+            admin,
+          ),
+        );
+        expect(branchPaymentsList.data).toHaveLength(1);
+
+        // Customers
+        const findCustomer = (name: string, storeId?: string) =>
+          inOrg(() =>
+            customers.findAll({ ...page, search: name, storeId }, admin),
+          );
+        expect((await findCustomer(orgCustomer.name)).data).toHaveLength(1);
+        expect((await findCustomer(a.customer.name)).data).toHaveLength(0);
+        expect(
+          (await findCustomer(a.customer.name, a.store.id)).data,
+        ).toHaveLength(1);
+        expect(
+          (await findCustomer(orgCustomer.name, a.store.id)).data,
+        ).toHaveLength(0);
+
+        // Receivables
+        const ownOwing = await inOrg(() => customers.getReceivables(admin));
+        const ownOwingIds = ownOwing.map((r) => r.customer?.id);
+        expect(ownOwingIds).toContain(orgCustomer.id);
+        expect(ownOwingIds).not.toContain(a.customer.id);
+        const branchOwing = await inOrg(() =>
+          customers.getReceivables(admin, { storeId: a.store.id }),
+        );
+        expect(branchOwing.map((r) => r.customer?.id)).toEqual([a.customer.id]);
+        expect(branchOwing[0].balance).toBe(35);
+      });
+
+      it("lets the organization look at a branch's records but not change them", async () => {
+        const a = await makeBilledBranch();
+        const orgCustomer = await inOrg(() =>
+          customers.create(
+            { name: `Org customer ${randomUUID().slice(0, 6)}` },
+            admin,
+          ),
+        );
+        await sellTo(a.manager, a.customer.id, 2);
+
+        await expect(
+          inOrg(() =>
+            payments.create(
+              { customerId: a.customer.id, amount: 5, paidAt: today },
+              admin,
+            ),
+          ),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(
+          inOrg(() =>
+            customers.update(a.customer.id, { phone: "061000" }, admin),
+          ),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(
+          inOrg(() =>
+            customers.create({ name: "Pushed", storeId: a.store.id }, admin),
+          ),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+
+        // Looking is fine.
+        await expect(
+          inOrg(() => customers.getBalance(a.customer.id, admin)),
+        ).resolves.toBeDefined();
+        await expect(
+          inOrg(() => customers.getStatement(a.customer.id, admin)),
+        ).resolves.toBeDefined();
+
+        // The organization's own customers are untouched by all this.
+        await expect(
+          inOrg(() =>
+            customers.update(orgCustomer.id, { phone: "062000" }, admin),
+          ),
+        ).resolves.toBeDefined();
+      });
     });
 
     it("lets a branch take payments from its own customers only", async () => {
@@ -1153,6 +1336,89 @@ describeDb("Credit branches (PostgreSQL)", () => {
         ),
       );
       expect(peek.summary.totalRevenue).toBe(0);
+    });
+
+    it("lets the admin open a branch's dashboard, stock report and product mix, with the branch's own figures", async () => {
+      const { store, manager } = await makeBranch();
+      await inOrg(() =>
+        creditBranches.creditStock(
+          store.id,
+          { items: [{ productId, quantity: 10, unitPrice: 10 }] }, // $100 bought
+          admin,
+        ),
+      );
+      const product = await prisma.product.findUniqueOrThrow({
+        where: { id: productId },
+        select: { categoryId: true },
+      });
+      const orgBefore = await inOrg(() =>
+        reports.getAdminDashboard(range, admin),
+      );
+
+      await soldAndApproved(manager, 4); // sells at $15 → $60; cost 4 × $10
+
+      // Dashboard: the branch's own sales, cost and stock, no expenses.
+      const dash = await inOrg(() =>
+        reports.getAdminDashboard({ ...range, storeId: store.id }, admin),
+      );
+      expect(dash.summary.totalRevenue).toBe(60);
+      expect(dash.summary.cogs).toBe(40);
+      expect(dash.summary.grossProfit).toBe(20);
+      expect(dash.summary.totalExpenses).toBe(0);
+      expect(dash.summary.netProfit).toBe(20);
+      expect(dash.summary.inStockBalance).toBe(6);
+      expect(dash.summary.currentStockValue).toBe(60); // at what it paid
+
+      // The organization's own dashboard does not move when a branch sells.
+      const orgAfter = await inOrg(() =>
+        reports.getAdminDashboard(range, admin),
+      );
+      expect(orgAfter.summary.totalRevenue).toBe(
+        orgBefore.summary.totalRevenue,
+      );
+      expect(orgAfter.summary.cogs).toBe(orgBefore.summary.cogs);
+
+      // Stock report: what it bought, holds, sold, and its own unit cost.
+      const stock = await inOrg(() =>
+        reports.getStockReport({ ...range, storeId: store.id }, admin),
+      );
+      const row = stock.products.find((p) => p.productId === productId);
+      expect(row?.purchaseDevices).toBe(10);
+      expect(row?.inStock).toBe(6);
+      expect(row?.salesDevices).toBe(4);
+      expect(row?.averageCost).toBe(10);
+
+      // Product mix: only what this branch sold.
+      const mix = await inOrg(() =>
+        reports.getProductDistribution(
+          { ...range, categoryId: product.categoryId, storeId: store.id },
+          admin,
+        ),
+      );
+      expect(mix.totalUnitsSold).toBe(4);
+
+      // A return lowers what it bought in the stock report.
+      const credits = await inOrg(() =>
+        creditBranches.listCredits(store.id, admin),
+      );
+      await inOrg(() =>
+        creditBranches.createReturn(
+          store.id,
+          {
+            branchCreditItemId: credits[0].items[0].id,
+            quantity: 2,
+            reason: "Damaged",
+          },
+          admin,
+        ),
+      );
+      const afterReturn = await inOrg(() =>
+        reports.getStockReport({ ...range, storeId: store.id }, admin),
+      );
+      expect(
+        afterReturn.products.find((p) => p.productId === productId)
+          ?.purchaseDevices,
+      ).toBe(8);
     });
   });
 
