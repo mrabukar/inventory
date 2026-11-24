@@ -32,6 +32,8 @@ export interface Payment {
 }
 
 export interface PaymentListQuery {
+  /** A credit branch to browse (admin only). */
+  storeId?: string;
   page?: number;
   limit?: number;
   customerId?: string;
