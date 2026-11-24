@@ -14,4 +14,9 @@ export class InvoiceQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   customerId?: string;
+
+  /** A credit branch to browse (admin only). Leave out for the organization's own. */
+  @IsOptional()
+  @IsString()
+  storeId?: string;
 }
