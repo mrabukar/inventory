@@ -10,6 +10,7 @@ function toQueryString(params: CustomerListQuery = {}): string {
   if (params.page != null) search.set("page", String(params.page));
   if (params.limit != null) search.set("limit", String(params.limit));
   if (params.search) search.set("search", params.search);
+  if (params.storeId) search.set("storeId", params.storeId);
   const qs = search.toString();
   return qs ? `?${qs}` : "";
 }
