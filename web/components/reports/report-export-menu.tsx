@@ -18,6 +18,7 @@ import {
   type ReportExportKind,
 } from "@/service/reports/export";
 import type { ReportQuery } from "@/types/reports/query";
+import { useBranchScoped } from "@/hooks/branch-view/use-branch-view";
 import { useAppStore } from "@/store/app";
 
 interface ReportExportMenuProps {
@@ -36,10 +37,12 @@ const REPORT_LABELS: Record<ReportExportKind, string> = {
 export function ReportExportMenu({
   report,
   reports,
-  params,
+  params: rawParams,
   disabled = false,
   onBusyChange,
 }: ReportExportMenuProps) {
+  // Exports follow the credit branch being browsed, like the page itself.
+  const params = useBranchScoped(rawParams);
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const [busyKey, setBusyKey] = useState<string | null>(null);
