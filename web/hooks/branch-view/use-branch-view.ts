@@ -1,22 +1,24 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { usePathname } from "next/navigation";
 
 import { useCreditBranches } from "@/hooks/credit-branches/use-credit-branches";
+import { ALL_BRANCHES } from "@/lib/branch-scope";
 import { useAppStore } from "@/store/app";
 import { useBranchViewStore } from "@/store/branch-view";
 
 /**
- * Pages that can show a credit branch's data. Every other page (purchases,
- * warehouse, expenses, products, stores, users, the credit branch screens…)
- * is about the organization itself and ignores the selection.
+ * Pages whose data follows the selected branch automatically: each page's data
+ * hook adds it as `storeId`. Purchases, the audit log, users and the two
+ * approval pages read the selection themselves. Everything else (warehouse,
+ * stock report, expenses, products, stores, the credit branch screens) is
+ * about the organization itself and ignores it.
  */
 export const BRANCH_VIEW_ROUTES = [
   "/dashboard",
   "/sales",
   "/inventory",
-  "/stock-report",
   "/financial",
   "/customers",
   "/invoices",
@@ -24,16 +26,13 @@ export const BRANCH_VIEW_ROUTES = [
   "/receivables",
 ] as const;
 
-/** What the switcher and banner call the organization's own data (only organizations without stores browse branches). */
-export const BRANCH_VIEW_HOME_LABEL = "Fonex";
-
 export function isBranchViewRoute(pathname: string): boolean {
   return BRANCH_VIEW_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),
   );
 }
 
-/** Only the admin of a credit organization browses credit branches. */
+/** Only the admin of a credit organization looks at its credit branches. */
 function useCanBrowseBranches(): boolean {
   const user = useAppStore((s) => s.user);
   return (
@@ -44,53 +43,93 @@ function useCanBrowseBranches(): boolean {
 }
 
 /**
- * The credit branch whose data this page should show, or undefined for the
- * organization's own. Data hooks call this so pages need no changes.
+ * What the admin has chosen: null for the organization itself, "all" for every
+ * branch together, or one branch's id. Always null for anyone else.
+ */
+export function useBranchScope(): string | null {
+  const canBrowse = useCanBrowseBranches();
+  const value = useBranchViewStore((s) => s.branchId);
+  const { data: branches, isLoading } = useCreditBranches({
+    enabled: canBrowse,
+  });
+  if (!canBrowse) return null;
+  // Before the first branch exists there is only the organization to look at.
+  if (
+    value === ALL_BRANCHES &&
+    !isLoading &&
+    branches !== undefined &&
+    branches.length === 0
+  ) {
+    return null;
+  }
+  return value;
+}
+
+/**
+ * The `storeId` this page's data should use, or undefined for the organization's
+ * own. Data hooks call this so the pages themselves need no changes.
  */
 export function useViewBranchId(): string | undefined {
   const pathname = usePathname();
+  const scope = useBranchScope();
+  return scope && isBranchViewRoute(pathname) ? scope : undefined;
+}
+
+/**
+ * The `storeId` the audit log and the user list send. A credit organization's
+ * default view ("own") leaves its branches' people out; undefined elsewhere.
+ */
+export function usePeopleStoreFilter(): string | undefined {
   const canBrowse = useCanBrowseBranches();
-  const branchId = useBranchViewStore((s) => s.branchId);
-  return canBrowse && branchId && isBranchViewRoute(pathname)
-    ? branchId
-    : undefined;
+  const scope = useBranchScope();
+  return canBrowse ? (scope ?? "own") : undefined;
+}
+
+/** True while looking at one branch or at all of them: the view is read-only. */
+export function useBrowsingBranches(): boolean {
+  return Boolean(useViewBranchId());
 }
 
 /** Adds the selected branch to a query's params (leaves them alone when none is selected). */
 export function useBranchScoped<T extends { storeId?: string }>(params: T): T {
-  const branchId = useViewBranchId();
+  const scope = useViewBranchId();
   return useMemo(
-    () => (branchId ? { ...params, storeId: branchId } : params),
-    [params, branchId],
+    () => (scope ? { ...params, storeId: scope } : params),
+    [params, scope],
   );
 }
 
-/** The switcher's and banner's view of the selection, checked against the real branch list. */
-export function useBranchView() {
-  const pathname = usePathname();
+/** The selector's view of the choice, checked against the real list of branches. */
+export function useBranchScopeControl() {
   const canBrowse = useCanBrowseBranches();
-  const branchId = useBranchViewStore((s) => s.branchId);
+  const value = useBranchViewStore((s) => s.branchId);
   const setBranchId = useBranchViewStore((s) => s.setBranchId);
   const { data: branches = [], isLoading } = useCreditBranches({
     enabled: canBrowse,
   });
 
-  const onBranchPage = isBranchViewRoute(pathname);
-  const selected = branches.find((b) => b.id === branchId) ?? null;
   const select = useCallback(
     (id: string | null) => setBranchId(id),
     [setBranchId],
   );
 
+  // A branch that no longer exists (or another organization's, left over in
+  // this tab) falls back to all branches.
+  const stale =
+    canBrowse &&
+    !isLoading &&
+    value !== null &&
+    value !== ALL_BRANCHES &&
+    !branches.some((branch) => branch.id === value);
+  useEffect(() => {
+    if (stale) setBranchId(ALL_BRANCHES);
+  }, [stale, setBranchId]);
+
   return {
-    organizationName: BRANCH_VIEW_HOME_LABEL,
     enabled: canBrowse && (isLoading || branches.length > 0),
-    onBranchPage,
     branches,
     isLoading,
-    selected,
-    /** True when the selection points at a branch that no longer exists. */
-    stale: Boolean(branchId) && !isLoading && !selected && canBrowse,
+    value: canBrowse && !stale ? value : null,
     select,
   };
 }
