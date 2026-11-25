@@ -121,7 +121,11 @@ export const BILLING_ROUTE_PREFIXES = [
 export function isRouteAllowedForRole(
   role: Role,
   pathname: string,
-  options?: { hasStores?: boolean | null; isCreditBranch?: boolean },
+  options?: {
+    hasStores?: boolean | null;
+    usesCreditBranches?: boolean | null;
+    isCreditBranch?: boolean;
+  },
 ): boolean {
   if (pathname === SETUP_2FA_PATH) {
     return true;
@@ -136,9 +140,24 @@ export function isRouteAllowedForRole(
   }
 
   if (role === "admin" && isManagerOnlyPath(pathname)) {
-    if (pathname === "/submit-sale" && options?.hasStores === false) {
+    // Only a direct-sales organization's admin sells; a credit organization's
+    // branches sell, and an organization with stores sells through its managers.
+    if (
+      pathname === "/submit-sale" &&
+      options?.hasStores === false &&
+      options.usesCreditBranches !== true
+    ) {
       return true;
     }
+    return false;
+  }
+
+  // Credit branches exist only in credit organizations.
+  if (
+    role === "admin" &&
+    matchesPrefix(pathname, "/credit-branches") &&
+    !(options?.hasStores === false && options.usesCreditBranches === true)
+  ) {
     return false;
   }
 
