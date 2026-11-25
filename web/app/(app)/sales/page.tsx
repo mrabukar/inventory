@@ -11,7 +11,7 @@ import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { PageHeader } from "@/components/ui/page-header";
 import { useSession } from "@/hooks/auth/session";
 import { useCategories } from "@/hooks/categories/use-categories";
-import { useViewBranchId } from "@/hooks/branch-view/use-branch-view";
+import { useReadOnlyView } from "@/hooks/branch-view/use-branch-view";
 import { useCorrectSale } from "@/hooks/sales/use-correct-sale";
 import { useSales } from "@/hooks/sales/use-sales";
 import { useStores } from "@/hooks/stores/list-stores";
@@ -30,7 +30,7 @@ import {
 
 export default function SalesPage() {
   const { user } = useSession();
-  const browsingBranch = Boolean(useViewBranchId());
+  const browsingBranch = useReadOnlyView();
   // A credit branch's sales are read-only here.
   const canCorrect = user?.hasStores === false && !browsingBranch;
   const addToast = useAppStore((s) => s.addToast);
