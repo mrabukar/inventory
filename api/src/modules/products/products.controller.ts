@@ -15,6 +15,7 @@ import {
   type CurrentUserPayload,
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { PageRead } from "../../common/decorators/page-access.decorator";
 import { CreateProductDto } from "./dto/create-product.dto";
 import { DeactivateProductDto } from "./dto/deactivate-product.dto";
 import { ProductQueryDto } from "./dto/product-query.dto";
@@ -32,16 +33,19 @@ export class ProductsController {
   ) {}
 
   @Get()
+  @PageRead(["products", "purchases", "inventory", "warehouse"])
   findAll(@Query() query: ProductQueryDto) {
     return this.productsService.findAll(query);
   }
 
   @Get(":id/purchases")
+  @PageRead(["products"])
   findPurchases(@Param("id") id: string, @Query() query: PurchaseQueryDto) {
     return this.purchasesService.findByProduct(id, query);
   }
 
   @Get(":id")
+  @PageRead(["products", "purchases"])
   findOne(@Param("id") id: string) {
     return this.productsService.findOne(id);
   }
