@@ -22,7 +22,14 @@ const ORDER_OPTIONS: { value: StatementOrder; label: string }[] = [
  * the Balance column is a running total, so sorting by any other column
  * would make it meaningless.
  */
-export function BranchStatementCard({ branchId }: { branchId: string }) {
+export function BranchStatementCard({
+  branchId,
+  embedded = false,
+}: {
+  branchId: string;
+  /** Inside another card (tabs): no frame or title of its own. */
+  embedded?: boolean;
+}) {
   const [page, setPage] = useState(1);
   const [order, setOrder] = useState<StatementOrder>("newest");
 
@@ -32,9 +39,20 @@ export function BranchStatementCard({ branchId }: { branchId: string }) {
   );
 
   return (
-    <div className="card overflow-hidden">
-      <div className="card-head">
-        <h3>Statement</h3>
+    <div className={embedded ? undefined : "card overflow-hidden"}>
+      <div
+        className={embedded ? undefined : "card-head"}
+        style={
+          embedded
+            ? {
+                display: "flex",
+                justifyContent: "flex-end",
+                padding: "12px 24px",
+              }
+            : undefined
+        }
+      >
+        {embedded ? null : <h3>Statement</h3>}
         <SortSelect
           label="Statement order"
           value={order}
