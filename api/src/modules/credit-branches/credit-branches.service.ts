@@ -22,6 +22,15 @@ import { withOrganizationId } from "../../common/utils/with-organization-id.util
 import { PrismaService } from "../../prisma/prisma.service";
 import { ProductsService } from "../products/products.service";
 import { StoresService } from "../stores/stores.service";
+import {
+  parseAuditRangeEnd,
+  parseAuditRangeStart,
+} from "../audit-logs/audit-log-date.util";
+import {
+  ALL_BRANCHES,
+  branchScopeOf,
+} from "../../common/utils/credit-branch.util";
+import { CreditedStockQueryDto } from "./dto/credited-stock-query.dto";
 import { BranchStatementQueryDto } from "./dto/branch-statement-query.dto";
 import { CreateBranchReturnDto } from "./dto/create-branch-return.dto";
 import {
@@ -117,6 +126,108 @@ export class CreditBranchesService {
     this.assertBranchAccess(store.id, user);
     const balance = await getBranchBalance(this.prisma, store.id);
     return { ...store, ...balance };
+  }
+
+  /**
+   * Stock credited to branches, line by line: one branch's, or every branch's
+   * together. This is the branches' side of "purchases".
+   */
+  async listCreditedStock(
+    query: CreditedStockQueryDto,
+    user: CurrentUserPayload,
+  ) {
+    const organizationId = requireOrganizationId(user);
+    await this.assertCreditOrganization(organizationId);
+
+    const scope = await branchScopeOf(
+      this.prisma,
+      user,
+      query.storeId?.trim() || ALL_BRANCHES,
+    );
+    const storeFilter =
+      scope.kind === "branch"
+        ? scope.storeId
+        : { in: scope.kind === "all" ? scope.storeIds : [] };
+
+    const search = typeof query.search === "string" ? query.search.trim() : "";
+    const fromDate = query.fromDate?.trim();
+    const toDate = query.toDate?.trim();
+
+    const where: Prisma.BranchCreditItemWhereInput = {
+      storeId: storeFilter,
+      ...(query.categoryId || search
+        ? {
+            product: {
+              ...(query.categoryId
+                ? { categoryId: query.categoryId }
+                : undefined),
+              ...(search
+                ? { name: { contains: search, mode: "insensitive" } }
+                : undefined),
+            },
+          }
+        : undefined),
+      ...(fromDate || toDate
+        ? {
+            createdAt: {
+              ...(fromDate
+                ? { gte: parseAuditRangeStart(fromDate) }
+                : undefined),
+              ...(toDate ? { lte: parseAuditRangeEnd(toDate) } : undefined),
+            },
+          }
+        : undefined),
+    };
+
+    const [rows, total, totals] = await Promise.all([
+      this.prisma.branchCreditItem.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+        include: {
+          product: { select: { id: true, name: true, model: true } },
+          branchCredit: {
+            select: {
+              note: true,
+              store: { select: { id: true, name: true } },
+              createdBy: { select: { id: true, name: true } },
+            },
+          },
+          returns: { select: { quantity: true } },
+        },
+      }),
+      this.prisma.branchCreditItem.count({ where }),
+      this.prisma.branchCreditItem.aggregate({
+        where,
+        _sum: { quantity: true, lineTotal: true },
+      }),
+    ]);
+
+    return {
+      data: rows.map((row) => ({
+        id: row.id,
+        creditedAt: row.createdAt,
+        branch: row.branchCredit.store,
+        product: row.product,
+        quantity: row.quantity,
+        returnedQuantity: row.returns.reduce((sum, r) => sum + r.quantity, 0),
+        unitPrice: row.unitPrice,
+        lineTotal: row.lineTotal,
+        note: row.branchCredit.note,
+        createdBy: row.branchCredit.createdBy,
+      })),
+      meta: {
+        total,
+        page: query.page,
+        limit: query.limit,
+        totalPages: Math.ceil(total / query.limit),
+      },
+      summary: {
+        units: totals._sum.quantity ?? 0,
+        value: toMoneyNumber(totals._sum.lineTotal),
+      },
+    };
   }
 
   /** Every credit this branch has ever received, each line with what's left to return. */
