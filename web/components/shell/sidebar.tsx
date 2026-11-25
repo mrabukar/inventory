@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/popover";
 import type { Role } from "@/lib/types";
 import { fetchOrganizationLogoBlob } from "@/service/upload";
+import { pageKeyForPath } from "@/lib/limited-pages";
 import { usePendingSalesCount } from "@/hooks/sales/use-review-sale";
 import { usePendingBranchPaymentsCount } from "@/hooks/branch-payments/use-pending-branch-payments-count";
 import { billingAppliesTo } from "@/lib/credit-branch";
@@ -219,6 +220,24 @@ function buildManagerNav(
   }
 
   return nav;
+}
+
+/** The menu a limited user sees: only the pages they hold, and no group left empty. */
+function limitNavToPages(
+  nav: AdminNavEntry[],
+  allowedPages: readonly string[],
+): AdminNavEntry[] {
+  const allowed = (href: string) => {
+    const key = pageKeyForPath(href);
+    return key !== null && allowedPages.includes(key);
+  };
+  return nav.flatMap((entry): AdminNavEntry[] => {
+    if (isNavGroup(entry)) {
+      const children = entry.children.filter((child) => allowed(child.href));
+      return children.length > 0 ? [{ ...entry, children }] : [];
+    }
+    return allowed(entry.href) ? [entry] : [];
+  });
 }
 
 function isNavGroup(entry: AdminNavEntry): entry is NavGroupItem {
@@ -488,6 +507,8 @@ interface Props {
   hasStores?: boolean | null;
   usesCreditBranches?: boolean | null;
   isCreditBranch?: boolean;
+  /** For a limited user: the pages they may see. */
+  allowedPages?: readonly string[];
 }
 
 export function Sidebar({
@@ -497,21 +518,32 @@ export function Sidebar({
   hasStores = true,
   usesCreditBranches = false,
   isCreditBranch = false,
+  allowedPages = [],
 }: Props) {
   const pathname = usePathname();
   const billingEnabled = useAppStore((s) => s.user?.billingEnabled ?? false);
-  const { data: pendingSales = 0 } = usePendingSalesCount(role === "admin");
+  // A limited user sees the admin's menu cut down to the pages they were given.
+  const limited = role === "limited";
+  const showsAdminMenu = role === "admin" || limited;
+  const holds = (...pages: string[]) =>
+    !limited || pages.some((page) => allowedPages.includes(page));
+  const { data: pendingSales = 0 } = usePendingSalesCount(
+    showsAdminMenu && holds("sale-approvals"),
+  );
   const creditOrg = hasStores === false && usesCreditBranches === true;
   const { data: pendingBranchPayments = 0 } = usePendingBranchPaymentsCount(
-    role === "admin" && creditOrg,
+    showsAdminMenu && creditOrg && holds("branch-payments", "credit-branches"),
   );
-  const adminNav = buildAdminNav(
+  const fullAdminNav = buildAdminNav(
     hasStores !== false,
     creditOrg,
     billingEnabled,
     pendingSales,
     pendingBranchPayments,
   );
+  const adminNav = limited
+    ? limitNavToPages(fullAdminNav, allowedPages)
+    : fullAdminNav;
   const user = useAppStore((s) => s.user);
   // Credit branches don't do customer billing for now (CREDIT_BRANCH_BILLING).
   const managerNav = buildManagerNav(billingAppliesTo(user), isCreditBranch);
@@ -525,7 +557,7 @@ export function Sidebar({
           <div className="sb-section">
             {role === "super_admin"
               ? "Platform"
-              : role === "admin"
+              : showsAdminMenu
                 ? "Operations"
                 : "My Store"}
           </div>
@@ -534,7 +566,7 @@ export function Sidebar({
           ? SUPER_ADMIN_NAV.map((item) => (
               <SidebarNavLink key={item.href} item={item} pathname={pathname} />
             ))
-          : role === "admin"
+          : showsAdminMenu
             ? adminNav.map((entry) =>
                 isNavGroup(entry) ? (
                   <SidebarNavGroup
