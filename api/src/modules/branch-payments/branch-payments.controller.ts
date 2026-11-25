@@ -13,6 +13,7 @@ import {
   type CurrentUserPayload,
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { PageRead } from "../../common/decorators/page-access.decorator";
 import { BranchPaymentsService } from "./branch-payments.service";
 import { BranchPaymentQueryDto } from "./dto/branch-payment-query.dto";
 import { RejectBranchPaymentDto } from "./dto/reject-branch-payment.dto";
@@ -23,7 +24,7 @@ export class BranchPaymentsController {
   constructor(private readonly branchPayments: BranchPaymentsService) {}
 
   @Get()
-  @Roles(UserRole.admin, UserRole.branch_manager)
+  @PageRead(["branch-payments"], UserRole.branch_manager)
   findAll(
     @Query() query: BranchPaymentQueryDto,
     @CurrentUser() user: CurrentUserPayload,
@@ -32,7 +33,7 @@ export class BranchPaymentsController {
   }
 
   @Get("pending-count")
-  @Roles(UserRole.admin)
+  @PageRead(["branch-payments", "credit-branches"])
   pendingCount(@CurrentUser() user: CurrentUserPayload) {
     return this.branchPayments.countPending(user);
   }
