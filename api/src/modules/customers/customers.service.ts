@@ -13,7 +13,7 @@ import {
 } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { CREDIT_BRANCH_BILLING } from "../../common/constants/credit-branch.constants";
-import { creditBranchViewIdOf } from "../../common/utils/credit-branch.util";
+import { branchScopeOf } from "../../common/utils/credit-branch.util";
 import { assertBillingEnabled } from "../../common/utils/require-billing-enabled.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { assertBranchManagerHasStore } from "../../common/utils/store-scope.util";
@@ -27,6 +27,10 @@ import { CustomerQueryDto } from "./dto/customer-query.dto";
 import { ReceivablesQueryDto } from "./dto/receivables-query.dto";
 import { UpdateCustomerDto } from "./dto/update-customer.dto";
 
+export type CustomerWithStore = Customer & {
+  store: { id: string; name: string } | null;
+};
+
 @Injectable()
 export class CustomersService {
   constructor(
@@ -37,7 +41,7 @@ export class CustomersService {
   async findAll(
     query: CustomerQueryDto,
     user: CurrentUserPayload,
-  ): Promise<PaginatedResult<Customer>> {
+  ): Promise<PaginatedResult<CustomerWithStore>> {
     const { page, limit } = query;
     const skip = (page - 1) * limit;
     const search = typeof query.search === "string" ? query.search.trim() : "";
@@ -46,15 +50,18 @@ export class CustomersService {
     // never the organization's own, or another branch's. A standard branch
     // manager keeps today's behaviour: every customer, org-wide (unchanged
     // for organizations with branches). An admin sees the organization's own
-    // customers, or one credit branch's when they pick it.
-    let storeId: string | null | undefined;
+    // customers, or one credit branch's (or every branch's) when they pick it.
+    let storeId: Prisma.CustomerWhereInput["storeId"];
     if (user.role === UserRole.branch_manager) {
       storeId = await this.creditBranchStoreIdFor(user, { optional: true });
     } else {
-      storeId = await creditBranchViewIdOf(this.prisma, user, query.storeId);
-      if (!storeId) {
-        storeId = null;
-      }
+      const scope = await branchScopeOf(this.prisma, user, query.storeId);
+      storeId =
+        scope.kind === "branch"
+          ? scope.storeId
+          : scope.kind === "all"
+            ? { not: null }
+            : null;
     }
 
     const where: Prisma.CustomerWhereInput = {
@@ -76,6 +83,8 @@ export class CustomersService {
         skip,
         take: limit,
         orderBy: { createdAt: "desc" },
+        // The branch a customer belongs to, for the Branch column.
+        include: { store: { select: { id: true, name: true } } },
       }),
       this.prisma.customer.count({ where }),
     ]);
@@ -429,11 +438,20 @@ export class CustomersService {
     await assertBillingEnabled(this.prisma, organizationId);
 
     // Throws for a standard branch manager, who never had this page. An admin
-    // sees the organization's own customers, or one credit branch's.
-    const branchStoreId =
-      user.role === UserRole.branch_manager
-        ? ((await this.creditBranchStoreIdFor(user)) as string)
-        : await creditBranchViewIdOf(this.prisma, user, query?.storeId);
+    // sees the organization's own customers, or one credit branch's (or every
+    // branch's) when they pick it.
+    let branchStoreId: Prisma.CustomerWhereInput["storeId"];
+    if (user.role === UserRole.branch_manager) {
+      branchStoreId = await this.creditBranchStoreIdFor(user);
+    } else {
+      const scope = await branchScopeOf(this.prisma, user, query?.storeId);
+      branchStoreId =
+        scope.kind === "branch"
+          ? scope.storeId
+          : scope.kind === "all"
+            ? { not: null }
+            : null;
+    }
 
     const groups = await this.prisma.invoice.groupBy({
       by: ["customerId"],
@@ -455,7 +473,12 @@ export class CustomersService {
 
     const customers = await this.prisma.customer.findMany({
       where: { id: { in: customerIds }, storeId: branchStoreId },
-      select: { id: true, name: true, phone: true },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        store: { select: { id: true, name: true } },
+      },
     });
     const byId = new Map(customers.map((c) => [c.id, c]));
 
