@@ -4,6 +4,8 @@ import { useCallback, useMemo, useState } from "react";
 
 import { AuditDetailSheet } from "./components/audit-detail-sheet";
 import { AuditTable } from "./components/audit-table";
+import { BranchScopeSelect } from "@/components/filters/branch-scope-select";
+import { usePeopleStoreFilter } from "@/hooks/branch-view/use-branch-view";
 import { Combobox } from "@/components/ui/combobox";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { PageHeader } from "@/components/ui/page-header";
@@ -31,6 +33,8 @@ export default function AuditPage() {
   const [toDate, setToDate] = useState(defaultRange.toDate);
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const debouncedSearch = useDebouncedValue(search, 300);
+  // A credit organization looks at itself, one branch, or all branches.
+  const peopleStoreId = usePeopleStoreFilter();
 
   const listQuery = useMemo(
     () => ({
@@ -41,8 +45,18 @@ export default function AuditPage() {
       action,
       fromDate,
       toDate,
+      storeId: peopleStoreId,
     }),
-    [pageIndex, pageSize, debouncedSearch, userId, action, fromDate, toDate],
+    [
+      pageIndex,
+      pageSize,
+      debouncedSearch,
+      userId,
+      action,
+      fromDate,
+      toDate,
+      peopleStoreId,
+    ],
   );
 
   const { data: usersData } = useUsers({ limit: 100 });
@@ -112,6 +126,7 @@ export default function AuditPage() {
           resetPage();
         }}
       />
+      <BranchScopeSelect />
       <Combobox
         value={userId}
         onValueChange={(value) => {
