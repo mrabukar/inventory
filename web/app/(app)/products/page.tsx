@@ -1,5 +1,6 @@
 "use client";
 
+import { useReadOnlyView } from "@/hooks/branch-view/use-branch-view";
 import { useCallback, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Pencil, Plus, PowerOff } from "lucide-react";
@@ -312,16 +313,25 @@ export default function ProductsPage() {
 
   const isSaving = createProduct.isPending || updateProduct.isPending;
 
+  // Nothing here may change data for a limited user (or while browsing branches).
+  const readOnly = useReadOnlyView();
+  const visibleColumns = useMemo(
+    () => (readOnly ? columns.filter((c) => c.id !== "actions") : columns),
+    [columns, readOnly],
+  );
+
   return (
     <>
       <PageHeader
         title="Products"
         desc="Product catalog — record purchases to set unit cost"
         action={
-          <Button onClick={() => setSheet({ mode: "add" })}>
-            <Plus className="size-4" />
-            Add Product
-          </Button>
+          readOnly ? null : (
+            <Button onClick={() => setSheet({ mode: "add" })}>
+              <Plus className="size-4" />
+              Add Product
+            </Button>
+          )
         }
       />
 
@@ -338,7 +348,7 @@ export default function ProductsPage() {
       )}
 
       <DataTable
-        columns={columns}
+        columns={visibleColumns}
         data={products}
         rowCount={rowCount}
         pageIndex={pageIndex}
