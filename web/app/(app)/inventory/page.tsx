@@ -12,6 +12,9 @@ import {
 } from "./components/inventory-toolbar";
 import { PageHeader } from "@/components/ui/page-header";
 import { useCategories } from "@/hooks/categories/use-categories";
+import { BranchScopeSelect } from "@/components/filters/branch-scope-select";
+import { useShowBranchColumn } from "@/components/credit-branches/branch-column";
+import { useViewBranchId } from "@/hooks/branch-view/use-branch-view";
 import { useInventory } from "@/hooks/inventory/use-inventory";
 import { useStores } from "@/hooks/stores/list-stores";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -27,6 +30,9 @@ function scopeForStatus(status: InventoryStatusFilter): InventoryListScope {
 
 export default function InventoryPage() {
   const hasStores = useAppStore((s) => s.user?.hasStores ?? true);
+  // Listing every branch together: each row needs its branch.
+  const showBranch = useShowBranchColumn();
+  const viewBranchId = useViewBranchId();
   const [view, setView] = useState<InventoryView>("table");
   const [status, setStatus] = useState<InventoryStatusFilter>("All");
   const [pageIndex, setPageIndex] = useState(0);
@@ -93,7 +99,8 @@ export default function InventoryPage() {
           limit,
           search: debouncedSearch || undefined,
           categoryId: categoryId || undefined,
-          storeId: storeId || undefined,
+          // The branch picked in the selector, same as the list on screen.
+          storeId: viewBranchId ?? (storeId || undefined),
         },
         scope,
       );
@@ -103,7 +110,7 @@ export default function InventoryPage() {
     } while (page <= totalPages);
 
     return exported;
-  }, [debouncedSearch, categoryId, storeId, scope]);
+  }, [debouncedSearch, categoryId, storeId, scope, viewBranchId]);
 
   return (
     <>
@@ -135,6 +142,7 @@ export default function InventoryPage() {
         }}
         storeItems={storeItems}
         showStoreFilter={hasStores}
+        scopeSelect={<BranchScopeSelect />}
         categoryId={categoryId}
         onCategoryIdChange={(value) => {
           setCategoryId(value);
@@ -156,7 +164,7 @@ export default function InventoryPage() {
           rowCount={rowCount}
           pageIndex={pageIndex}
           pageSize={pageSize}
-          hideStoreColumn={!hasStores}
+          hideStoreColumn={!hasStores && !showBranch}
           onPaginationChange={({ pageIndex: nextPage, pageSize: nextSize }) => {
             setPageIndex(nextPage);
             setPageSize(nextSize);
@@ -166,7 +174,7 @@ export default function InventoryPage() {
         />
       ) : (
         <>
-          <InventoryGrid rows={rows} isLoading={isLoading} hideStore={!hasStores} />
+          <InventoryGrid rows={rows} isLoading={isLoading} hideStore={!hasStores && !showBranch} />
           <div
             className="table-wrap"
             style={{ marginTop: rows.length ? 16 : 0 }}
