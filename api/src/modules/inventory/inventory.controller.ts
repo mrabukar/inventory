@@ -5,6 +5,7 @@ import {
   type CurrentUserPayload,
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { PageRead } from "../../common/decorators/page-access.decorator";
 import { InventoryAlertQueryDto } from "./dto/inventory-alert-query.dto";
 import { InventoryQueryDto } from "./dto/inventory-query.dto";
 import { UpdateInventoryThresholdDto } from "./dto/update-inventory-threshold.dto";
@@ -17,7 +18,7 @@ export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
   @Get("warehouse")
-  @Roles(UserRole.admin)
+  @PageRead(["warehouse", "purchases", "inventory"])
   findWarehouse(
     @Query() query: InventoryQueryDto,
     @CurrentUser() user: CurrentUserPayload,
@@ -36,6 +37,7 @@ export class InventoryController {
   }
 
   @Get("low-stock")
+  @PageRead(["dashboard", "inventory"], UserRole.branch_manager)
   findLowStock(
     @Query() query: InventoryAlertQueryDto,
     @CurrentUser() user: CurrentUserPayload,
@@ -44,6 +46,7 @@ export class InventoryController {
   }
 
   @Get("out-of-stock")
+  @PageRead(["dashboard", "inventory"], UserRole.branch_manager)
   findOutOfStock(
     @Query() query: InventoryAlertQueryDto,
     @CurrentUser() user: CurrentUserPayload,
@@ -52,6 +55,7 @@ export class InventoryController {
   }
 
   @Get()
+  @PageRead(["inventory", "warehouse", "purchases", "dashboard"], UserRole.branch_manager)
   findAll(
     @Query() query: InventoryQueryDto,
     @CurrentUser() user: CurrentUserPayload,
@@ -60,6 +64,7 @@ export class InventoryController {
   }
 
   @Get("stores/:storeId/products/:productId")
+  @PageRead(["inventory"], UserRole.branch_manager)
   findOne(
     @Param("storeId") storeId: string,
     @Param("productId") productId: string,
@@ -69,6 +74,7 @@ export class InventoryController {
   }
 
   @Get("stores/:storeId")
+  @PageRead(["inventory"], UserRole.branch_manager)
   findByStore(
     @Param("storeId") storeId: string,
     @Query() query: InventoryQueryDto,
