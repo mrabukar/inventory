@@ -3,6 +3,14 @@
 Date: 2026-11-25. Status: part 0 (security fixes) and part 1 (organization types)
 are built; parts 2 and 3 are not.
 
+Part 2 as built: the top bar switcher and banner are gone. A selector
+(`components/filters/branch-scope-select.tsx`: Fonex / All branches / a branch) sits
+on the dashboard, financial summary, sales, customers, invoices, payments,
+receivables, purchases, audit log, users and the two approval pages. The API takes
+`storeId=all` for every branch together (`branchScopeOf` in `credit-branch.util.ts`).
+Stock pages ignore it. Purchases shows `GET /credit-branches/stock-credits` while a
+branch is selected. The dashboard's low-stock list is left out for All branches.
+
 Part 1 as built: `Organization.usesCreditBranches` (migration
 `20261125120000_organization_type`, which also turns billing on for organizations
 that already have credit branches). The API takes a single `type` on create and
