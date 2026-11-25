@@ -46,6 +46,7 @@ const userSelect = {
   phone: true,
   twoFactorEnabled: true,
   twoFactorRequired: true,
+  allowedPages: true,
 } as const;
 
 export type MeStore = {
