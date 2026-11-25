@@ -61,12 +61,6 @@ export function withOrgWhere(where: unknown, orgId: string): QueryArgs {
   return { ...base, organizationId: orgId };
 }
 
-function pickFindArgs(args: QueryArgs): QueryArgs {
-  const rest = { ...args };
-  delete rest.where;
-  return rest;
-}
-
 export function injectCreateData(
   data: unknown,
   orgId: string,
@@ -90,26 +84,19 @@ export function createTenantExtension(tenantContext: TenantContextService) {
     name: "tenant-scoping",
     query: {
       $allModels: {
+        // Single-record lookups add the organization to the unique filter.
+        // (They used to look for a model delegate that is not there and then
+        // quietly ran unscoped, so any id from another organization worked.)
         async findUnique({ model, args, query }) {
           const orgId = getOrgId();
           if (shouldBypass(model, orgId)) {
             return query(args);
           }
 
-          const context = Prisma.getExtensionContext(this) as Record<
-            string,
-            { findFirst: (a: QueryArgs) => Promise<unknown> }
-          >;
-          const key = modelDelegateKey(model);
-          const delegate = context[key];
-          if (!delegate?.findFirst) {
-            return query(args);
-          }
-
-          return delegate.findFirst({
-            ...pickFindArgs(args),
-            where: withOrgWhere((args as QueryArgs).where, orgId as string),
-          });
+          return query({
+            ...args,
+            where: withOrgWhere(args.where, orgId as string),
+          } as typeof args);
         },
 
         async findUniqueOrThrow({ model, args, query }) {
@@ -118,20 +105,10 @@ export function createTenantExtension(tenantContext: TenantContextService) {
             return query(args);
           }
 
-          const context = Prisma.getExtensionContext(this) as Record<
-            string,
-            { findFirstOrThrow: (a: QueryArgs) => Promise<unknown> }
-          >;
-          const key = modelDelegateKey(model);
-          const delegate = context[key];
-          if (!delegate?.findFirstOrThrow) {
-            return query(args);
-          }
-
-          return delegate.findFirstOrThrow({
-            ...pickFindArgs(args),
-            where: withOrgWhere((args as QueryArgs).where, orgId as string),
-          });
+          return query({
+            ...args,
+            where: withOrgWhere(args.where, orgId as string),
+          } as typeof args);
         },
 
         async $allOperations({ model, operation, args, query }) {
@@ -177,8 +154,4 @@ export function createTenantExtension(tenantContext: TenantContextService) {
       },
     },
   });
-}
-
-function modelDelegateKey(model: string): string {
-  return model.charAt(0).toLowerCase() + model.slice(1);
 }
