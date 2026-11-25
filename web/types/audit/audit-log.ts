@@ -55,6 +55,8 @@ export interface AuditLogListQuery {
   entityId?: string;
   fromDate?: string;
   toDate?: string;
+  /** "own", "all", or a credit branch's id (credit organizations only). */
+  storeId?: string;
 }
 
 export type AuditLogListResponse = PaginatedResponse<AuditLog>;
