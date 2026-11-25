@@ -85,14 +85,19 @@ export function usePeopleStoreFilter(): string | undefined {
   return canBrowse ? (scope ?? "own") : undefined;
 }
 
-/** True while looking at one branch or at all of them: the view is read-only. */
+/**
+ * True while looking at one branch: that view is read-only. "All branches" is
+ * not, so the organization's own records stay editable there; the API still
+ * refuses a change to a branch's records.
+ */
 export function useBrowsingBranches(): boolean {
-  return Boolean(useViewBranchId());
+  const viewBranchId = useViewBranchId();
+  return Boolean(viewBranchId) && viewBranchId !== ALL_BRANCHES;
 }
 
 /**
  * True when nothing on the page may change data: a limited user always, and
- * anyone looking at the branches. Pages hide their add, edit, delete, approve
+ * anyone looking at a single branch. Pages hide their add, edit, delete, approve
  * and record buttons on this (the API refuses those calls regardless).
  */
 export function useReadOnlyView(): boolean {
