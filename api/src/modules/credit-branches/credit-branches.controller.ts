@@ -15,6 +15,7 @@ import {
   type CurrentUserPayload,
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { PageRead } from "../../common/decorators/page-access.decorator";
 import { CreditBranchesService } from "./credit-branches.service";
 import { BranchStatementQueryDto } from "./dto/branch-statement-query.dto";
 import { CreateBranchReturnDto } from "./dto/create-branch-return.dto";
@@ -28,14 +29,29 @@ export class CreditBranchesController {
   constructor(private readonly creditBranches: CreditBranchesService) {}
 
   @Get()
-  @Roles(UserRole.admin)
+  @PageRead([
+    "dashboard",
+    "sales",
+    "inventory",
+    "financial",
+    "customers",
+    "invoices",
+    "payments",
+    "receivables",
+    "purchases",
+    "audit",
+    "users",
+    "sale-approvals",
+    "branch-payments",
+    "credit-branches",
+  ])
   findAll(@CurrentUser() user: CurrentUserPayload) {
     return this.creditBranches.findAll(user);
   }
 
   // Declared before ":id" so "stock-credits" is not read as a branch id.
   @Get("stock-credits")
-  @Roles(UserRole.admin)
+  @PageRead(["purchases"])
   listCreditedStock(
     @Query() query: CreditedStockQueryDto,
     @CurrentUser() user: CurrentUserPayload,
@@ -44,13 +60,13 @@ export class CreditBranchesController {
   }
 
   @Get(":id")
-  @Roles(UserRole.admin, UserRole.branch_manager)
+  @PageRead(["credit-branches", "dashboard"], UserRole.branch_manager)
   findOne(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.creditBranches.findOne(id, user);
   }
 
   @Get(":id/statement")
-  @Roles(UserRole.admin, UserRole.branch_manager)
+  @PageRead(["credit-branches"], UserRole.branch_manager)
   getStatement(
     @Param("id") id: string,
     @Query() query: BranchStatementQueryDto,
@@ -60,7 +76,7 @@ export class CreditBranchesController {
   }
 
   @Get(":id/credits")
-  @Roles(UserRole.admin)
+  @PageRead(["credit-branches"])
   listCredits(
     @Param("id") id: string,
     @CurrentUser() user: CurrentUserPayload,
