@@ -7,11 +7,12 @@ export const AUTH_APP_NAME = "Inventory";
 
 export { UserRole };
 
-/** Prisma enum values: `super_admin` | `admin` | `branch_manager` */
+/** Prisma enum values: `super_admin` | `admin` | `branch_manager` | `limited_user` */
 export const USER_ROLES = [
   UserRole.super_admin,
   UserRole.admin,
   UserRole.branch_manager,
+  UserRole.limited_user,
 ] as const;
 
 export function parseTrustedOrigins(value: string | undefined): string[] {
@@ -33,6 +34,7 @@ export function isUserRole(value: unknown): value is UserRole {
 export const ASSIGNABLE_USER_ROLES = [
   UserRole.admin,
   UserRole.branch_manager,
+  UserRole.limited_user,
 ] as const;
 
 /**
@@ -48,6 +50,8 @@ const ACCESS_FIELDS = [
   "organizationId",
   "storeId",
   "isActive",
+  // A limited user's pages are changed only by an admin, through our own service.
+  "allowedPages",
 ] as const;
 
 /** True when an update tries to set a field that decides a user's access. */
