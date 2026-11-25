@@ -2,6 +2,8 @@ export interface PaymentInvoiceSummary {
   id: string;
   numberLabel: string;
   total: number | string;
+  /** The branch the sale belongs to. */
+  sale?: { store: { id: string; name: string } };
 }
 
 export interface PaymentCustomerSummary {
@@ -71,7 +73,12 @@ export interface CustomerStatement {
 }
 
 export interface ReceivableRow {
-  customer: { id: string; name: string; phone: string | null } | null;
+  customer: {
+    id: string;
+    name: string;
+    phone: string | null;
+    store?: { id: string; name: string } | null;
+  } | null;
   unpaidInvoiceCount: number;
   balance: number;
 }
