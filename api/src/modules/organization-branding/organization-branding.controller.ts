@@ -18,6 +18,7 @@ import {
   type CurrentUserPayload,
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { PageRead } from "../../common/decorators/page-access.decorator";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { OrganizationLogoService } from "../../common/storage/organization-logo.service";
 import { ORGANIZATION_LOGO_MAX_BYTES } from "../../common/storage/organization-logo.constants";
@@ -73,6 +74,7 @@ export class OrganizationBrandingController {
   }
 
   @Get("logo")
+  @PageRead(["invoices"])
   async getLogo(@CurrentUser() user: CurrentUserPayload, @Res() res: Response) {
     const organizationId = requireOrganizationId(user);
     const object = await this.organizationLogo.getLogoObject(
@@ -106,6 +108,7 @@ export class OrganizationBrandingController {
   }
 
   @Get("stamp")
+  @PageRead(["invoices"])
   async getStamp(
     @CurrentUser() user: CurrentUserPayload,
     @Res() res: Response,
@@ -146,6 +149,7 @@ export class OrganizationBrandingController {
   }
 
   @Get("signature")
+  @PageRead(["invoices"])
   async getSignature(
     @CurrentUser() user: CurrentUserPayload,
     @Res() res: Response,
