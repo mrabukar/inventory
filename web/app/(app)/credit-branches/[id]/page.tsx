@@ -1,5 +1,6 @@
 "use client";
 
+import { useReadOnlyView } from "@/hooks/branch-view/use-branch-view";
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import {
@@ -34,6 +35,8 @@ import type {
 } from "@/types/credit-branches/credit-branch";
 
 export default function CreditBranchDetailPage() {
+  // Nothing here may change data for a limited user.
+  const readOnly = useReadOnlyView();
   const params = useParams<{ id: string }>();
   const id = params.id;
   const addToast = useAppStore((s) => s.addToast);
@@ -104,10 +107,12 @@ export default function CreditBranchDetailPage() {
         title={branch.name}
         desc={branch.address}
         action={
-          <Button variant="outline" onClick={() => setEditing(true)}>
-            <Pencil className="size-4" />
-            Edit branch
-          </Button>
+          readOnly ? null : (
+            <Button variant="outline" onClick={() => setEditing(true)}>
+              <Pencil className="size-4" />
+              Edit branch
+            </Button>
+          )
         }
       />
 
@@ -118,23 +123,25 @@ export default function CreditBranchDetailPage() {
         totalReturned={branch.totalReturned}
         totalPaid={branch.totalPaid}
         actions={
-          <>
-            <Button
-              variant="outline"
-              onClick={() => setSheet("return")}
-              className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
-            >
-              <ArrowLeftRight className="size-4" />
-              Record return
-            </Button>
-            <Button
-              onClick={() => setSheet("credit")}
-              className="bg-white text-[var(--sidebar-bg)] hover:bg-white/90"
-            >
-              <Plus className="size-4" />
-              Credit stock
-            </Button>
-          </>
+          readOnly ? null : (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setSheet("return")}
+                className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
+              >
+                <ArrowLeftRight className="size-4" />
+                Record return
+              </Button>
+              <Button
+                onClick={() => setSheet("credit")}
+                className="bg-white text-[var(--sidebar-bg)] hover:bg-white/90"
+              >
+                <Plus className="size-4" />
+                Credit stock
+              </Button>
+            </>
+          )
         }
       />
 
@@ -174,13 +181,15 @@ export default function CreditBranchDetailPage() {
           <h3 className="text-sm font-semibold text-foreground">
             Shown on this branch&apos;s invoices
           </h3>
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            className="text-sm font-medium text-[var(--brand-indigo-600)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            Edit
-          </button>
+          {readOnly ? null : (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="text-sm font-medium text-[var(--brand-indigo-600)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Edit
+            </button>
+          )}
         </div>
         <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-5">
           {[
