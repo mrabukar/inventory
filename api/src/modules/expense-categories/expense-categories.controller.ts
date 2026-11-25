@@ -16,6 +16,7 @@ import {
   type CurrentUserPayload,
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { PageRead } from "../../common/decorators/page-access.decorator";
 import { CreateExpenseCategoryDto } from "./dto/create-expense-category.dto";
 import { UpdateExpenseCategoryDto } from "./dto/update-expense-category.dto";
 import { ExpenseCategoriesService } from "./expense-categories.service";
@@ -28,11 +29,13 @@ export class ExpenseCategoriesController {
   ) {}
 
   @Get()
+  @PageRead(["expenses"])
   findAll() {
     return this.expenseCategoriesService.findAll();
   }
 
   @Get(":id")
+  @PageRead(["expenses"])
   findOne(@Param("id", ParseIntPipe) id: number) {
     return this.expenseCategoriesService.findOne(id);
   }
