@@ -1,5 +1,6 @@
 "use client";
 
+import { useReadOnlyView } from "@/hooks/branch-view/use-branch-view";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
@@ -47,6 +48,8 @@ interface FixFormState {
 }
 
 export default function PurchasesPage() {
+  // Nothing here may change data for a limited user.
+  const readOnly = useReadOnlyView();
   const router = useRouter();
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
@@ -230,7 +233,7 @@ export default function PurchasesPage() {
             : "Record vendor purchases and track purchase history"
         }
         action={
-          creditedView ? null : (
+          creditedView || readOnly ? null : (
             <Button onClick={() => router.push("/purchases/new")}>
               <Plus className="size-4" />
               Record Purchase
@@ -294,7 +297,9 @@ export default function PurchasesPage() {
           }}
           isLoading={isLoading}
           toolbarExtra={toolbarExtra}
-          onCorrect={(purchase) => setFixChooser({ purchase })}
+          onCorrect={
+            readOnly ? undefined : (purchase) => setFixChooser({ purchase })
+          }
         />
       )}
 
