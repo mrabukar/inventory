@@ -1,4 +1,14 @@
-import { IsBoolean, MaxLength, IsOptional, IsString } from "class-validator";
+import {
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from "class-validator";
+import {
+  ORGANIZATION_TYPES,
+  type OrganizationType,
+} from "../../../common/utils/organization-type.util";
 
 export class UpdateOrganizationDto {
   @IsOptional()
@@ -6,9 +16,10 @@ export class UpdateOrganizationDto {
   name?: string;
 
   @IsOptional()
-  @IsBoolean()
-  hasStores?: boolean;
+  @IsIn(ORGANIZATION_TYPES)
+  type?: OrganizationType;
 
+  /** Only for organizations with stores; direct and credit organizations always bill. */
   @IsOptional()
   @IsBoolean()
   billingEnabled?: boolean;
