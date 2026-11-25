@@ -1,5 +1,6 @@
 /** Routes that require an authenticated session (under app/(app)). */
 import { CREDIT_BRANCH_BILLING } from "@/lib/credit-branch";
+import { limitedUserHome, limitedUserMayOpen } from "@/lib/limited-pages";
 import type { Role } from "@/lib/types";
 
 export const PROTECTED_ROUTE_PREFIXES = [
@@ -111,6 +112,17 @@ export function homePathForRole(role: Role): string {
   return role === "super_admin" ? "/super-admin" : "/dashboard";
 }
 
+/** Where a signed-in user lands: a limited user on the first page they were given. */
+export function homePathForUser(user: {
+  role: Role;
+  allowedPages?: readonly string[];
+}): string {
+  if (user.role === "limited") {
+    return limitedUserHome(user.allowedPages ?? []);
+  }
+  return homePathForRole(user.role);
+}
+
 /** Customer billing pages — hidden from credit branches while CREDIT_BRANCH_BILLING is off. */
 export const BILLING_ROUTE_PREFIXES = [
   "/customers",
@@ -125,10 +137,16 @@ export function isRouteAllowedForRole(
     hasStores?: boolean | null;
     usesCreditBranches?: boolean | null;
     isCreditBranch?: boolean;
+    allowedPages?: readonly string[];
   },
 ): boolean {
   if (pathname === SETUP_2FA_PATH) {
     return true;
+  }
+
+  // A limited user opens only the pages they were given (and their own account).
+  if (role === "limited") {
+    return limitedUserMayOpen(pathname, options?.allowedPages ?? []);
   }
 
   if (role === "super_admin") {
