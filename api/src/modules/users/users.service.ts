@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -9,6 +10,7 @@ import { hashPassword } from "better-auth/crypto";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { orderByUpdatedAtDesc } from "../../common/utils/list-order.util";
 import { PrismaService } from "../../prisma/prisma.service";
+import { ASSIGNABLE_USER_ROLES } from "../auth/auth.constants";
 import { revokeTrustedDevices } from "../auth/revoke-trusted-devices.util";
 import { PaginatedResult } from "../stores/stores.service";
 import type { TwoFactorAction } from "./dto/two-factor-action.dto";
@@ -88,6 +90,13 @@ export class UsersService {
   ): Promise<SafeUser> {
     if (Object.keys(dto).length === 0) {
       throw new BadRequestException("At least one field must be provided");
+    }
+
+    if (
+      dto.role !== undefined &&
+      !(ASSIGNABLE_USER_ROLES as readonly UserRole[]).includes(dto.role)
+    ) {
+      throw new ForbiddenException("This role can't be assigned");
     }
 
     const existing = await this.findOne(id);
