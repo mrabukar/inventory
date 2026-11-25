@@ -11,6 +11,7 @@ import { CurrentUserPayload } from "../../common/decorators/current-user.decorat
 import { userStoreFilter } from "../../common/utils/user-store-filter.util";
 import { orderByUpdatedAtDesc } from "../../common/utils/list-order.util";
 import { PrismaService } from "../../prisma/prisma.service";
+import { invalidPagesReason } from "../../common/access/limited-pages";
 import { ASSIGNABLE_USER_ROLES } from "../auth/auth.constants";
 import { revokeTrustedDevices } from "../auth/revoke-trusted-devices.util";
 import { PaginatedResult } from "../stores/stores.service";
@@ -106,10 +107,42 @@ export class UsersService {
 
     const existing = await this.findOne(id);
     const nextRole = dto.role ?? existing.role;
+
+    // A limited user's pages: only for a limited user, valid for this
+    // organization, and required when someone becomes one.
+    if (dto.allowedPages !== undefined && nextRole !== UserRole.limited_user) {
+      throw new BadRequestException("Only a limited user has pages");
+    }
+    let nextPages: string[] | undefined;
+    if (nextRole === UserRole.limited_user) {
+      const becomesLimited = existing.role !== UserRole.limited_user;
+      if (becomesLimited && dto.allowedPages === undefined) {
+        throw new BadRequestException("Give a limited user at least one page");
+      }
+      if (dto.allowedPages !== undefined) {
+        const org = existing.organizationId
+          ? await this.prisma.organization.findUnique({
+              where: { id: existing.organizationId },
+              select: { hasStores: true, usesCreditBranches: true },
+            })
+          : null;
+        const problem = org
+          ? invalidPagesReason(dto.allowedPages, org)
+          : "A limited user needs an organization";
+        if (problem) {
+          throw new BadRequestException(problem);
+        }
+        nextPages = dto.allowedPages;
+      }
+    } else if (existing.role === UserRole.limited_user) {
+      // Leaving the limited role takes the pages away.
+      nextPages = [];
+    }
+
     const hasStoreIdField = dto.storeId !== undefined;
     const nextStoreId = hasStoreIdField
       ? this.resolveStoreIdForRole(nextRole, dto.storeId ?? undefined)
-      : nextRole === UserRole.admin
+      : nextRole === UserRole.admin || nextRole === UserRole.limited_user
         ? null
         : existing.storeId;
 
@@ -135,6 +168,9 @@ export class UsersService {
           ...(dto.name !== undefined ? { name: dto.name.trim() } : undefined),
           ...(dto.email !== undefined ? { email } : undefined),
           ...(dto.role !== undefined ? { role: dto.role } : undefined),
+          ...(nextPages !== undefined
+            ? { allowedPages: nextPages }
+            : undefined),
           ...(hasStoreIdField || dto.role !== undefined
             ? { storeId: nextStoreId }
             : undefined),
@@ -327,7 +363,11 @@ export class UsersService {
     const trimmed =
       typeof storeId === "string" ? storeId.trim() : (storeId ?? "");
 
-    if (role === UserRole.super_admin || role === UserRole.admin) {
+    if (
+      role === UserRole.super_admin ||
+      role === UserRole.admin ||
+      role === UserRole.limited_user
+    ) {
       if (trimmed) {
         throw new BadRequestException(
           `storeId is not allowed for ${role} users`,
@@ -400,6 +440,7 @@ export class UsersService {
       storeId: user.storeId,
       phone: user.phone,
       isActive: user.isActive,
+      allowedPages: user.allowedPages,
     };
   }
 }
