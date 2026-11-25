@@ -42,6 +42,7 @@ export class ReportExportService {
         timezone: data.period.timezone,
       },
       "Financial Summary",
+      true,
     );
 
     const file =
@@ -91,13 +92,23 @@ export class ReportExportService {
     query: ReportExportQueryDto,
     period: ReportPeriodInfo,
     reportTitle: string,
+    // The financial summary can cover every credit branch together.
+    allowAllBranches = false,
   ): Promise<ReportExportContext> {
     const organizationId = requireOrganizationId(user);
     const exportTimezone = resolveExportTimezone(query.timezone);
     // A credit branch's own report carries the branch's name, not the
     // organization's name and logo.
-    const { storeId, creditBranch } =
-      await this.reportsService.resolveReportStore(user, query.storeId);
+    const resolved = await this.reportsService.resolveReportStore(
+      user,
+      query.storeId,
+      allowAllBranches,
+    );
+    const allBranches = Array.isArray(resolved.storeId);
+    const storeId = Array.isArray(resolved.storeId)
+      ? undefined
+      : resolved.storeId;
+    const creditBranch = resolved.creditBranch && !allBranches;
 
     const [organization, store, category, logo] = await Promise.all([
       this.prisma.organization.findUnique({
@@ -135,7 +146,11 @@ export class ReportExportService {
         creditBranch && store
           ? store.name
           : (organization?.name ?? "Organization"),
-      storeName: creditBranch ? null : (store?.name ?? null),
+      storeName: allBranches
+        ? "All branches"
+        : creditBranch
+          ? null
+          : (store?.name ?? null),
       categoryName: category?.name ?? null,
       reportTitle,
       periodFrom: period.from,
