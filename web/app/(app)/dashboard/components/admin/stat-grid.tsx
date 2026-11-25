@@ -27,6 +27,8 @@ interface Props {
   branchesOwe?: number;
   /** The branch being viewed, for the link from the "owes" card. */
   branchId?: string;
+  /** Looking at every credit branch together. */
+  allBranches?: boolean;
   /** Show the Cost of Goods Sold card (kept for organizations with stores). */
   showCogs?: boolean;
   /** A credit organization sells nothing itself: show customer debts only while some remain. */
@@ -42,6 +44,7 @@ export function AdminStatGrid({
   branchOwes,
   branchesOwe,
   branchId,
+  allBranches = false,
   showCogs = true,
   hideEmptyOutstanding = false,
 }: Props) {
@@ -68,9 +71,15 @@ export function AdminStatGrid({
           icon={Landmark}
           color="rose"
           value={fmt(branchOwes)}
-          label="Owes the Organization"
+          label={allBranches ? "Branches Owe" : "Owes the Organization"}
           valueColor={branchOwes > 0 ? "var(--status-rose)" : undefined}
-          href={branchId ? `/credit-branches/${branchId}` : undefined}
+          href={
+            branchId
+              ? `/credit-branches/${branchId}`
+              : allBranches
+                ? "/credit-branches"
+                : undefined
+          }
         />
       ) : null}
       {branchView ? null : (
