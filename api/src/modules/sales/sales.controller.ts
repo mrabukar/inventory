@@ -15,6 +15,7 @@ import {
   type CurrentUserPayload,
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { PageRead } from "../../common/decorators/page-access.decorator";
 import { CorrectSaleDto } from "./dto/correct-sale.dto";
 import { CreateSaleDto } from "./dto/create-sale.dto";
 import { RejectSaleDto } from "./dto/reject-sale.dto";
@@ -26,7 +27,7 @@ export class SalesController {
   constructor(private readonly salesService: SalesService) {}
 
   @Get()
-  @Roles(UserRole.admin, UserRole.branch_manager)
+  @PageRead(["sales", "sale-approvals"], UserRole.branch_manager)
   findAll(
     @Query() query: SaleQueryDto,
     @CurrentUser() user: CurrentUserPayload,
@@ -35,13 +36,13 @@ export class SalesController {
   }
 
   @Get("pending-count")
-  @Roles(UserRole.admin)
+  @PageRead(["sale-approvals"])
   pendingCount(@CurrentUser() user: CurrentUserPayload) {
     return this.salesService.countPending(user);
   }
 
   @Get(":id")
-  @Roles(UserRole.admin, UserRole.branch_manager)
+  @PageRead(["sales", "sale-approvals", "invoices"], UserRole.branch_manager)
   findOne(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.salesService.findOne(id, user);
   }
