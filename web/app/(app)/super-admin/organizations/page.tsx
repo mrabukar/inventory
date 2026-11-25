@@ -1,5 +1,6 @@
 "use client";
 
+import { organizationTypeLabel, organizationTypeOf } from "@/lib/organization-type";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -60,14 +61,13 @@ export default function OrganizationsPage() {
       {
         accessorKey: "hasStores",
         meta: {
-          label: "Stores",
+          label: "Type",
           align: "center",
           exportValue: (row: Organization) =>
-            row.hasStores ? "Multi-store" : "Direct sales",
+            organizationTypeLabel(organizationTypeOf(row)),
         },
-        header: "Stores",
-        cell: ({ row }) =>
-          row.original.hasStores ? "Multi-store" : "Direct sales",
+        header: "Type",
+        cell: ({ row }) => organizationTypeLabel(organizationTypeOf(row.original)),
         enableSorting: false,
       },
       {
