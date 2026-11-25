@@ -2,6 +2,8 @@ enum UserRole {
   super_admin
   admin
   branch_manager
+  /// Sees only the pages an admin grants, and changes nothing.
+  limited_user
 }
 
 model User {
@@ -21,6 +23,8 @@ model User {
   twoFactorRequired Boolean      @default(true)
   storeId        String?
   store          Store?        @relation(fields: [storeId], references: [id])
+  /// For a limited user: the pages they may see (keys from the page catalog).
+  allowedPages   String[]      @default([])
 
   sessions        Session[]
   accounts        Account[]
