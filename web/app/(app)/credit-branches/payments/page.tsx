@@ -1,5 +1,6 @@
 "use client";
 
+import { useReadOnlyView } from "@/hooks/branch-view/use-branch-view";
 import { useState } from "react";
 import { CheckCheck, Check, X } from "lucide-react";
 
@@ -81,6 +82,8 @@ const dateFormat = new Intl.DateTimeFormat("en-US", {
 });
 
 export default function BranchPaymentsPage() {
+  // Nothing here may change data for a limited user.
+  const readOnly = useReadOnlyView();
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
 
@@ -331,7 +334,7 @@ export default function BranchPaymentsPage() {
                     </p>
                   ) : null}
 
-                  {isPendingPayment ? (
+                  {isPendingPayment && !readOnly ? (
                     <div className="flex justify-end gap-2 border-t border-border bg-muted/30 px-5 py-3">
                       <Button
                         type="button"
