@@ -56,18 +56,20 @@ export class CreditBranchesService {
     private readonly storesService: StoresService,
   ) {}
 
-  /** Credit branches only exist in organizations without standard branches. */
-  private async assertOrgHasNoStores(organizationId: string): Promise<void> {
+  /** Credit branches exist only in credit organizations. */
+  private async assertCreditOrganization(
+    organizationId: string,
+  ): Promise<void> {
     const org = await this.prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { hasStores: true },
+      select: { hasStores: true, usesCreditBranches: true },
     });
     if (!org) {
       throw new ForbiddenException("Organization not found");
     }
-    if (org.hasStores) {
+    if (org.hasStores || !org.usesCreditBranches) {
       throw new BadRequestException(
-        "Credit branches are only available for organizations without branches",
+        "Credit branches are only available for credit organizations",
       );
     }
   }
@@ -95,7 +97,7 @@ export class CreditBranchesService {
 
   async findAll(user: CurrentUserPayload) {
     const organizationId = requireOrganizationId(user);
-    await this.assertOrgHasNoStores(organizationId);
+    await this.assertCreditOrganization(organizationId);
 
     const stores = await this.prisma.store.findMany({
       where: { organizationId, type: StoreType.credit },
@@ -133,7 +135,7 @@ export class CreditBranchesService {
   /** Create the branch (a Store). A branch manager login is added separately via Users. */
   async createBranch(dto: CreateCreditBranchDto, user: CurrentUserPayload) {
     const organizationId = requireOrganizationId(user);
-    await this.assertOrgHasNoStores(organizationId);
+    await this.assertCreditOrganization(organizationId);
 
     const existing = await this.prisma.store.findFirst({
       where: { organizationId, name: dto.name, isActive: true },
