@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { orderByCreatedAtDesc } from "../../common/utils/list-order.util";
+import { userStoreFilter } from "../../common/utils/user-store-filter.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { PaginatedResult } from "../stores/stores.service";
 import { AuditLogQueryDto } from "./dto/audit-log-query.dto";
@@ -46,7 +47,18 @@ export class AuditLogsService {
       ...(query.action ? { action: query.action } : undefined),
       ...(query.entityType ? { entityType: query.entityType } : undefined),
       ...(query.entityId ? { entityId: query.entityId } : undefined),
-      ...(searchTerm ? { user: userSearchFilter(searchTerm) } : undefined),
+      ...(searchTerm || query.storeId
+        ? {
+            user: {
+              AND: [
+                ...(searchTerm ? [userSearchFilter(searchTerm)] : []),
+                ...(userStoreFilter(query.storeId)
+                  ? [userStoreFilter(query.storeId) as Prisma.UserWhereInput]
+                  : []),
+              ],
+            },
+          }
+        : undefined),
       ...(fromDate || toDate
         ? {
             createdAt: {
