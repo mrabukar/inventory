@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { buildLoginUrl } from "@/lib/auth/redirect";
-import { homePathForRole, isRouteAllowedForRole } from "@/lib/auth/routes";
+import { homePathForUser, isRouteAllowedForRole } from "@/lib/auth/routes";
 import { useAppStore } from "@/store/app";
 import { formatDocumentTitle, resolvePageTitle } from "@/lib/page-title";
 import { Sidebar } from "./sidebar";
@@ -28,6 +28,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       hasStores: user.hasStores,
       usesCreditBranches: user.usesCreditBranches,
       isCreditBranch: user.isCreditBranch,
+      allowedPages: user.allowedPages,
     });
 
   const needs2faSetup =
@@ -56,9 +57,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (roleDenied) {
-      router.replace(user ? homePathForRole(user.role) : "/dashboard");
+      router.replace(user ? homePathForUser(user) : "/dashboard");
     }
-  }, [roleDenied, router, user?.role]);
+  }, [roleDenied, router, user]);
 
   const title = resolvePageTitle(pathname);
 
@@ -85,6 +86,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         hasStores={user.hasStores}
         usesCreditBranches={user.usesCreditBranches}
         isCreditBranch={user.isCreditBranch}
+        allowedPages={user.allowedPages}
       />
       <div className="app-main">
         <Navbar
