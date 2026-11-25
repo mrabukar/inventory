@@ -7,6 +7,8 @@ import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
+import { BranchScopeSelect } from "@/components/filters/branch-scope-select";
+import { branchColumn, useShowBranchColumn } from "@/components/credit-branches/branch-column";
 import { PageHeader } from "@/components/ui/page-header";
 import { Combobox } from "@/components/ui/combobox";
 import { useInvoices } from "@/hooks/invoices/use-invoices";
@@ -185,6 +187,17 @@ export default function InvoicesPage() {
     [pageIndex, pageSize, debouncedSearch, status],
   );
 
+  const showBranch = useShowBranchColumn();
+  const tableColumns = useMemo(() => {
+    if (!showBranch) return columns;
+    const at = columns.findIndex((c) => c.id === "customer") + 1;
+    return [
+      ...columns.slice(0, at),
+      branchColumn<Invoice>((invoice) => invoice.sale?.store?.name),
+      ...columns.slice(at),
+    ];
+  }, [showBranch]);
+
   const { data, isPending, isFetching, isError, error } = useInvoices(query);
   const rows = data?.data ?? [];
   const rowCount = data?.meta.total ?? 0;
@@ -206,7 +219,11 @@ export default function InvoicesPage() {
 
   return (
     <>
-      <PageHeader title="Invoices" desc="Customer invoices and balances" />
+      <PageHeader
+        title="Invoices"
+        desc="Customer invoices and balances"
+        action={<BranchScopeSelect />}
+      />
 
       {isError && (
         <div className="alert-error mb-4">
@@ -215,7 +232,7 @@ export default function InvoicesPage() {
       )}
 
       <DataTable
-        columns={columns}
+        columns={tableColumns}
         data={rows}
         rowCount={rowCount}
         pageIndex={pageIndex}
