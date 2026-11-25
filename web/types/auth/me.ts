@@ -1,4 +1,8 @@
-export type ApiRole = "super_admin" | "admin" | "branch_manager";
+export type ApiRole =
+  | "super_admin"
+  | "admin"
+  | "branch_manager"
+  | "limited_user";
 
 export type StoreType = "standard" | "credit";
 
@@ -35,6 +39,7 @@ export interface ApiUser {
   isActive: boolean;
   twoFactorEnabled?: boolean;
   twoFactorRequired?: boolean;
+  allowedPages?: string[];
   phone?: string | null;
   store?: MeStore | null;
   organization?: MeOrganization | null;
