@@ -8,6 +8,7 @@ import {
   AfterHook,
   BeforeCreate,
   BeforeHook,
+  BeforeUpdate,
   DatabaseHook,
   Hook,
 } from "@thallesp/nestjs-better-auth";
@@ -15,7 +16,7 @@ import { APIError } from "better-auth/api";
 import { isBootstrapSignupAllowed } from "../../config/signup-policy.util";
 import { DomainPolicyService } from "../../common/tenant/domain-policy.service";
 import { PrismaService } from "../../prisma/prisma.service";
-import { isUserRole, UserRole } from "./auth.constants";
+import { changesUserAccess, isUserRole, UserRole } from "./auth.constants";
 import type { AppAuth } from "./auth.config";
 import { revokeTrustedDevices } from "./revoke-trusted-devices.util";
 import {
@@ -396,5 +397,19 @@ export class AuthUserDatabaseHook {
         storeId,
       },
     };
+  }
+
+  /**
+   * Backstop behind the disabled endpoint: roles, organizations, stores and
+   * the active flag are changed only by our own services, so refuse any
+   * Better-Auth update that carries one, whatever route it came from.
+   */
+  @BeforeUpdate("user")
+  beforeUserUpdate(user: Record<string, unknown>): void {
+    if (changesUserAccess(user)) {
+      throw new APIError("FORBIDDEN", {
+        message: "Account access can only be changed by an admin",
+      });
+    }
   }
 }
