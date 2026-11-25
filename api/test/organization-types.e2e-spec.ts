@@ -17,6 +17,9 @@ import { CustomersService } from "../src/modules/customers/customers.service";
 import { OrganizationsService } from "../src/modules/organizations/organizations.service";
 import { PaymentsService } from "../src/modules/payments/payments.service";
 import { ProductsService } from "../src/modules/products/products.service";
+import { ExpenseCategoriesService } from "../src/modules/expense-categories/expense-categories.service";
+import { ExpensesService } from "../src/modules/expenses/expenses.service";
+import { InventoryService } from "../src/modules/inventory/inventory.service";
 import { ReportsService } from "../src/modules/reports/reports.service";
 import { SalesService } from "../src/modules/sales/sales.service";
 import { StoresService } from "../src/modules/stores/stores.service";
@@ -40,6 +43,9 @@ describeDb("Organization types (PostgreSQL)", () => {
   let sales: SalesService;
   let customers: CustomersService;
   let reports: ReportsService;
+  let inventory: InventoryService;
+  let expenses: ExpensesService;
+  let userList: UsersService;
   let superAdmin: CurrentUserPayload;
   const today = todayCalendarDate();
   const range = { fromDate: today, toDate: today };
@@ -138,6 +144,13 @@ describeDb("Organization types (PostgreSQL)", () => {
     sales = new SalesService(prisma, products, resolver);
     customers = new CustomersService(prisma, new PaymentsService(prisma));
     reports = new ReportsService(prisma, resolver);
+    inventory = new InventoryService(prisma, stores, products, resolver);
+    expenses = new ExpensesService(
+      prisma,
+      new ExpenseCategoriesService(prisma),
+      stores,
+    );
+    userList = new UsersService(prisma);
     organizations = new OrganizationsService(
       prisma,
       new DomainPolicyService(prisma),
@@ -405,6 +418,83 @@ describeDb("Organization types (PostgreSQL)", () => {
     });
   });
 
+  describe("one branch's page", () => {
+    it("narrows every list and the results to that branch", async () => {
+      const w = await makeWorld("credit");
+      const a = await makeBranch(w);
+      const b = await makeBranch(w);
+      for (const [branch, quantity] of [
+        [a, 10],
+        [b, 4],
+      ] as const) {
+        await inOrg(w, () =>
+          creditBranches.creditStock(
+            branch.id,
+            { items: [{ productId: w.productId, quantity, unitPrice: 10 }] },
+            w.admin,
+          ),
+        );
+      }
+      const managerA = await makeUser(
+        w.organizationId,
+        UserRole.branch_manager,
+        a.id,
+      );
+      await makeUser(w.organizationId, UserRole.branch_manager, b.id);
+      const category = await prisma.expenseCategory.create({
+        data: { name: "Rent", organizationId: w.organizationId },
+      });
+      await prisma.expense.create({
+        data: {
+          title: "Shelf",
+          amount: 20,
+          categoryId: category.id,
+          organizationId: w.organizationId,
+          storeId: a.id,
+          expenseDate: new Date(`${today}T00:00:00.000Z`),
+          createdById: w.admin.id,
+        },
+      });
+      const page = { page: 1, limit: 20 };
+
+      const stockA = await inOrg(w, () =>
+        inventory.findAll({ ...page, storeId: a.id }, w.admin),
+      );
+      expect(stockA.data.map((r) => [r.storeId, r.quantity])).toEqual([
+        [a.id, 10],
+      ]);
+
+      const spendA = await inOrg(w, () =>
+        expenses.findAll({ ...page, storeId: a.id }),
+      );
+      expect(spendA.data.map((e) => e.storeId)).toEqual([a.id]);
+      const spendB = await inOrg(w, () =>
+        expenses.findAll({ ...page, storeId: b.id }),
+      );
+      expect(spendB.data).toHaveLength(0);
+
+      const staffA = await inOrg(w, () =>
+        userList.findAll({
+          ...page,
+          storeId: a.id,
+          role: UserRole.branch_manager,
+        }),
+      );
+      expect(staffA.data.map((u) => u.id)).toEqual([managerA.id]);
+
+      const resultsA = await inOrg(w, () =>
+        reports.getAdminDashboard({ ...range, storeId: a.id }, w.admin),
+      );
+      expect(resultsA.summary.totalExpenses).toBe(20);
+      expect(resultsA.summary.inStockBalance).toBe(10);
+      const resultsB = await inOrg(w, () =>
+        reports.getAdminDashboard({ ...range, storeId: b.id }, w.admin),
+      );
+      expect(resultsB.summary.totalExpenses).toBe(0);
+      expect(resultsB.summary.inStockBalance).toBe(4);
+    });
+  });
+
   describe("reports", () => {
     it("counts a direct-sales organization's purchases as bought in its stock report", async () => {
       const w = await makeWorld("direct");
@@ -494,6 +584,80 @@ describeDb("Organization types (PostgreSQL)", () => {
         (m) => m.revenue > 0,
       );
       expect(finMonth?.revenue).toBe(70);
+    });
+
+    it.each(["direct", "credit"] as const)(
+      "counts company-wide expenses on a %s organization's dashboard, not on its branches'",
+      async (type) => {
+        const w = await makeWorld(type);
+        const branch = type === "credit" ? await makeBranch(w) : null;
+        const category = await prisma.expenseCategory.create({
+          data: { name: "Rent", organizationId: w.organizationId },
+        });
+        await prisma.expense.create({
+          data: {
+            organizationId: w.organizationId,
+            storeId: null,
+            categoryId: category.id,
+            title: "Rent",
+            amount: 45,
+            expenseDate: new Date(`${today}T00:00:00.000Z`),
+            createdById: w.admin.id,
+          },
+        });
+
+        const dash = await inOrg(w, () =>
+          reports.getAdminDashboard(range, w.admin),
+        );
+        expect(dash.summary.totalExpenses).toBe(45);
+        expect(dash.summary.netProfit).toBe(-45);
+        expect(dash.charts.expenseBreakdown).toHaveLength(1);
+
+        if (branch) {
+          for (const storeId of [branch.id, "all"]) {
+            const view = await inOrg(w, () =>
+              reports.getAdminDashboard({ ...range, storeId }, w.admin),
+            );
+            expect(view.summary.totalExpenses).toBe(0);
+          }
+        }
+      },
+    );
+
+    it("narrows an organization with stores to the chosen store's expenses", async () => {
+      const w = await makeWorld("stores");
+      const store = await prisma.store.create({
+        data: {
+          name: "Main",
+          address: "Main St",
+          organizationId: w.organizationId,
+        },
+      });
+      const category = await prisma.expenseCategory.create({
+        data: { name: "Rent", organizationId: w.organizationId },
+      });
+      const expense = {
+        organizationId: w.organizationId,
+        categoryId: category.id,
+        title: "Rent",
+        expenseDate: new Date(`${today}T00:00:00.000Z`),
+        createdById: w.admin.id,
+      };
+      await prisma.expense.create({
+        data: { ...expense, storeId: null, amount: 45 },
+      });
+      await prisma.expense.create({
+        data: { ...expense, storeId: store.id, amount: 5 },
+      });
+
+      const company = await inOrg(w, () =>
+        reports.getAdminDashboard(range, w.admin),
+      );
+      expect(company.summary.totalExpenses).toBe(50);
+      const one = await inOrg(w, () =>
+        reports.getAdminDashboard({ ...range, storeId: store.id }, w.admin),
+      );
+      expect(one.summary.totalExpenses).toBe(5);
     });
 
     it("does not change a direct-sales organization's own figures", async () => {
