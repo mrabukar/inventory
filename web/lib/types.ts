@@ -1,8 +1,9 @@
-export type Role = "super_admin" | "admin" | "manager";
+export type Role = "super_admin" | "admin" | "manager" | "limited";
 
 export function appRoleLabel(role: Role | undefined): string {
   if (role === "super_admin") return "Super Admin";
   if (role === "admin") return "Administrator";
+  if (role === "limited") return "Limited user";
   return "Branch Manager";
 }
 
@@ -29,6 +30,8 @@ export interface AppUser {
   organizationId: string | null;
   organizationName: string | null;
   hasStores: boolean | null;
+  /** For a limited user: the pages they may see. */
+  allowedPages: string[];
   /** Without stores: true = credit organization, false = direct sales. */
   usesCreditBranches: boolean | null;
   billingEnabled: boolean | null;
