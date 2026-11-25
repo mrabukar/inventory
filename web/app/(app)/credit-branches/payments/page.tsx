@@ -14,6 +14,8 @@ import {
 } from "@/components/credit-branches/payment-sort";
 import { SortSelect } from "@/components/credit-branches/sort-select";
 import { Button } from "@/components/ui/button";
+import { BranchScopeSelect } from "@/components/filters/branch-scope-select";
+import { useBranchScope } from "@/hooks/branch-view/use-branch-view";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePendingBranchPaymentsSummary } from "@/hooks/branch-payments/use-pending-branch-payments-count";
@@ -85,12 +87,16 @@ export default function BranchPaymentsPage() {
   const [tab, setTab] = useState<Tab>("pending");
   const [sort, setSort] = useState<PaymentSortKey>(defaultSortFor("pending"));
   const [page, setPage] = useState(1);
+  // The branch picked in the selector: null shows every branch.
+  const branchScope = useBranchScope();
 
   const { data, isPending, isPlaceholderData, isError, error } =
     useBranchPayments({
       status: tab === "all" ? undefined : tab,
       page,
       limit: PAGE_SIZE,
+      // One branch, or every branch (the default here).
+      storeId: branchScope ?? undefined,
       ...paymentSortParams(sort),
     });
   const { data: pendingSummary } = usePendingBranchPaymentsSummary(true);
@@ -160,6 +166,7 @@ export default function BranchPaymentsPage() {
             ? `${pendingCount} payment${pendingCount === 1 ? "" : "s"} waiting for your review`
             : "Check each payment against your EVC, eDahab or bank history, then approve or reject it"
         }
+        action={<BranchScopeSelect includeOwn={false} />}
       />
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
