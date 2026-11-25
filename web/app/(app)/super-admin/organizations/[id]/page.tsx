@@ -56,6 +56,7 @@ function toUserModalUser(user: OrganizationUser): User {
     store: user.store,
     twoFactorEnabled: false,
     twoFactorRequired: true,
+    allowedPages: [],
     createdAt: "",
     updatedAt: "",
   };
