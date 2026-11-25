@@ -155,3 +155,34 @@ export interface BranchStatement {
     balance: number;
   };
 }
+
+/** One line of stock credited to a branch (the branches' side of "purchases"). */
+export interface CreditedStockRow {
+  id: string;
+  creditedAt: string;
+  branch: { id: string; name: string };
+  product: { id: string; name: string; model: string | null };
+  quantity: number;
+  returnedQuantity: number;
+  unitPrice: number | string;
+  lineTotal: number | string;
+  note: string | null;
+  createdBy: { id: string; name: string };
+}
+
+export interface CreditedStockResponse {
+  data: CreditedStockRow[];
+  meta: PaginationMeta;
+  summary: { units: number; value: number };
+}
+
+export interface CreditedStockQuery {
+  page?: number;
+  limit?: number;
+  /** One branch's id; leave out for every branch together. */
+  storeId?: string;
+  search?: string;
+  categoryId?: string;
+  fromDate?: string;
+  toDate?: string;
+}
