@@ -80,6 +80,7 @@ const SUPER_ADMIN_NAV: NavLinkItem[] = [
 
 function buildAdminNav(
   hasStores: boolean,
+  creditOrg: boolean,
   billingEnabled: boolean,
   pendingSales: number,
   pendingBranchPayments: number,
@@ -113,8 +114,8 @@ function buildAdminNav(
   });
 
   nav.push({ href: "/sales", label: "Sales", icon: ShoppingCart, match: "exact" });
-  // Branch managers' sales wait here. An organization without stores gets the
-  // same queue under Credit Branches, for its credit branches' sales.
+  // Branch managers' sales wait here. A credit organization gets the same
+  // queue under Credit Branches, for its credit branches' sales.
   if (hasStores) {
     nav.push({
       href: "/sales/approvals",
@@ -127,30 +128,30 @@ function buildAdminNav(
 
   if (hasStores) {
     nav.push({ href: "/stores", label: "Stores", icon: Store });
+  } else if (creditOrg) {
+    // A credit organization sells by crediting stock to branches, not itself.
+    nav.push({
+      type: "group",
+      label: "Credit Branches",
+      icon: Landmark,
+      children: [
+        { href: "/credit-branches", label: "Branches", icon: Landmark },
+        {
+          href: "/credit-branches/payments",
+          label: "Payments",
+          icon: ClipboardCheck,
+          badge: pendingBranchPayments,
+        },
+        {
+          href: "/sales/approvals",
+          label: "Sale approvals",
+          icon: ClipboardCheck,
+          badge: pendingSales,
+        },
+      ],
+    });
   } else {
-    nav.push(
-      { href: "/submit-sale", label: "Submit Sale", icon: PlusCircle },
-      {
-        type: "group",
-        label: "Credit Branches",
-        icon: Landmark,
-        children: [
-          { href: "/credit-branches", label: "Branches", icon: Landmark },
-          {
-            href: "/credit-branches/payments",
-            label: "Payments",
-            icon: ClipboardCheck,
-            badge: pendingBranchPayments,
-          },
-          {
-            href: "/sales/approvals",
-            label: "Sale approvals",
-            icon: ClipboardCheck,
-            badge: pendingSales,
-          },
-        ],
-      },
-    );
+    nav.push({ href: "/submit-sale", label: "Submit Sale", icon: PlusCircle });
   }
 
   if (billingEnabled) {
@@ -485,6 +486,7 @@ interface Props {
   collapsed: boolean;
   storeName?: string | null;
   hasStores?: boolean | null;
+  usesCreditBranches?: boolean | null;
   isCreditBranch?: boolean;
 }
 
@@ -493,16 +495,19 @@ export function Sidebar({
   collapsed,
   storeName,
   hasStores = true,
+  usesCreditBranches = false,
   isCreditBranch = false,
 }: Props) {
   const pathname = usePathname();
   const billingEnabled = useAppStore((s) => s.user?.billingEnabled ?? false);
   const { data: pendingSales = 0 } = usePendingSalesCount(role === "admin");
+  const creditOrg = hasStores === false && usesCreditBranches === true;
   const { data: pendingBranchPayments = 0 } = usePendingBranchPaymentsCount(
-    role === "admin" && hasStores === false,
+    role === "admin" && creditOrg,
   );
   const adminNav = buildAdminNav(
     hasStores !== false,
+    creditOrg,
     billingEnabled,
     pendingSales,
     pendingBranchPayments,
