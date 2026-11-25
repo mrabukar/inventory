@@ -71,6 +71,7 @@ export default function FinancialPage() {
           <ReportFilterBar
             filters={filters}
             showStoreFilter={hasStores}
+            showBranchScope
             disabled={exportBusy}
           />
           <ReportExportMenu
