@@ -1,5 +1,6 @@
 "use client";
 
+import { useReadOnlyView } from "@/hooks/branch-view/use-branch-view";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -65,6 +66,8 @@ function SummaryItem({
 }
 
 export default function CreditBranchesPage() {
+  // Nothing here may change data for a limited user.
+  const readOnly = useReadOnlyView();
   const router = useRouter();
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
@@ -115,10 +118,12 @@ export default function CreditBranchesPage() {
         title="Credit Branches"
         desc="Branches that buy stock from you on credit and pay it back over time"
         action={
-          <Button onClick={() => setModalOpen(true)}>
-            <Plus className="size-4" />
-            Add branch
-          </Button>
+          readOnly ? null : (
+            <Button onClick={() => setModalOpen(true)}>
+              <Plus className="size-4" />
+              Add branch
+            </Button>
+          )
         }
       />
 
@@ -152,10 +157,12 @@ export default function CreditBranchesPage() {
             Add a branch, give it a manager login from Users, then credit it
             some stock. What it owes and what it has paid will show up here.
           </p>
-          <Button onClick={() => setModalOpen(true)}>
-            <Plus className="size-4" />
-            Add your first branch
-          </Button>
+          {readOnly ? null : (
+            <Button onClick={() => setModalOpen(true)}>
+              <Plus className="size-4" />
+              Add your first branch
+            </Button>
+          )}
         </div>
       ) : (
         <>
