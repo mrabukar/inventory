@@ -2,6 +2,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { AppUser, Toast } from "@/lib/types";
+import { ALL_BRANCHES } from "@/lib/branch-scope";
 import { useBranchViewStore } from "./branch-view";
 
 interface AppState {
@@ -26,8 +27,8 @@ export const useAppStore = create<AppState>()(
       setUser: (user) => set({ user }),
       clearUser: () => {
         // Signing out ends any branch browsing, so the next sign-in starts on
-        // the organization's own data.
-        useBranchViewStore.getState().setBranchId(null);
+        // all branches again.
+        useBranchViewStore.getState().setBranchId(ALL_BRANCHES);
         set({ user: null });
       },
       setCollapsed: (v) => set({ collapsed: v }),
