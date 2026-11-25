@@ -29,6 +29,8 @@ interface InventoryToolbarProps {
   view: InventoryView;
   onViewChange: (view: InventoryView) => void;
   showStatusFilter?: boolean;
+  /** Extra control next to the search (the branch selector for a credit organization). */
+  scopeSelect?: React.ReactNode;
 }
 
 export function InventoryToolbar({
@@ -46,6 +48,7 @@ export function InventoryToolbar({
   view,
   onViewChange,
   showStatusFilter = true,
+  scopeSelect,
 }: InventoryToolbarProps) {
   return (
     <div className="filterbar">
@@ -54,6 +57,7 @@ export function InventoryToolbar({
         value={search}
         onChange={onSearchChange}
       />
+      {scopeSelect}
       {showStoreFilter ? (
         <Combobox
           value={storeId}
