@@ -7,7 +7,6 @@ import { homePathForRole, isRouteAllowedForRole } from "@/lib/auth/routes";
 import { useAppStore } from "@/store/app";
 import { formatDocumentTitle, resolvePageTitle } from "@/lib/page-title";
 import { Sidebar } from "./sidebar";
-import { BranchViewBanner } from "./branch-view-banner";
 import { Navbar } from "./navbar";
 import { ToastHost } from "@/components/ui/toast";
 
@@ -93,7 +92,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           collapsed={collapsed}
           onToggle={() => setCollapsed(!collapsed)}
         />
-        <BranchViewBanner />
         <div className="app-content">
           <div className="app-content-inner">{children}</div>
         </div>
