@@ -36,7 +36,9 @@ export class BranchPaymentsService {
     if (user.role === UserRole.branch_manager) {
       storeId = assertBranchManagerHasStore(user);
     } else {
-      storeId = query.storeId?.trim() || undefined;
+      // "all" means every branch together, which is no store filter.
+      const wanted = query.storeId?.trim();
+      storeId = wanted && wanted !== "all" ? wanted : undefined;
     }
 
     const where: Prisma.BranchPaymentWhereInput = {
