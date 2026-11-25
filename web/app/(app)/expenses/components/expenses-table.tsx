@@ -1,5 +1,6 @@
 "use client";
 
+import { useReadOnlyView } from "@/hooks/branch-view/use-branch-view";
 import { useMemo } from "react";
 import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 import { Pencil, Trash2 } from "lucide-react";
@@ -179,9 +180,16 @@ export function ExpensesTable({
     [onDelete, onEdit],
   );
 
+  // Nothing here may change data for a limited user (or while browsing branches).
+  const readOnly = useReadOnlyView();
+  const visibleColumns = useMemo(
+    () => (readOnly ? columns.filter((c) => c.id !== "actions") : columns),
+    [columns, readOnly],
+  );
+
   return (
     <DataTable
-      columns={columns}
+      columns={visibleColumns}
       data={rows}
       rowCount={rowCount}
       pageIndex={pageIndex}
