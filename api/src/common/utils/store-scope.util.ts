@@ -4,7 +4,9 @@ import type { CurrentUserPayload } from "../decorators/current-user.decorator";
 
 function isAdminLike(user: CurrentUserPayload): boolean {
   return (
-    user.role === UserRole.admin || user.role === UserRole.super_admin
+    user.role === UserRole.admin ||
+    user.role === UserRole.limited_user ||
+    user.role === UserRole.super_admin
   );
 }
 
