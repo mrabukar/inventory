@@ -1,5 +1,6 @@
 "use client";
 
+import { useReadOnlyView } from "@/hooks/branch-view/use-branch-view";
 import { useCallback, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 
@@ -52,6 +53,8 @@ interface ProfitWarningState {
 }
 
 export default function ExpensesPage() {
+  // Nothing here may change data for a limited user.
+  const readOnly = useReadOnlyView();
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const defaultRange = useMemo(() => getCurrentMonthRange(), []);
@@ -112,8 +115,7 @@ export default function ExpensesPage() {
 
   const rows = data?.data ?? [];
   const rowCount = data?.meta.total ?? 0;
-  const isLoading =
-    isPending || (isFetching && (data?.data.length ?? 0) === 0);
+  const isLoading = isPending || (isFetching && (data?.data.length ?? 0) === 0);
   const categories = categoriesData ?? [];
 
   const storeItems = useMemo(
@@ -377,10 +379,12 @@ export default function ExpensesPage() {
         title="Expenses"
         desc="Operating costs, company-wide and per store"
         action={
-          <Button onClick={() => setModal({ mode: "add" })}>
-            <Plus className="size-4" />
-            Add Expense
-          </Button>
+          readOnly ? null : (
+            <Button onClick={() => setModal({ mode: "add" })}>
+              <Plus className="size-4" />
+              Add Expense
+            </Button>
+          )
         }
       />
 
