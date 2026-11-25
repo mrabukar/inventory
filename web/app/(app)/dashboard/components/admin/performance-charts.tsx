@@ -23,7 +23,7 @@ export function AdminPerformanceCharts({
   const single = branchView && !allBranches;
   return (
     <div className={`${single ? "grid-2" : "grid-3"} mb-16`}>
-      <Card title={branchView ? "Profit Trend" : "Net Profit Trend"} pad>
+      <Card title="Net Profit Trend" pad>
         {charts.netProfitTrend.length > 0 ? (
           <LineArea
             values={charts.netProfitTrend.map((row) => row.netProfit)}
