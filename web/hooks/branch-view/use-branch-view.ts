@@ -33,10 +33,14 @@ export function isBranchViewRoute(pathname: string): boolean {
   );
 }
 
-/** Only the admin of an organization without stores browses credit branches. */
+/** Only the admin of a credit organization browses credit branches. */
 function useCanBrowseBranches(): boolean {
   const user = useAppStore((s) => s.user);
-  return user?.role === "admin" && user.hasStores === false;
+  return (
+    user?.role === "admin" &&
+    user.hasStores === false &&
+    user.usesCreditBranches === true
+  );
 }
 
 /**
