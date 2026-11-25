@@ -16,6 +16,7 @@ function toQueryString(params: AuditLogListQuery = {}): string {
   if (params.entityId) search.set("entityId", params.entityId);
   if (params.fromDate) search.set("fromDate", params.fromDate);
   if (params.toDate) search.set("toDate", params.toDate);
+  if (params.storeId) search.set("storeId", params.storeId);
 
   const qs = search.toString();
   return qs ? `?${qs}` : "";
