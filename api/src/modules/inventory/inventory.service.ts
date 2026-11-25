@@ -2,6 +2,7 @@ import {
   ALL_BRANCHES,
   branchScopeOf,
 } from "../../common/utils/credit-branch.util";
+import { readsLikeAdmin } from "../../common/utils/admin-like.util";
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { AuditAction, Prisma, UserRole } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
@@ -143,7 +144,7 @@ export class InventoryService {
     assertStoreAccess(storeId, user);
     const [store, product] = await Promise.all([
       this.storesService.findOne(storeId),
-      user.role === UserRole.admin
+      readsLikeAdmin(user.role)
         ? this.productsService.findOneIncludingInactive(productId)
         : this.productsService.findOne(productId),
     ]);
@@ -343,7 +344,7 @@ export class InventoryService {
       ...lowStockFilter,
     };
 
-    if (user.role === UserRole.admin) {
+    if (readsLikeAdmin(user.role)) {
       return {
         ...base,
         OR: [
