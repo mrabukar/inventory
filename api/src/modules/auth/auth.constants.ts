@@ -28,3 +28,29 @@ export function isUserRole(value: unknown): value is UserRole {
     (USER_ROLES as readonly string[]).includes(value)
   );
 }
+
+/** The roles an organization admin may give a user. Never super_admin. */
+export const ASSIGNABLE_USER_ROLES = [
+  UserRole.admin,
+  UserRole.branch_manager,
+] as const;
+
+/**
+ * Better-Auth endpoints switched off. `/update-user` lets any signed-in user
+ * change their own account fields, role and organization included; profile
+ * edits go through PATCH /me.
+ */
+export const DISABLED_AUTH_PATHS = ["/update-user"];
+
+/** Fields that decide what a user may reach. Better-Auth must never update them. */
+const ACCESS_FIELDS = [
+  "role",
+  "organizationId",
+  "storeId",
+  "isActive",
+] as const;
+
+/** True when an update tries to set a field that decides a user's access. */
+export function changesUserAccess(data: Record<string, unknown>): boolean {
+  return ACCESS_FIELDS.some((field) => data[field] !== undefined);
+}
