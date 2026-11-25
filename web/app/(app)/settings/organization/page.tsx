@@ -1,5 +1,6 @@
 "use client";
 
+import { organizationTypeLabel, organizationTypeOf } from "@/lib/organization-type";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/page-header";
@@ -134,7 +135,7 @@ export default function OrganizationSettingsPage() {
                 Organization type
               </span>
               <p className="text-sm text-muted-foreground">
-                {org.hasStores ? "Multi-store" : "Direct sales"}
+                {organizationTypeLabel(organizationTypeOf(org))}
               </p>
             </div>
 
