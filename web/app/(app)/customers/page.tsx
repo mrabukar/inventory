@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 
 import { CustomerModal } from "./components/customer-modal";
 import { CustomerTable } from "./components/customer-table";
+import { BranchScopeSelect } from "@/components/filters/branch-scope-select";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { useCustomers } from "@/hooks/customers/use-customers";
@@ -86,12 +87,15 @@ export default function CustomersPage() {
         title="Customers"
         desc="Manage customers used for sales, invoices, and balances"
         action={
-          browsingBranch || creditOrg ? null : (
-            <Button onClick={() => setShowCreate(true)}>
-              <Plus className="size-4" />
-              Add Customer
-            </Button>
-          )
+          <div className="flex flex-wrap items-center gap-3">
+            <BranchScopeSelect />
+            {browsingBranch || creditOrg ? null : (
+              <Button onClick={() => setShowCreate(true)}>
+                <Plus className="size-4" />
+                Add Customer
+              </Button>
+            )}
+          </div>
         }
       />
 
