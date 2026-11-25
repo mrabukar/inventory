@@ -59,7 +59,8 @@ export class AuthSignUpHook {
     const role = body?.role;
     if (!isUserRole(role)) {
       throw new APIError("BAD_REQUEST", {
-        message: "role must be super_admin, admin, or branch_manager",
+        message:
+          "role must be super_admin, admin, branch_manager, or limited_user",
       });
     }
 
@@ -96,6 +97,40 @@ export class AuthSignUpHook {
       if (!isBootstrap && !organizationId) {
         throw new APIError("BAD_REQUEST", {
           message: "organizationId is required for admin users",
+        });
+      }
+    }
+
+    if (role === UserRole.limited_user) {
+      // Only an admin creates one, and they start with no pages: an admin
+      // gives them pages next, through PATCH /users/:id.
+      if (isBootstrap) {
+        throw new APIError("FORBIDDEN", {
+          message: "Limited users are created by an admin",
+        });
+      }
+      if (storeId) {
+        throw new APIError("BAD_REQUEST", {
+          message: "storeId is not allowed for limited users",
+        });
+      }
+      if (!organizationId) {
+        throw new APIError("BAD_REQUEST", {
+          message: "organizationId is required for limited users",
+        });
+      }
+      const org = await this.prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { hasStores: true, isActive: true },
+      });
+      if (!org?.isActive) {
+        throw new APIError("BAD_REQUEST", {
+          message: `Organization with id "${organizationId}" not found`,
+        });
+      }
+      if (org.hasStores) {
+        throw new APIError("BAD_REQUEST", {
+          message: "Limited users are for organizations without stores",
         });
       }
     }
@@ -395,6 +430,8 @@ export class AuthUserDatabaseHook {
         isActive: true,
         organizationId,
         storeId,
+        // Pages are only ever given later, by an admin.
+        allowedPages: [],
       },
     };
   }
