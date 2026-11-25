@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma, UserRole } from "@prisma/client";
+import { Prisma, StoreType, UserRole } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import {
   parseDateColumnRangeEnd,
@@ -27,6 +27,10 @@ import { SaleQueryDto } from "./dto/sale-query.dto";
 import { parseAndValidateSaleDate } from "./sale-date.util";
 import { toMoneyNumber } from "../../common/utils/money.util";
 import { CREDIT_BRANCH_BILLING } from "../../common/constants/credit-branch.constants";
+import {
+  ALL_BRANCHES,
+  branchScopeOf,
+} from "../../common/utils/credit-branch.util";
 import { branchUnitCost } from "../../common/utils/branch-cost.util";
 import {
   allocateUniquePrefix,
@@ -74,11 +78,14 @@ export class SalesService {
     user: CurrentUserPayload,
   ): Promise<PaginatedResult<SaleWithDetails>> {
     const skip = (query.page - 1) * query.limit;
-    const queryStoreId =
+    const rawStoreId =
       typeof query.storeId === "string" ? query.storeId.trim() : undefined;
+    // "all" means every credit branch together, not a store id.
+    const queryStoreId = rawStoreId === ALL_BRANCHES ? undefined : rawStoreId;
     if (queryStoreId) {
       assertStoreAccess(queryStoreId, user);
     }
+    const scope = await branchScopeOf(this.prisma, user, rawStoreId);
     // An organization without stores pins the admin's lists to its own stock.
     // The approval queue is the exception: pending sales can only come from
     // branch managers (the admin's own sales are never pending), so an admin
@@ -86,10 +93,12 @@ export class SalesService {
     const storeId =
       user.role === UserRole.admin && query.status === "pending"
         ? queryStoreId || undefined
-        : await this.tenantStoreResolver.resolveStoreFilter(
-            user,
-            query.storeId,
-          );
+        : scope.kind === "all"
+          ? undefined
+          : await this.tenantStoreResolver.resolveStoreFilter(
+              user,
+              queryStoreId,
+            );
     const searchTerm =
       typeof query.search === "string" ? query.search.trim() : "";
     const fromDate =
@@ -115,6 +124,10 @@ export class SalesService {
 
     const where: Prisma.SaleWhereInput = {
       ...(storeId ? { storeId } : undefined),
+      // Every credit branch together (the pending queue is already every branch's).
+      ...(scope.kind === "all" && query.status !== "pending"
+        ? { store: { type: StoreType.credit } }
+        : undefined),
       ...(query.status ? { status: query.status } : undefined),
       ...(Object.keys(itemFilter).length > 0
         ? { items: { some: itemFilter } }
