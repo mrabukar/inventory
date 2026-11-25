@@ -5,6 +5,7 @@ import {
   type CurrentUserPayload,
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { PageRead } from "../../common/decorators/page-access.decorator";
 import { InvoiceQueryDto } from "./dto/invoice-query.dto";
 import { InvoicesService } from "./invoices.service";
 
@@ -14,6 +15,7 @@ export class InvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
 
   @Get()
+  @PageRead(["invoices", "payments", "customers"], UserRole.branch_manager)
   findAll(
     @Query() query: InvoiceQueryDto,
     @CurrentUser() user: CurrentUserPayload,
@@ -22,6 +24,7 @@ export class InvoicesController {
   }
 
   @Get(":id")
+  @PageRead(["invoices", "payments", "customers"], UserRole.branch_manager)
   findOne(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.invoicesService.findOne(id, user);
   }
