@@ -2,6 +2,8 @@ model Organization {
   id             String    @id @default(cuid())
   name           String
   hasStores      Boolean   @default(true)
+  /// Without stores: true = credit organization (credits stock to branches, makes no sales of its own); false = direct sales.
+  usesCreditBranches Boolean @default(false)
   billingEnabled    Boolean   @default(false)
   nextInvoiceNumber Int       @default(1)
   isActive          Boolean   @default(true)
