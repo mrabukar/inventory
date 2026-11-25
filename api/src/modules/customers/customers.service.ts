@@ -180,6 +180,18 @@ export class CustomersService {
         "A credit branch's customers are added by the branch",
       );
     }
+    // A credit organization sells to nobody itself; its branches add their own.
+    if (user.role === UserRole.admin) {
+      const org = await this.prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { usesCreditBranches: true },
+      });
+      if (org?.usesCreditBranches) {
+        throw new ForbiddenException(
+          "A credit organization doesn't add customers; its branches do",
+        );
+      }
+    }
 
     const customer = await this.prisma.customer.create({
       data: withOrganizationId(
