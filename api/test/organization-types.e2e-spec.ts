@@ -365,6 +365,46 @@ describeDb("Organization types (PostgreSQL)", () => {
     });
   });
 
+  describe("all branches outside a credit organization", () => {
+    it("is treated as the organization's own data, and credited stock is refused", async () => {
+      const w = await makeWorld("direct");
+      const customer = await inOrg(w, () =>
+        customers.create({ name: "Walk-in" }, w.admin),
+      );
+      const sale = await inOrg(w, () =>
+        sales.create(
+          {
+            items: [{ productId: w.productId, quantitySold: 1 }],
+            saleDate: today,
+            customerId: customer.id,
+            paidAmount: 15,
+          },
+          w.admin,
+        ),
+      );
+      const page = { page: 1, limit: 50 };
+
+      const soldAll = await inOrg(w, () =>
+        sales.findAll({ ...page, storeId: "all" }, w.admin),
+      );
+      expect(soldAll.data.map((x) => x.id)).toEqual([sale.id]);
+
+      const customersAll = await inOrg(w, () =>
+        customers.findAll({ ...page, storeId: "all" }, w.admin),
+      );
+      expect(customersAll.data.map((c) => c.id)).toEqual([customer.id]);
+
+      const dash = await inOrg(w, () =>
+        reports.getAdminDashboard({ ...range, storeId: "all" }, w.admin),
+      );
+      expect(dash.summary.totalRevenue).toBe(15);
+
+      await expect(
+        inOrg(w, () => creditBranches.listCreditedStock(page, w.admin)),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
   describe("reports", () => {
     it("counts a direct-sales organization's purchases as bought in its stock report", async () => {
       const w = await makeWorld("direct");
