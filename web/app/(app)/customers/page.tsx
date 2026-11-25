@@ -24,8 +24,10 @@ import type {
 export default function CustomersPage() {
   // Looking at a credit branch is read-only.
   const browsingBranch = useReadOnlyView();
-  // A credit organization sells to nobody itself; its branches add customers.
-  const creditOrg = useAppStore((s) => s.user?.usesCreditBranches === true);
+  // A credit organization's admin sells to nobody itself; its branches add customers.
+  const creditOrgAdmin = useAppStore(
+    (s) => s.user?.usesCreditBranches === true && s.user.role === "admin",
+  );
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const [pageIndex, setPageIndex] = useState(0);
@@ -89,7 +91,7 @@ export default function CustomersPage() {
         action={
           <div className="flex flex-wrap items-center gap-3">
             <BranchScopeSelect />
-            {browsingBranch || creditOrg ? null : (
+            {browsingBranch || creditOrgAdmin ? null : (
               <Button onClick={() => setShowCreate(true)}>
                 <Plus className="size-4" />
                 Add Customer
