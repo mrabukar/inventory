@@ -24,6 +24,7 @@ const organizationSelect = {
   id: true,
   name: true,
   hasStores: true,
+  usesCreditBranches: true,
   billingEnabled: true,
   phone: true,
   evcNumber: true,
@@ -59,6 +60,7 @@ export type MeOrganization = {
   id: string;
   name: string;
   hasStores: boolean;
+  usesCreditBranches: boolean;
   billingEnabled: boolean;
   phone: string | null;
   evcNumber: string | null;
