@@ -10,7 +10,9 @@ import {
 } from "./components/purchase-fix-chooser-modal";
 import { PurchaseChangeProductModal } from "./components/purchase-change-product-modal";
 import { PurchaseFixModal } from "./components/purchase-fix-modal";
+import { CreditedStockTable } from "./components/credited-stock-table";
 import { PurchaseTable } from "./components/purchase-table";
+import { BranchScopeSelect } from "@/components/filters/branch-scope-select";
 import { Combobox } from "@/components/ui/combobox";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { PageHeader } from "@/components/ui/page-header";
@@ -21,9 +23,13 @@ import {
   useCorrectPurchaseAdd,
   useCorrectPurchaseSubtract,
 } from "@/hooks/purchases/use-correct-purchase";
+import { useBranchScope } from "@/hooks/branch-view/use-branch-view";
+import { useCreditedStock } from "@/hooks/credit-branches/use-credited-stock";
+import { ALL_BRANCHES } from "@/lib/branch-scope";
 import { usePurchases } from "@/hooks/purchases/use-purchases";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { getCurrentMonthRange } from "@/lib/filters/dates";
+import { fmt } from "@/lib/utils";
 import { useAppStore } from "@/store/app";
 import type {
   ChangePurchaseProductInput,
@@ -57,6 +63,11 @@ export default function PurchasesPage() {
   const debouncedSearch = useDebouncedValue(search, 300);
   const debouncedInvoice = useDebouncedValue(invoiceNumber, 300);
 
+  // Looking at a branch (or all of them) swaps the organization's purchases
+  // for the stock it credited to them.
+  const scope = useBranchScope();
+  const creditedView = scope !== null;
+
   const listQuery = useMemo(
     () => ({
       page: pageIndex + 1,
@@ -84,6 +95,20 @@ export default function PurchasesPage() {
   const correctionAdd = useCorrectPurchaseAdd();
   const correctionSubtract = useCorrectPurchaseSubtract();
   const changeProduct = useChangePurchaseProduct();
+
+  const creditedQuery = useMemo(
+    () => ({
+      page: pageIndex + 1,
+      limit: pageSize,
+      search: debouncedSearch || undefined,
+      categoryId: categoryId || undefined,
+      fromDate,
+      toDate,
+      storeId: scope && scope !== ALL_BRANCHES ? scope : undefined,
+    }),
+    [pageIndex, pageSize, debouncedSearch, categoryId, fromDate, toDate, scope],
+  );
+  const credited = useCreditedStock(creditedQuery, { enabled: creditedView });
 
   const rows = data?.data ?? [];
   const rowCount = data?.meta.total ?? 0;
@@ -166,16 +191,19 @@ export default function PurchasesPage() {
           resetPage();
         }}
       />
-      <input
-        className="f-input"
-        style={{ minWidth: 160 }}
-        value={invoiceNumber}
-        onChange={(e) => {
-          setInvoiceNumber(e.target.value);
-          resetPage();
-        }}
-        placeholder="Invoice number"
-      />
+      <BranchScopeSelect />
+      {creditedView ? null : (
+        <input
+          className="f-input"
+          style={{ minWidth: 160 }}
+          value={invoiceNumber}
+          onChange={(e) => {
+            setInvoiceNumber(e.target.value);
+            resetPage();
+          }}
+          placeholder="Invoice number"
+        />
+      )}
       <Combobox
         value={categoryId}
         onValueChange={(value) => {
@@ -196,41 +224,79 @@ export default function PurchasesPage() {
     <>
       <PageHeader
         title="Purchases"
-        desc="Record vendor purchases and track purchase history"
+        desc={
+          creditedView
+            ? "Stock credited to the branches, read-only"
+            : "Record vendor purchases and track purchase history"
+        }
         action={
-          <Button onClick={() => router.push("/purchases/new")}>
-            <Plus className="size-4" />
-            Record Purchase
-          </Button>
+          creditedView ? null : (
+            <Button onClick={() => router.push("/purchases/new")}>
+              <Plus className="size-4" />
+              Record Purchase
+            </Button>
+          )
         }
       />
 
-      {isError && (
+      {(creditedView ? credited.isError : isError) && (
         <div className="alert-error" style={{ marginBottom: 16 }}>
-          {error instanceof Error
-            ? error.message
+          {(creditedView ? credited.error : error) instanceof Error
+            ? (creditedView ? credited.error : error)?.message
             : "Failed to load purchases."}
         </div>
       )}
 
-      <PurchaseTable
-        rows={rows}
-        rowCount={rowCount}
-        pageIndex={pageIndex}
-        pageSize={pageSize}
-        searchValue={search}
-        onSearchChange={(value) => {
-          setSearch(value);
-          resetPage();
-        }}
-        onPaginationChange={({ pageIndex: nextPage, pageSize: nextSize }) => {
-          setPageIndex(nextPage);
-          setPageSize(nextSize);
-        }}
-        isLoading={isLoading}
-        toolbarExtra={toolbarExtra}
-        onCorrect={(purchase) => setFixChooser({ purchase })}
-      />
+      {creditedView ? (
+        <>
+          {credited.data ? (
+            <p className="mb-3 text-sm text-muted-foreground">
+              {credited.data.summary.units.toLocaleString()} unit(s) credited,{" "}
+              {fmt(credited.data.summary.value)} in total
+            </p>
+          ) : null}
+          <CreditedStockTable
+            rows={credited.data?.data ?? []}
+            rowCount={credited.data?.meta.total ?? 0}
+            pageIndex={pageIndex}
+            pageSize={pageSize}
+            searchValue={search}
+            onSearchChange={(value) => {
+              setSearch(value);
+              resetPage();
+            }}
+            onPaginationChange={({
+              pageIndex: nextPage,
+              pageSize: nextSize,
+            }) => {
+              setPageIndex(nextPage);
+              setPageSize(nextSize);
+            }}
+            isLoading={credited.isPending}
+            toolbarExtra={toolbarExtra}
+            showBranch={scope === ALL_BRANCHES}
+          />
+        </>
+      ) : (
+        <PurchaseTable
+          rows={rows}
+          rowCount={rowCount}
+          pageIndex={pageIndex}
+          pageSize={pageSize}
+          searchValue={search}
+          onSearchChange={(value) => {
+            setSearch(value);
+            resetPage();
+          }}
+          onPaginationChange={({ pageIndex: nextPage, pageSize: nextSize }) => {
+            setPageIndex(nextPage);
+            setPageSize(nextSize);
+          }}
+          isLoading={isLoading}
+          toolbarExtra={toolbarExtra}
+          onCorrect={(purchase) => setFixChooser({ purchase })}
+        />
+      )}
 
       <PurchaseFixChooserModal
         open={fixChooser !== null}
