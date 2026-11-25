@@ -24,6 +24,8 @@ export interface UserListQuery {
   search?: string;
   role?: UserRole;
   isActive?: boolean;
+  /** "own", "all", or a credit branch's id (credit organizations only). */
+  storeId?: string;
 }
 
 export type UserListResponse = PaginatedResponse<User>;
