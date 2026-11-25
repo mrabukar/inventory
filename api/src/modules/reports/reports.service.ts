@@ -142,17 +142,28 @@ export class ReportsService {
       query.storeId,
       true,
     );
+    // Company-wide expenses belong to no store, so an organization without
+    // stores must not be narrowed to its warehouse (see getFinancialSummary).
+    const expenseStoreId = creditBranch
+      ? storeId
+      : await this.tenantStoreResolver.resolveExpenseStoreFilter(
+          user,
+          query.storeId,
+        );
     const categoryId = query.categoryId;
 
     const saleWhere = this.buildSaleWhere(range, storeId, categoryId);
-    const expenseWhere = this.buildExpenseWhere(range, storeId);
+    const expenseWhere = this.buildExpenseWhere(range, expenseStoreId);
     const previousRange = resolvePreviousMonthRange(range);
     const previousSaleWhere = this.buildSaleWhere(
       previousRange,
       storeId,
       categoryId,
     );
-    const previousExpenseWhere = this.buildExpenseWhere(previousRange, storeId);
+    const previousExpenseWhere = this.buildExpenseWhere(
+      previousRange,
+      expenseStoreId,
+    );
 
     const [
       summary,
