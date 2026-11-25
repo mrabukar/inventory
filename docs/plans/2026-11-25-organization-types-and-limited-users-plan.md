@@ -3,6 +3,17 @@
 Date: 2026-11-25. Status: part 0 (security fixes) and part 1 (organization types)
 are built; parts 2 and 3 are not.
 
+Part 3 as built: role `limited_user` and `User.allowedPages` (migration
+`20261125150000_limited_users`). A limited user is refused on every route unless it
+is a read route marked with `@PageRead([...])` (or `@PageMarks`) for a page they
+hold, plus their own profile (`@LimitedSelf`). `PageAccessInterceptor` enforces it
+and reads their pages from the database on every request. Only an admin creates
+them (they start with no pages) and sets pages through `PATCH /users/:id`, for
+organizations without stores. `src/common/access/page-marks.spec.ts` walks every
+route and fails if a write route is open to them or a grantable page opens
+nothing. Web: `lib/limited-pages.ts`, the sidebar and routes follow the pages, they
+land on their first page, and `useReadOnlyView()` hides every data-changing control.
+
 Part 2 as built: the top bar switcher and banner are gone. A selector
 (`components/filters/branch-scope-select.tsx`: Fonex / All branches / a branch) sits
 on the dashboard, financial summary, sales, customers, invoices, payments,
