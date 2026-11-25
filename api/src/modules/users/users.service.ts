@@ -8,6 +8,7 @@ import {
 import { AuditAction, Prisma, User, UserRole } from "@prisma/client";
 import { hashPassword } from "better-auth/crypto";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
+import { userStoreFilter } from "../../common/utils/user-store-filter.util";
 import { orderByUpdatedAtDesc } from "../../common/utils/list-order.util";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ASSIGNABLE_USER_ROLES } from "../auth/auth.constants";
@@ -34,6 +35,10 @@ export class UsersService {
     const where: Prisma.UserWhereInput = {
       ...(typeof isActive === "boolean" ? { isActive } : undefined),
       ...(role ? { role } : undefined),
+      // AND, so it never overwrites the search's OR.
+      ...(userStoreFilter(query.storeId)
+        ? { AND: [userStoreFilter(query.storeId) as Prisma.UserWhereInput] }
+        : undefined),
       ...(search
         ? {
             OR: [
