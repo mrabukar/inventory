@@ -7,6 +7,7 @@ import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { formatDisplayDate } from "@/lib/filters/dates";
+import { branchColumn, useShowBranchColumn } from "@/components/credit-branches/branch-column";
 import type { Customer } from "@/types/customers/customer";
 
 interface CustomerTableProps {
@@ -34,6 +35,7 @@ export function CustomerTable({
   toolbarExtra,
   onEdit,
 }: CustomerTableProps) {
+  const showBranch = useShowBranchColumn();
   const columns = useMemo<ColumnDef<Customer>[]>(
     () => [
       {
@@ -49,6 +51,9 @@ export function CustomerTable({
           </Link>
         ),
       },
+      ...(showBranch
+        ? [branchColumn<Customer>((customer) => customer.store?.name)]
+        : []),
       {
         accessorKey: "phone",
         meta: {
@@ -111,7 +116,7 @@ export function CustomerTable({
           ]
         : []),
     ],
-    [onEdit],
+    [onEdit, showBranch],
   );
 
   return (
