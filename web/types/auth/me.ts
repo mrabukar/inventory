@@ -14,6 +14,7 @@ export interface MeOrganization {
   id: string;
   name: string;
   hasStores: boolean;
+  usesCreditBranches?: boolean;
   billingEnabled?: boolean;
   phone?: string | null;
   evcNumber?: string | null;
