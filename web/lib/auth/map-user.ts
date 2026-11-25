@@ -2,12 +2,15 @@ import type { AppUser, Role } from "@/lib/types";
 import type { ApiUser } from "@/types/auth/me";
 
 export function mapApiUserToAppUser(apiUser: ApiUser): AppUser {
+  // An unknown role gets the least access, never admin's.
   const role: Role =
     apiUser.role === "branch_manager"
       ? "manager"
       : apiUser.role === "super_admin"
         ? "super_admin"
-        : "admin";
+        : apiUser.role === "admin"
+          ? "admin"
+          : "limited";
 
   return {
     id: apiUser.id,
@@ -23,6 +26,7 @@ export function mapApiUserToAppUser(apiUser: ApiUser): AppUser {
     organizationId: apiUser.organization?.id ?? apiUser.organizationId ?? null,
     organizationName: apiUser.organization?.name ?? null,
     hasStores: apiUser.organization?.hasStores ?? null,
+    allowedPages: apiUser.allowedPages ?? [],
     usesCreditBranches: apiUser.organization?.usesCreditBranches ?? null,
     billingEnabled: apiUser.organization?.billingEnabled ?? null,
     organizationLogoKey: apiUser.organization?.logoKey ?? null,
