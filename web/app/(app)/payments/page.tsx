@@ -8,6 +8,8 @@ import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
+import { BranchScopeSelect } from "@/components/filters/branch-scope-select";
+import { branchColumn, useShowBranchColumn } from "@/components/credit-branches/branch-column";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,6 +50,7 @@ export default function PaymentsPage() {
 
   const totalOutstanding = receivables.reduce((sum, r) => sum + r.balance, 0);
 
+  const showBranch = useShowBranchColumn();
   const columns = useMemo<ColumnDef<Payment>[]>(
     () => [
       {
@@ -88,6 +91,13 @@ export default function PaymentsPage() {
             <span className="muted">-</span>
           ),
       },
+      ...(showBranch
+        ? [
+            branchColumn<Payment>(
+              (payment) => payment.invoice.sale?.store.name,
+            ),
+          ]
+        : []),
       {
         id: "invoice",
         accessorFn: (row) => row.invoice.numberLabel,
@@ -143,7 +153,7 @@ export default function PaymentsPage() {
         enableSorting: false,
       },
     ],
-    [],
+    [showBranch],
   );
 
   const handleCreate = async (input: CreatePaymentInput) => {
@@ -165,12 +175,15 @@ export default function PaymentsPage() {
         title="Payments"
         desc="Payments received from customers"
         action={
-          browsingBranch ? null : (
-            <Button onClick={() => setOpenRecord(true)}>
-              <Plus className="size-4" />
-              Record Payment
-            </Button>
-          )
+          <div className="flex flex-wrap items-center gap-3">
+            <BranchScopeSelect />
+            {browsingBranch ? null : (
+              <Button onClick={() => setOpenRecord(true)}>
+                <Plus className="size-4" />
+                Record Payment
+              </Button>
+            )}
+          </div>
         }
       />
 
