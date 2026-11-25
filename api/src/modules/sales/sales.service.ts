@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { readsLikeAdmin } from "../../common/utils/admin-like.util";
 import { Prisma, StoreType, UserRole } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import {
@@ -91,7 +92,7 @@ export class SalesService {
     // branch managers (the admin's own sales are never pending), so an admin
     // sees every branch's, including credit branches'.
     const storeId =
-      user.role === UserRole.admin && query.status === "pending"
+      readsLikeAdmin(user.role) && query.status === "pending"
         ? queryStoreId || undefined
         : scope.kind === "all"
           ? undefined
