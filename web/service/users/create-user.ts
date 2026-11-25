@@ -27,6 +27,11 @@ export async function createUser(
     throw new Error("User was created but no user id was returned");
   }
 
+  // A limited user starts with no pages; the admin gives them theirs next.
+  if (input.role === "limited_user") {
+    await updateUser(userId, { allowedPages: input.allowedPages ?? [] });
+  }
+
   if (input.twoFactorRequired === false) {
     await manageUserTwoFactor(userId, "disable");
   }
@@ -44,6 +49,7 @@ export async function createUser(
     isActive: true,
     storeId: input.role === "branch_manager" ? (input.storeId ?? null) : null,
     store: null,
+    allowedPages: input.role === "limited_user" ? (input.allowedPages ?? []) : [],
     twoFactorEnabled: false,
     twoFactorRequired: input.twoFactorRequired !== false,
     createdAt: new Date().toISOString(),
