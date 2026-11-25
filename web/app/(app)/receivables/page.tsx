@@ -1,6 +1,6 @@
 "use client";
 
-import { useViewBranchId } from "@/hooks/branch-view/use-branch-view";
+import { useReadOnlyView } from "@/hooks/branch-view/use-branch-view";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -27,7 +27,7 @@ import { RecordPaymentModal } from "../payments/components/record-payment-modal"
 
 export default function ReceivablesPage() {
   // Looking at a credit branch is read-only.
-  const browsingBranch = Boolean(useViewBranchId());
+  const browsingBranch = useReadOnlyView();
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const [payTarget, setPayTarget] = useState<string | null>(null);
