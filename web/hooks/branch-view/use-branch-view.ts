@@ -32,11 +32,11 @@ export function isBranchViewRoute(pathname: string): boolean {
   );
 }
 
-/** Only the admin of a credit organization looks at its credit branches. */
+/** Only the admin (or a limited user) of a credit organization looks at its credit branches. */
 function useCanBrowseBranches(): boolean {
   const user = useAppStore((s) => s.user);
   return (
-    user?.role === "admin" &&
+    (user?.role === "admin" || user?.role === "limited") &&
     user.hasStores === false &&
     user.usesCreditBranches === true
   );
@@ -88,6 +88,18 @@ export function usePeopleStoreFilter(): string | undefined {
 /** True while looking at one branch or at all of them: the view is read-only. */
 export function useBrowsingBranches(): boolean {
   return Boolean(useViewBranchId());
+}
+
+/**
+ * True when nothing on the page may change data: a limited user always, and
+ * anyone looking at the branches. Pages hide their add, edit, delete, approve
+ * and record buttons on this (the API refuses those calls regardless).
+ */
+export function useReadOnlyView(): boolean {
+  const limited = useAppStore((s) => s.user?.role === "limited");
+  // Always called, never skipped by the `||`.
+  const browsing = useBrowsingBranches();
+  return limited || browsing;
 }
 
 /** Adds the selected branch to a query's params (leaves them alone when none is selected). */
