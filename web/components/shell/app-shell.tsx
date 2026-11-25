@@ -27,6 +27,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     user != null &&
     !isRouteAllowedForRole(user.role, pathname, {
       hasStores: user.hasStores,
+      usesCreditBranches: user.usesCreditBranches,
       isCreditBranch: user.isCreditBranch,
     });
 
@@ -83,6 +84,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         collapsed={collapsed}
         storeName={user.store}
         hasStores={user.hasStores}
+        usesCreditBranches={user.usesCreditBranches}
         isCreditBranch={user.isCreditBranch}
       />
       <div className="app-main">
