@@ -77,10 +77,58 @@ export async function creditBranchViewIdOf(
   return store?.id ?? null;
 }
 
+/** The `storeId` value that means every credit branch together. */
+export const ALL_BRANCHES = "all";
+
+/**
+ * What a credit organization's admin is looking at:
+ * - own: the organization itself (the default);
+ * - branch: one credit branch;
+ * - all: every credit branch together (read-only, `storeIds` lists them).
+ */
+export type BranchScope =
+  | { kind: "own" }
+  | { kind: "branch"; storeId: string }
+  | { kind: "all"; storeIds: string[] };
+
+/**
+ * Reads the `storeId` a page sent. Only an admin picks a scope, "all" only in
+ * a credit organization, and a branch only if it is one of this organization's
+ * credit branches. Anything else leaves the caller on the organization itself.
+ */
+export async function branchScopeOf(
+  prisma: PrismaService,
+  user: CurrentUserPayload,
+  queryStoreId?: string,
+): Promise<BranchScope> {
+  const wanted = typeof queryStoreId === "string" ? queryStoreId.trim() : "";
+  if (user.role !== UserRole.admin || !user.organizationId || !wanted) {
+    return { kind: "own" };
+  }
+
+  if (wanted === ALL_BRANCHES) {
+    const org = await prisma.organization.findUnique({
+      where: { id: user.organizationId },
+      select: { hasStores: true, usesCreditBranches: true },
+    });
+    if (!org || org.hasStores || !org.usesCreditBranches) {
+      return { kind: "own" };
+    }
+    const stores = await prisma.store.findMany({
+      where: { organizationId: user.organizationId, type: StoreType.credit },
+      select: { id: true },
+    });
+    return { kind: "all", storeIds: stores.map((store) => store.id) };
+  }
+
+  const storeId = await creditBranchViewIdOf(prisma, user, wanted);
+  return storeId ? { kind: "branch", storeId } : { kind: "own" };
+}
+
 /**
  * Which sales' invoices and payments a caller's list may show:
  * - a credit branch manager: their own branch's;
- * - an admin browsing a credit branch: that branch's;
+ * - an admin browsing one credit branch, or all of them: theirs;
  * - everyone else: the organization's own, never a credit branch's.
  */
 export async function billingSaleScopeOf(
@@ -88,10 +136,16 @@ export async function billingSaleScopeOf(
   user: CurrentUserPayload,
   queryStoreId?: string,
 ): Promise<Prisma.SaleWhereInput> {
-  const scope =
-    (await creditBranchStoreIdOf(prisma, user)) ??
-    (await creditBranchViewIdOf(prisma, user, queryStoreId));
-  return scope
-    ? { storeId: scope }
-    : { store: { type: { not: StoreType.credit } } };
+  const own = await creditBranchStoreIdOf(prisma, user);
+  if (own) {
+    return { storeId: own };
+  }
+  const scope = await branchScopeOf(prisma, user, queryStoreId);
+  if (scope.kind === "branch") {
+    return { storeId: scope.storeId };
+  }
+  if (scope.kind === "all") {
+    return { store: { type: StoreType.credit } };
+  }
+  return { store: { type: { not: StoreType.credit } } };
 }
