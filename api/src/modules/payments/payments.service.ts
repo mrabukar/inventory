@@ -21,8 +21,15 @@ import { PaginatedResult } from "../stores/stores.service";
 import { CreatePaymentDto } from "./dto/create-payment.dto";
 import { PaymentQueryDto } from "./dto/payment-query.dto";
 
+// The branch a payment belongs to (a credit branch's customer), for the Branch column.
+const invoiceBranch = {
+  sale: { select: { store: { select: { id: true, name: true } } } },
+} as const;
+
 const paymentInclude = {
-  invoice: { select: { id: true, numberLabel: true, total: true } },
+  invoice: {
+    select: { id: true, numberLabel: true, total: true, ...invoiceBranch },
+  },
   customer: { select: { id: true, name: true } },
   recordedBy: { select: { id: true, name: true, email: true } },
 } satisfies Prisma.PaymentInclude;
@@ -48,7 +55,12 @@ export interface SaleCollectionEntry {
   note: null;
   recordedById: null;
   createdAt: Date;
-  invoice: { id: string; numberLabel: string; total: Prisma.Decimal };
+  invoice: {
+    id: string;
+    numberLabel: string;
+    total: Prisma.Decimal;
+    sale: { store: { id: string; name: string } };
+  };
   customer: { id: string; name: string } | null;
   recordedBy: null;
 }
@@ -108,6 +120,7 @@ export class PaymentsService {
           issuedAt: true,
           customerId: true,
           customer: { select: { id: true, name: true } },
+          ...invoiceBranch,
         },
         orderBy: { issuedAt: "desc" },
       }),
@@ -130,7 +143,12 @@ export class PaymentsService {
         note: null,
         recordedById: null,
         createdAt: inv.issuedAt,
-        invoice: { id: inv.id, numberLabel: inv.numberLabel, total: inv.total },
+        invoice: {
+          id: inv.id,
+          numberLabel: inv.numberLabel,
+          total: inv.total,
+          sale: inv.sale,
+        },
         customer: inv.customer,
         recordedBy: null,
       }),
