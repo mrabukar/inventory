@@ -23,6 +23,8 @@ import type {
 export default function CustomersPage() {
   // Looking at a credit branch is read-only.
   const browsingBranch = Boolean(useViewBranchId());
+  // A credit organization sells to nobody itself; its branches add customers.
+  const creditOrg = useAppStore((s) => s.user?.usesCreditBranches === true);
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const [pageIndex, setPageIndex] = useState(0);
@@ -84,7 +86,7 @@ export default function CustomersPage() {
         title="Customers"
         desc="Manage customers used for sales, invoices, and balances"
         action={
-          browsingBranch ? null : (
+          browsingBranch || creditOrg ? null : (
             <Button onClick={() => setShowCreate(true)}>
               <Plus className="size-4" />
               Add Customer
