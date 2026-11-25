@@ -9,6 +9,8 @@ import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { OrganizationLogoUpload } from "@/components/organization/organization-logo-upload";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
+import { OrganizationTypePicker } from "@/components/organization/organization-type-picker";
+import { organizationTypeOf, type OrganizationType } from "@/lib/organization-type";
 import { OrganizationDomainSelect } from "@/components/organization/organization-domain-select";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -100,7 +102,7 @@ export default function OrganizationDetailPage() {
     usersPending || (usersFetching && (usersData?.data.length ?? 0) === 0);
 
   const [name, setName] = useState("");
-  const [hasStores, setHasStores] = useState(true);
+  const [type, setType] = useState<OrganizationType>("stores");
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const [domain, setDomain] = useState("");
@@ -119,7 +121,7 @@ export default function OrganizationDetailPage() {
   useEffect(() => {
     if (!org) return;
     setName(org.name);
-    setHasStores(org.hasStores);
+    setType(organizationTypeOf(org));
     setBillingEnabled(org.billingEnabled);
     setIsActive(org.isActive);
     setDomain(org.domain ?? "");
@@ -129,8 +131,9 @@ export default function OrganizationDetailPage() {
     mutationFn: () =>
       updateOrganization(id, {
         name: name.trim(),
-        hasStores,
-        billingEnabled,
+        type,
+        // Direct and credit organizations always bill; only stores choose.
+        ...(type === "stores" ? { billingEnabled } : undefined),
         isActive,
         domain: domain.trim() || null,
       }),
@@ -142,7 +145,7 @@ export default function OrganizationDetailPage() {
       addErrorToast({ title: "Update failed", sub: error.message });
       if (org) {
         setName(org.name);
-        setHasStores(org.hasStores);
+        setType(organizationTypeOf(org));
         setBillingEnabled(org.billingEnabled);
         setIsActive(org.isActive);
         setDomain(org.domain ?? "");
@@ -158,8 +161,8 @@ export default function OrganizationDetailPage() {
   const settingsDirty =
     org != null &&
     (name.trim() !== org.name ||
-      hasStores !== org.hasStores ||
-      billingEnabled !== org.billingEnabled ||
+      type !== organizationTypeOf(org) ||
+      (type === "stores" && billingEnabled !== org.billingEnabled) ||
       isActive !== org.isActive ||
       domain.trim() !== (org.domain ?? ""));
 
@@ -259,45 +262,33 @@ export default function OrganizationDetailPage() {
                 </p>
               </div>
 
-              <label className="flex items-start gap-3 text-sm">
-                <Checkbox
-                  className="mt-0.5"
-                  checked={hasStores}
-                  disabled={updateMutation.isPending}
-                  onCheckedChange={(value) => {
-                    const on = value === true;
-                    setHasStores(on);
-                    // Stores and billing are alternatives: picking one clears the other.
-                    if (on) setBillingEnabled(false);
-                  }}
-                />
-                <span>
-                  <span className="font-medium">Uses stores and branch managers</span>
-                  <span className="mt-1 block text-muted-foreground">
-                    Direct-sales organizations can disable store-based workflows.
-                  </span>
-                </span>
-              </label>
+              <OrganizationTypePicker
+                value={type}
+                onChange={setType}
+                disabled={updateMutation.isPending}
+              />
 
-              <label className="flex items-start gap-3 text-sm">
-                <Checkbox
-                  className="mt-0.5"
-                  checked={billingEnabled}
-                  disabled={updateMutation.isPending}
-                  onCheckedChange={(value) => {
-                    const on = value === true;
-                    setBillingEnabled(on);
-                    if (on) setHasStores(false);
-                  }}
-                />
-                <span>
-                  <span className="font-medium">Billing enabled</span>
-                  <span className="mt-1 block text-muted-foreground">
-                    Invoices, payments, and customer balances. Defaults on for
-                    direct-sales orgs.
+              {type === "stores" ? (
+                <label className="flex items-start gap-3 text-sm">
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={billingEnabled}
+                    disabled={updateMutation.isPending}
+                    onCheckedChange={(value) => setBillingEnabled(value === true)}
+                  />
+                  <span>
+                    <span className="font-medium">Billing enabled</span>
+                    <span className="mt-1 block text-muted-foreground">
+                      Invoices, payments, and customer balances.
+                    </span>
                   </span>
-                </span>
-              </label>
+                </label>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Billing is always on for this type: invoices, payments, and
+                  customer balances.
+                </p>
+              )}
 
               <label className="flex items-start gap-3 text-sm">
                 <Checkbox
