@@ -58,6 +58,25 @@ describeDb("Credit branches (PostgreSQL)", () => {
   const inOrg = <T>(fn: () => Promise<T>): Promise<T> =>
     tenant.run(organizationId, fn);
 
+  /**
+   * A credit organization makes no sales of its own any more, but it can still
+   * hold old ones. Seed those by acting as a direct seller for one call.
+   */
+  const asDirectSeller = async <T>(fn: () => Promise<T>): Promise<T> => {
+    await prisma.organization.update({
+      where: { id: organizationId },
+      data: { usesCreditBranches: false },
+    });
+    try {
+      return await inOrg(fn);
+    } finally {
+      await prisma.organization.update({
+        where: { id: organizationId },
+        data: { usesCreditBranches: true },
+      });
+    }
+  };
+
   async function makeUser(
     role: UserRole,
     storeId: string | null,
@@ -119,6 +138,7 @@ describeDb("Credit branches (PostgreSQL)", () => {
       data: {
         name: `Credit test ${randomUUID().slice(0, 8)}`,
         hasStores: false,
+        usesCreditBranches: true,
       },
     });
     organizationId = org.id;
@@ -524,7 +544,7 @@ describeDb("Credit branches (PostgreSQL)", () => {
       const a1 = await sellTo(a.manager, a.customer.id, 2);
       const a2 = await sellTo(a.manager, a.customer.id, 1);
       const b1 = await sellTo(b.manager, b.customer.id, 1);
-      const orgSale = await inOrg(() =>
+      const orgSale = await asDirectSeller(() =>
         sales.create(
           {
             items: [{ productId, quantitySold: 1 }],
@@ -639,7 +659,7 @@ describeDb("Credit branches (PostgreSQL)", () => {
 
       it("shows the organization's own invoices, payments, customers and receivables by default, and a branch's when picked", async () => {
         const a = await makeBilledBranch();
-        const orgCustomer = await inOrg(() =>
+        const orgCustomer = await asDirectSeller(() =>
           customers.create(
             { name: `Org customer ${randomUUID().slice(0, 6)}` },
             admin,
@@ -652,7 +672,7 @@ describeDb("Credit branches (PostgreSQL)", () => {
             a.manager,
           ),
         );
-        const ownSale = await inOrg(() =>
+        const ownSale = await asDirectSeller(() =>
           sales.create(
             {
               items: [{ productId, quantitySold: 1 }],
@@ -734,7 +754,7 @@ describeDb("Credit branches (PostgreSQL)", () => {
 
       it("lets the organization look at a branch's records but not change them", async () => {
         const a = await makeBilledBranch();
-        const orgCustomer = await inOrg(() =>
+        const orgCustomer = await asDirectSeller(() =>
           customers.create(
             { name: `Org customer ${randomUUID().slice(0, 6)}` },
             admin,
@@ -843,10 +863,10 @@ describeDb("Credit branches (PostgreSQL)", () => {
 
       // The admin's receivables are the organization's own customers, not
       // either branch's.
-      const orgDebtor = await inOrg(() =>
+      const orgDebtor = await asDirectSeller(() =>
         customers.create({ name: "Org debtor" }, admin),
       );
-      await inOrg(() =>
+      await asDirectSeller(() =>
         sales.create(
           {
             items: [{ productId, quantitySold: 1 }],
@@ -880,7 +900,7 @@ describeDb("Credit branches (PostgreSQL)", () => {
     it("lets a branch sell only to its own customers, and keeps the organization off them", async () => {
       const a = await makeBilledBranch();
       const b = await makeBilledBranch();
-      const orgCustomer = await inOrg(() =>
+      const orgCustomer = await asDirectSeller(() =>
         customers.create({ name: "Org customer" }, admin),
       );
 
@@ -891,7 +911,7 @@ describeDb("Credit branches (PostgreSQL)", () => {
         BadRequestException,
       );
       await expect(
-        inOrg(() =>
+        asDirectSeller(() =>
           sales.create(
             {
               items: [{ productId, quantitySold: 1 }],
