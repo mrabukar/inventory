@@ -1,7 +1,7 @@
 import type { PaginatedResponse } from "@/types/common/pagination";
 import type { Store } from "@/types/stores/store";
 
-export type UserRole = "admin" | "branch_manager";
+export type UserRole = "admin" | "branch_manager" | "limited_user";
 
 export interface User {
   id: string;
@@ -14,6 +14,8 @@ export interface User {
   twoFactorRequired: boolean;
   storeId: string | null;
   store: Pick<Store, "id" | "name"> | null;
+  /** For a limited user: the pages they may see. */
+  allowedPages: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -39,6 +41,8 @@ export interface CreateUserInput {
   phone?: string;
   /** Defaults to true. When false the user signs in with only a password. */
   twoFactorRequired?: boolean;
+  /** For a limited user: the pages they may see. */
+  allowedPages?: string[];
 }
 
 export interface UpdateUserInput {
@@ -48,11 +52,14 @@ export interface UpdateUserInput {
   role?: UserRole;
   storeId?: string | null;
   phone?: string | null;
+  /** For a limited user: the pages they may see. */
+  allowedPages?: string[];
 }
 
 export const ROLE_ITEMS = [
   { value: "admin" as const, label: "Admin" },
   { value: "branch_manager" as const, label: "Branch Manager" },
+  { value: "limited_user" as const, label: "Limited user" },
 ];
 
 export type TwoFactorAction = "disable" | "require" | "reset";
@@ -69,5 +76,6 @@ export function twoFactorState(
 
 export function roleLabel(role: UserRole | string): string {
   if (role === "admin") return "Admin";
+  if (role === "limited_user") return "Limited user";
   return "Branch Manager";
 }
