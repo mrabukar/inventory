@@ -1,5 +1,6 @@
 "use client";
 
+import { useReadOnlyView } from "@/hooks/branch-view/use-branch-view";
 import { useMemo, useState } from "react";
 import { CheckCheck } from "lucide-react";
 
@@ -21,6 +22,8 @@ import type { Sale } from "@/types/sales/sale";
 const QUEUE_LIMIT = 100;
 
 export default function SaleApprovalsPage() {
+  // Nothing here may change data for a limited user.
+  const readOnly = useReadOnlyView();
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const billingEnabled = useAppStore((s) => s.user?.billingEnabled ?? false);
@@ -182,25 +185,27 @@ export default function SaleApprovalsPage() {
                   </dl>
                 ) : null}
 
-                <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => setRejecting(sale)}
-                  >
-                    Reject
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => void handleApprove(sale)}
-                  >
-                    {busy ? "Approving…" : "Approve"}
-                  </Button>
-                </div>
+                {readOnly ? null : (
+                  <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => setRejecting(sale)}
+                    >
+                      Reject
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => void handleApprove(sale)}
+                    >
+                      {busy ? "Approving…" : "Approve"}
+                    </Button>
+                  </div>
+                )}
               </li>
             );
           })}
