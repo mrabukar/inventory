@@ -14,6 +14,7 @@ import {
 } from "../decorators/page-access.decorator";
 import type { CurrentUserPayload } from "../decorators/current-user.decorator";
 import { PrismaService } from "../../prisma/prisma.service";
+import { TenantContextService } from "../tenant/tenant-context.service";
 import { ANY_PAGE } from "./limited-pages";
 
 interface SessionRequest {
@@ -35,6 +36,7 @@ export class PageAccessInterceptor implements NestInterceptor {
   constructor(
     private readonly reflector: Reflector,
     private readonly prisma: PrismaService,
+    private readonly tenantContext: TenantContextService,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
@@ -44,8 +46,16 @@ export class PageAccessInterceptor implements NestInterceptor {
       return next.handle();
     }
 
+    // The check below awaits a database call, and the handler would then run
+    // outside the organization the tenant interceptor set: its queries would
+    // see every organization's rows. Put the organization back before it runs.
+    const organizationId = this.tenantContext.get();
     return from(this.assertAllowed(context, request, String(user.id))).pipe(
-      mergeMap(() => next.handle()),
+      mergeMap(() =>
+        organizationId === undefined
+          ? next.handle()
+          : this.tenantContext.run(organizationId, () => next.handle()),
+      ),
     );
   }
 
