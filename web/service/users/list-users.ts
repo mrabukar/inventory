@@ -9,6 +9,7 @@ function toQueryString(params: UserListQuery = {}): string {
   if (params.search) search.set("search", params.search);
   if (params.role) search.set("role", params.role);
   if (params.isActive != null) search.set("isActive", String(params.isActive));
+  if (params.storeId) search.set("storeId", params.storeId);
 
   const qs = search.toString();
   return qs ? `?${qs}` : "";
