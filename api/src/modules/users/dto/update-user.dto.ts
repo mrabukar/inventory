@@ -1,6 +1,8 @@
 import { UserRole } from "@prisma/client";
 import {
   IsEmail,
+  ArrayUnique,
+  IsArray,
   IsIn,
   IsNotEmpty,
   IsOptional,
@@ -8,6 +10,7 @@ import {
   MaxLength,
   MinLength,
 } from "class-validator";
+import { LIMITED_PAGE_KEYS } from "../../../common/access/limited-pages";
 import { ASSIGNABLE_USER_ROLES } from "../../auth/auth.constants";
 import { IsStrongPassword } from "../../auth/validators/password-strength.validator";
 
@@ -41,4 +44,11 @@ export class UpdateUserDto {
   @IsString()
   @MaxLength(30)
   phone?: string | null;
+
+  /** For a limited user: the pages they may see. Admins only. */
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsIn(LIMITED_PAGE_KEYS as readonly string[], { each: true })
+  allowedPages?: string[];
 }
