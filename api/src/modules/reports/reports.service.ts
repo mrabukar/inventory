@@ -6,6 +6,7 @@ import {
 import { Prisma, StoreType } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { TenantStoreResolver } from "../../common/tenant/tenant-store-resolver.service";
+import { branchScopeOf } from "../../common/utils/credit-branch.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { orderByUpdatedAtDesc } from "../../common/utils/list-order.util";
 import {
@@ -64,6 +65,33 @@ type TopProductRow = {
   unitsSold: number;
 };
 type TopStoreRow = { storeId: string; storeName: string; revenue: number };
+
+/**
+ * Which store(s) a report looks at: one store, several (every credit branch
+ * together), or none (everything).
+ */
+type StoreFilter = string | string[] | undefined;
+
+function prismaStoreWhere(filter: Exclude<StoreFilter, undefined>) {
+  return Array.isArray(filter) ? { in: filter } : filter;
+}
+
+/** Reads a store filter back out of a Prisma `where`. */
+function storeFilterFromWhere(value: unknown): StoreFilter {
+  if (typeof value === "string") return value;
+  const list = (value as { in?: unknown } | null | undefined)?.in;
+  return Array.isArray(list) ? (list as string[]) : undefined;
+}
+
+function sqlStoreFilter(column: Prisma.Sql, filter: StoreFilter): Prisma.Sql {
+  if (filter === undefined) return Prisma.empty;
+  if (Array.isArray(filter)) {
+    return filter.length > 0
+      ? Prisma.sql`AND ${column} IN (${Prisma.join(filter)})`
+      : Prisma.sql`AND FALSE`;
+  }
+  return Prisma.sql`AND ${column} = ${filter}`;
+}
 type DailyRevenueRow = { date: string; revenue: number };
 type CategoryStockRow = {
   categoryId: string;
@@ -112,6 +140,7 @@ export class ReportsService {
     const { storeId, creditBranch } = await this.resolveReportStore(
       user,
       query.storeId,
+      true,
     );
     const categoryId = query.categoryId;
 
@@ -158,7 +187,11 @@ export class ReportsService {
         saleWhere,
         creditBranch ? undefined : { range, categoryId },
       ),
-      storeId ? Promise.resolve([]) : this.fetchTopStores(saleWhere),
+      // Ranking is for the stores of an organization with stores, or the
+      // branches together; one store has nothing to rank against.
+      !storeId || Array.isArray(storeId)
+        ? this.fetchTopStores(saleWhere)
+        : Promise.resolve([]),
       this.fetchStockByCategory(storeId, organizationId),
       this.fetchRecentSales(saleWhere),
     ]);
@@ -264,8 +297,12 @@ export class ReportsService {
 
   async getStockReport(query: ReportQueryDto, user: CurrentUserPayload) {
     const range = resolveReportDateRange(query.fromDate, query.toDate);
-    const { storeId, creditBranch, orgWarehouse, creditOrg } =
-      await this.resolveReportStore(user, query.storeId);
+    const resolved = await this.resolveReportStore(user, query.storeId);
+    // The stock report is for one store at a time; "all branches" doesn't apply.
+    const storeId = Array.isArray(resolved.storeId)
+      ? undefined
+      : resolved.storeId;
+    const { creditBranch, orgWarehouse, creditOrg } = resolved;
     const categoryId = query.categoryId;
 
     const products = await this.fetchStockReportRows(
@@ -394,8 +431,10 @@ export class ReportsService {
   async resolveReportStore(
     user: CurrentUserPayload,
     queryStoreId?: string,
+    // Only the dashboard and financial summary can show every credit branch together.
+    allowAllBranches = false,
   ): Promise<{
-    storeId: string | undefined;
+    storeId: StoreFilter;
     creditBranch: boolean;
     /** The hidden store holding an organization without stores' own stock. */
     orgWarehouse: boolean;
@@ -403,6 +442,17 @@ export class ReportsService {
     creditOrg: boolean;
   }> {
     const organizationId = requireOrganizationId(user);
+    if (allowAllBranches) {
+      const scope = await branchScopeOf(this.prisma, user, queryStoreId);
+      if (scope.kind === "all") {
+        return {
+          storeId: scope.storeIds,
+          creditBranch: true,
+          orgWarehouse: false,
+          creditOrg: false,
+        };
+      }
+    }
     // The shared lookup lets an admin of an organization without stores pick
     // one of its credit branches, and puts a branch manager on their own store.
     const storeId = await this.tenantStoreResolver.resolveStoreFilter(
@@ -442,6 +492,7 @@ export class ReportsService {
     const { storeId, creditBranch } = await this.resolveReportStore(
       user,
       query.storeId,
+      true,
     );
     // A credit branch's view looks at expenses booked to that branch (none,
     // unless an admin booked some), not the organization's company-wide ones.
@@ -586,13 +637,13 @@ export class ReportsService {
   // storeId + saleDate). Category filters match the item's product.
   private buildSaleWhere(
     range: ReportDateRange,
-    storeId?: string,
+    storeId?: StoreFilter,
     categoryId?: string,
     statuses: SaleStatusValue[] = COUNTED_SALE_STATUSES,
   ): Prisma.SaleItemWhereInput {
     return {
       sale: { status: { in: statuses } },
-      ...(storeId ? { storeId } : undefined),
+      ...(storeId ? { storeId: prismaStoreWhere(storeId) } : undefined),
       ...(categoryId ? { product: { categoryId } } : undefined),
       saleDate: { gte: range.fromDate, lte: range.toDate },
     };
@@ -600,10 +651,10 @@ export class ReportsService {
 
   private buildExpenseWhere(
     range: ReportDateRange,
-    storeId?: string,
+    storeId?: StoreFilter,
   ): Prisma.ExpenseWhereInput {
     return {
-      ...(storeId ? { storeId } : undefined),
+      ...(storeId ? { storeId: prismaStoreWhere(storeId) } : undefined),
       expenseDate: { gte: range.fromDate, lte: range.toDate },
     };
   }
@@ -684,7 +735,7 @@ export class ReportsService {
   private async computePeriodSummary(
     saleWhere: Prisma.SaleItemWhereInput,
     expenseWhere: Prisma.ExpenseWhereInput,
-    storeId: string | undefined,
+    storeId: StoreFilter,
     organizationId: string,
     dateRange: ReportDateRange,
     creditBranch = false,
@@ -822,8 +873,9 @@ export class ReportsService {
       )}`,
     ];
 
-    if (where.storeId && typeof where.storeId === "string") {
-      parts.push(Prisma.sql`AND s."storeId" = ${where.storeId}`);
+    const storeFilter = storeFilterFromWhere(where.storeId);
+    if (storeFilter !== undefined) {
+      parts.push(sqlStoreFilter(Prisma.sql`s."storeId"`, storeFilter));
     }
 
     const product = where.product;
@@ -990,8 +1042,7 @@ export class ReportsService {
     range: ReportDateRange,
     organizationId: string,
   ): Promise<Array<{ month: string; amount: number }>> {
-    const storeId =
-      typeof where.storeId === "string" ? where.storeId : undefined;
+    const storeId = storeFilterFromWhere(where.storeId);
 
     const rows = await this.prisma.$queryRaw<MonthlyExpenseRow[]>`
       SELECT
@@ -1004,7 +1055,7 @@ export class ReportsService {
         range.toCalendar,
       )}
         AND e."organizationId" = ${organizationId}
-        ${storeId ? Prisma.sql`AND e."storeId" = ${storeId}` : Prisma.empty}
+        ${sqlStoreFilter(Prisma.sql`e."storeId"`, storeId)}
       GROUP BY 1
       ORDER BY 1
     `;
@@ -1123,8 +1174,8 @@ export class ReportsService {
     // Translate the item-level filter into a Sale header filter.
     const saleWhere: Prisma.SaleWhereInput = {
       status: { in: COUNTED_SALE_STATUSES },
-      ...(typeof itemWhere.storeId === "string"
-        ? { storeId: itemWhere.storeId }
+      ...(itemWhere.storeId
+        ? { storeId: itemWhere.storeId as Prisma.SaleWhereInput["storeId"] }
         : undefined),
       ...(itemWhere.saleDate
         ? { saleDate: itemWhere.saleDate as Prisma.DateTimeFilter<"Sale"> }
@@ -1378,7 +1429,7 @@ export class ReportsService {
   }
 
   private async fetchStockByCategory(
-    storeId: string | undefined,
+    storeId: StoreFilter,
     organizationId: string,
   ): Promise<CategoryStockRow[]> {
     const rows = await this.prisma.$queryRaw<CategoryStockRow[]>`
@@ -1394,7 +1445,7 @@ export class ReportsService {
         AND st."isActive" = true
         AND i."organizationId" = ${organizationId}
         AND c."organizationId" = ${organizationId}
-        ${storeId ? Prisma.sql`AND i."storeId" = ${storeId}` : Prisma.empty}
+        ${sqlStoreFilter(Prisma.sql`i."storeId"`, storeId)}
       GROUP BY p."categoryId", c.name
       ORDER BY units DESC
     `;
@@ -1403,7 +1454,7 @@ export class ReportsService {
   }
 
   private async computeLiveStockMetrics(
-    storeId: string | undefined,
+    storeId: StoreFilter,
     organizationId: string,
     creditBranch = false,
   ) {
@@ -1416,6 +1467,7 @@ export class ReportsService {
     const branchCostJoin = useBranchCost
       ? Prisma.sql`LEFT JOIN (
           SELECT
+            ci."storeId",
             ci."productId",
             SUM((ci.quantity - COALESCE(r.returned, 0)) * ci."unitPrice")
               / NULLIF(SUM(ci.quantity - COALESCE(r.returned, 0)), 0) AS avg_cost
@@ -1425,9 +1477,9 @@ export class ReportsService {
             FROM "branch_return"
             GROUP BY "branchCreditItemId"
           ) r ON r."branchCreditItemId" = ci.id
-          WHERE ci."storeId" = ${storeId}
-          GROUP BY ci."productId"
-        ) bc ON bc."productId" = p.id`
+          WHERE TRUE ${sqlStoreFilter(Prisma.sql`ci."storeId"`, storeId)}
+          GROUP BY ci."storeId", ci."productId"
+        ) bc ON bc."productId" = p.id AND bc."storeId" = i."storeId"`
       : Prisma.empty;
 
     const rows = await this.prisma.$queryRaw<
@@ -1450,7 +1502,7 @@ export class ReportsService {
       WHERE p."isActive" = true
         AND st."isActive" = true
         AND i."organizationId" = ${organizationId}
-        ${storeId ? Prisma.sql`AND i."storeId" = ${storeId}` : Prisma.empty}
+        ${sqlStoreFilter(Prisma.sql`i."storeId"`, storeId)}
     `;
 
     return {
@@ -1463,7 +1515,7 @@ export class ReportsService {
 
   private async fetchStockInvestment(
     range: ReportDateRange,
-    storeId: string | undefined,
+    storeId: StoreFilter,
     organizationId: string,
     creditBranch = false,
   ): Promise<number> {
@@ -1476,11 +1528,11 @@ export class ReportsService {
       };
       const [credited, returned] = await Promise.all([
         this.prisma.branchCredit.aggregate({
-          where: { storeId, createdAt },
+          where: { storeId: prismaStoreWhere(storeId), createdAt },
           _sum: { total: true },
         }),
         this.prisma.branchReturn.aggregate({
-          where: { storeId, createdAt },
+          where: { storeId: prismaStoreWhere(storeId), createdAt },
           _sum: { amount: true },
         }),
       ]);
