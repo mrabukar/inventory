@@ -6,6 +6,7 @@ import { CheckCheck } from "lucide-react";
 import { RejectSaleDialog } from "./components/reject-sale-dialog";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { BranchScopeSelect } from "@/components/filters/branch-scope-select";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApproveSale, useRejectSale } from "@/hooks/sales/use-review-sale";
@@ -88,6 +89,7 @@ export default function SaleApprovalsPage() {
             ? `${total} sale${total === 1 ? "" : "s"} from branch managers waiting for your review`
             : "Sales from branch managers wait here until you approve them"
         }
+        action={<BranchScopeSelect includeOwn={false} />}
       />
 
       {isError && (
