@@ -7,6 +7,8 @@ import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
+import { BranchScopeSelect } from "@/components/filters/branch-scope-select";
+import { branchColumn, useShowBranchColumn } from "@/components/credit-branches/branch-column";
 import { PageHeader } from "@/components/ui/page-header";
 import {
   useCreatePayment,
@@ -35,6 +37,7 @@ export default function ReceivablesPage() {
 
   const totalOutstanding = data.reduce((sum, r) => sum + r.balance, 0);
 
+  const showBranch = useShowBranchColumn();
   const columns = useMemo<ColumnDef<ReceivableRow>[]>(
     () => [
       {
@@ -59,6 +62,9 @@ export default function ReceivablesPage() {
             <span className="muted">—</span>
           ),
       },
+      ...(showBranch
+        ? [branchColumn<ReceivableRow>((row) => row.customer?.store?.name)]
+        : []),
       {
         id: "phone",
         accessorFn: (row) => row.customer?.phone ?? "",
@@ -119,7 +125,7 @@ export default function ReceivablesPage() {
           ) : null,
       },
     ],
-    [browsingBranch],
+    [browsingBranch, showBranch],
   );
 
   const handleCreate = async (input: CreatePaymentInput) => {
@@ -140,6 +146,7 @@ export default function ReceivablesPage() {
       <PageHeader
         title="Receivables"
         desc="Customers with an outstanding balance"
+        action={<BranchScopeSelect />}
       />
 
       <div className="mb-6 rounded-lg border border-border bg-background px-4 py-3">
