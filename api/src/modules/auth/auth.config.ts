@@ -2,7 +2,11 @@ import { PrismaClient } from "@prisma/client";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { type Auth, betterAuth } from "better-auth";
 import { twoFactor } from "better-auth/plugins";
-import { AUTH_APP_NAME, parseTrustedOrigins } from "./auth.constants";
+import {
+  AUTH_APP_NAME,
+  DISABLED_AUTH_PATHS,
+  parseTrustedOrigins,
+} from "./auth.constants";
 
 function getAuthSecret(isProd: boolean): string {
   const secret = process.env.BETTER_AUTH_SECRET;
@@ -32,6 +36,7 @@ function _createAuth(prisma: PrismaClient) {
     url,
     secret: getAuthSecret(isProd),
     basePath: "/api/auth",
+    disabledPaths: DISABLED_AUTH_PATHS,
     trustedOrigins: parseTrustedOrigins(
       process.env.BETTER_AUTH_TRUSTED_ORIGINS,
     ),
