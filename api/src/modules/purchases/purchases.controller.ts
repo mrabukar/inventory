@@ -14,6 +14,7 @@ import {
   type CurrentUserPayload,
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { PageRead } from "../../common/decorators/page-access.decorator";
 import { ChangePurchaseProductDto } from "./dto/change-purchase-product.dto";
 import { CorrectPurchaseDto } from "./dto/correct-purchase.dto";
 import { CreatePurchaseDto } from "./dto/create-purchase.dto";
@@ -27,6 +28,7 @@ export class PurchasesController {
   constructor(private readonly purchasesService: PurchasesService) {}
 
   @Get()
+  @PageRead(["purchases"])
   findAll(@Query() query: PurchaseQueryDto) {
     return this.purchasesService.findAll(query);
   }
