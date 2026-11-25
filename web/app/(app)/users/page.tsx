@@ -7,6 +7,8 @@ import { Plus } from "lucide-react";
 import { TwoFactorDialog } from "./components/two-factor-dialog";
 import { UserModal, type UserFormValues } from "./components/user-modal";
 import { UsersTable } from "./components/users-table";
+import { BranchScopeSelect } from "@/components/filters/branch-scope-select";
+import { usePeopleStoreFilter } from "@/hooks/branch-view/use-branch-view";
 import { Combobox } from "@/components/ui/combobox";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -62,6 +64,8 @@ export default function UsersPage() {
   const [twoFactorPending, setTwoFactorPending] =
     useState<TwoFactorAction | null>(null);
   const debouncedSearch = useDebouncedValue(search, 300);
+  // A credit organization looks at itself, one branch, or all branches.
+  const peopleStoreId = usePeopleStoreFilter();
 
   const listQuery = useMemo(
     () => ({
@@ -70,8 +74,9 @@ export default function UsersPage() {
       search: debouncedSearch || undefined,
       role,
       isActive: status,
+      storeId: peopleStoreId,
     }),
-    [pageIndex, pageSize, debouncedSearch, role, status],
+    [pageIndex, pageSize, debouncedSearch, role, status, peopleStoreId],
   );
 
   const hasStores = sessionUser?.hasStores ?? true;
@@ -224,6 +229,7 @@ export default function UsersPage() {
         alignItems: "center",
       }}
     >
+      <BranchScopeSelect />
       <Combobox
         value={role}
         onValueChange={(value) => {
