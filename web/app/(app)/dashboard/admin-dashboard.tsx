@@ -16,6 +16,7 @@ import { AdminStockAlertsTable } from "./components/admin/stock-alerts-table";
 import { AdminStockSection } from "./components/admin/stock-section";
 import { DashboardError, DashboardLoading } from "./components/admin/status";
 import { DashboardPageHeader } from "./components/admin/page-header";
+import { ALL_BRANCHES } from "@/lib/branch-scope";
 import { useAppStore } from "@/store/app";
 
 export function AdminDashboard() {
@@ -24,17 +25,22 @@ export function AdminDashboard() {
   // Looking at a credit branch: it has no expenses, and its profit is revenue less what it paid.
   const viewBranchId = useViewBranchId();
   const branchView = Boolean(viewBranchId);
-  const { data: branch } = useCreditBranch(viewBranchId);
-  // On the organization's own dashboard: what all its credit branches owe it.
+  // "All branches" is a view of every branch together, not one branch.
+  const allBranches = viewBranchId === ALL_BRANCHES;
+  const singleBranchId = branchView && !allBranches ? viewBranchId : undefined;
+  const { data: branch } = useCreditBranch(singleBranchId);
+  // What the credit branches owe the organization, on its own dashboard and
+  // (added up) when looking at all of them.
   const hasStores = useAppStore((s) => s.user?.hasStores ?? true);
   const creditOrg = useAppStore((s) => s.user?.usesCreditBranches === true);
   const { data: branches } = useCreditBranches({
-    enabled: !hasStores && creditOrg && !branchView,
+    enabled: !hasStores && creditOrg,
   });
-  const branchesOwe =
-    !hasStores && creditOrg && !branchView && branches && branches.length > 0
+  const totalOwed =
+    !hasStores && creditOrg && branches && branches.length > 0
       ? branches.reduce((sum, b) => sum + b.balance, 0)
       : undefined;
+  const branchesOwe = branchView ? undefined : totalOwed;
   const dashboardQuery = useMemo(
     () => ({
       fromDate: filters.query.fromDate,
@@ -82,18 +88,23 @@ export function AdminDashboard() {
         billingEnabled={billingEnabled}
         outstandingBalance={outstandingBalance}
         branchView={branchView}
-        branchOwes={branch?.balance}
+        branchOwes={allBranches ? totalOwed : branch?.balance}
         branchesOwe={branchesOwe}
         showCogs={hasStores}
         hideEmptyOutstanding={creditOrg}
-        branchId={viewBranchId}
+        branchId={singleBranchId}
+        allBranches={allBranches}
       />
       <AdminRevenueCharts charts={charts} branchView={branchView} />
       {/* <AdminProductDistributionChart filters={filters} /> */}
-      <AdminPerformanceCharts charts={charts} branchView={branchView} />
+      <AdminPerformanceCharts
+        charts={charts}
+        branchView={branchView}
+        allBranches={allBranches}
+      />
       <AdminStockSection stockByCategory={charts.stockByCategory} recentSales={recentSales} />
       <AdminStockAlertsTable
-        storeId={filters.query.storeId}
+        storeId={viewBranchId ?? filters.query.storeId}
         lowStockCount={summary.lowStockCount}
         outOfStockCount={summary.outOfStockCount}
       />
