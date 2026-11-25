@@ -15,7 +15,11 @@ export function DashboardPageHeader({ filters }: Props) {
       className="page-head--band"
       title="Dashboard"
       desc="Monitor revenue, profit, expenses, and inventory for the selected period."
-      action={<ReportFilterBar filters={filters} showStoreFilter={hasStores} />}
+      action={<ReportFilterBar
+          filters={filters}
+          showStoreFilter={hasStores}
+          showBranchScope
+        />}
     />
   );
 }
