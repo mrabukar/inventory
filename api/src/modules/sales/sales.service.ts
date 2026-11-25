@@ -458,6 +458,7 @@ export class SalesService {
     const storeId = await this.tenantStoreResolver.resolveSaleStoreId(
       user,
       (id: string) => this.findManagerStore(id),
+      "correct",
     );
 
     const sale = await this.prisma.sale.findFirst({
