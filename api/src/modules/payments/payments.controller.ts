@@ -13,6 +13,7 @@ import {
   type CurrentUserPayload,
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { PageRead } from "../../common/decorators/page-access.decorator";
 import { CreatePaymentDto } from "./dto/create-payment.dto";
 import { PaymentQueryDto } from "./dto/payment-query.dto";
 import { PaymentsService } from "./payments.service";
@@ -23,6 +24,7 @@ export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Get()
+  @PageRead(["payments", "customers"], UserRole.branch_manager)
   findAll(
     @Query() query: PaymentQueryDto,
     @CurrentUser() user: CurrentUserPayload,
