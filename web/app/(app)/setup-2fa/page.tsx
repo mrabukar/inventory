@@ -15,7 +15,7 @@ import {
   SESSION_QUERY_KEY,
   useSession,
 } from "@/hooks/auth/session";
-import { homePathForRole } from "@/lib/auth/routes";
+import { homePathForUser } from "@/lib/auth/routes";
 import { useAppStore } from "@/store/app";
 import { cn } from "@/lib/utils";
 
@@ -101,7 +101,7 @@ export default function SetupTwoFactorPage() {
     const user = await fetchCurrentUser();
     setUser(user);
     queryClient.setQueryData(SESSION_QUERY_KEY, user);
-    router.push(homePathForRole(user.role));
+    router.push(homePathForUser(user));
   };
 
   const isPending = enableTwoFactor.isPending || verifyTotp.isPending;
