@@ -19,6 +19,7 @@ import { CreditBranchesService } from "./credit-branches.service";
 import { BranchStatementQueryDto } from "./dto/branch-statement-query.dto";
 import { CreateBranchReturnDto } from "./dto/create-branch-return.dto";
 import { CreateCreditBranchDto } from "./dto/create-credit-branch.dto";
+import { CreditedStockQueryDto } from "./dto/credited-stock-query.dto";
 import { CreditStockDto } from "./dto/credit-stock.dto";
 import { UpdateCreditBranchDto } from "./dto/update-credit-branch.dto";
 
@@ -30,6 +31,16 @@ export class CreditBranchesController {
   @Roles(UserRole.admin)
   findAll(@CurrentUser() user: CurrentUserPayload) {
     return this.creditBranches.findAll(user);
+  }
+
+  // Declared before ":id" so "stock-credits" is not read as a branch id.
+  @Get("stock-credits")
+  @Roles(UserRole.admin)
+  listCreditedStock(
+    @Query() query: CreditedStockQueryDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.creditBranches.listCreditedStock(query, user);
   }
 
   @Get(":id")
