@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { readsLikeAdmin } from "../../common/utils/admin-like.util";
 import { AuditAction, Prisma, StoreType, UserRole } from "@prisma/client";
 import { MUTATION_TRANSACTION_OPTIONS } from "../../common/constants/prisma-transaction.constants";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
@@ -95,7 +96,7 @@ export class CreditBranchesService {
 
   /** Branch managers may only reach their own branch; admins reach any. */
   private assertBranchAccess(storeId: string, user: CurrentUserPayload): void {
-    if (user.role === UserRole.admin || user.role === UserRole.super_admin) {
+    if (readsLikeAdmin(user.role) || user.role === UserRole.super_admin) {
       return;
     }
     if (user.role === UserRole.branch_manager && user.storeId === storeId) {
