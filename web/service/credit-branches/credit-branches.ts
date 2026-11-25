@@ -6,6 +6,8 @@ import type {
   CreateBranchReturnInput,
   CreateCreditBranchInput,
   CreditBranch,
+  CreditedStockQuery,
+  CreditedStockResponse,
   CreditStockInput,
   UpdateCreditBranchInput,
 } from "@/types/credit-branches/credit-branch";
@@ -73,4 +75,21 @@ export function createBranchReturn(
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export function listCreditedStock(
+  params: CreditedStockQuery = {},
+): Promise<CreditedStockResponse> {
+  const search = new URLSearchParams();
+  if (params.page != null) search.set("page", String(params.page));
+  if (params.limit != null) search.set("limit", String(params.limit));
+  if (params.storeId) search.set("storeId", params.storeId);
+  if (params.search) search.set("search", params.search);
+  if (params.categoryId) search.set("categoryId", params.categoryId);
+  if (params.fromDate) search.set("fromDate", params.fromDate);
+  if (params.toDate) search.set("toDate", params.toDate);
+  const qs = search.toString();
+  return apiFetch<CreditedStockResponse>(
+    `/api/credit-branches/stock-credits${qs ? `?${qs}` : ""}`,
+  );
 }
