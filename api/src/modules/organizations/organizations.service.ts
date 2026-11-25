@@ -3,9 +3,21 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { AuditAction, Organization, Prisma, UserRole } from "@prisma/client";
+import {
+  AuditAction,
+  Organization,
+  Prisma,
+  StoreType,
+  UserRole,
+} from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { orderByUpdatedAtDesc } from "../../common/utils/list-order.util";
+import {
+  flagsForOrganizationType,
+  organizationTypeOf,
+  type OrganizationType,
+} from "../../common/utils/organization-type.util";
+import { getBranchBalance } from "../../common/utils/branch-balance.util";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
 import { DomainPolicyService } from "../../common/tenant/domain-policy.service";
 import { isValidHostname, normalizeHost } from "../../common/utils/host.util";
@@ -196,7 +208,9 @@ export class OrganizationsService {
   }
 
   /** Cleans up a domain from the form: null clears it; anything else must be a real hostname. */
-  private parseDomain(value: string | null | undefined): string | null | undefined {
+  private parseDomain(
+    value: string | null | undefined,
+  ): string | null | undefined {
     if (value === undefined) return undefined;
     const host = normalizeHost(value ?? "");
     if (!host) return null;
@@ -213,14 +227,14 @@ export class OrganizationsService {
     actor: CurrentUserPayload,
   ): Promise<Organization> {
     const domain = this.parseDomain(dto.domain);
-    const hasStores = dto.hasStores ?? true;
+    const type = dto.type ?? "stores";
     const organization = await this.prisma.organization.create({
       data: {
         name: dto.name.trim(),
-        hasStores,
+        ...flagsForOrganizationType(type),
         ...(domain ? { domain } : undefined),
-        // Billing defaults to no-branch orgs; super-admin can flip it later.
-        billingEnabled: !hasStores,
+        // Direct and credit organizations always bill; one with stores starts without.
+        billingEnabled: type !== "stores",
       },
     });
 
@@ -253,8 +267,15 @@ export class OrganizationsService {
     const existing = await this.findOne(id);
     const domain = this.parseDomain(dto.domain);
 
-    if (existing.hasStores && dto.hasStores === false) {
-      await this.assertCanDisableStores(id);
+    const currentType = organizationTypeOf(existing);
+    const nextType = dto.type ?? currentType;
+    if (nextType !== currentType) {
+      await this.assertCanChangeType(id, currentType, nextType);
+    }
+    if (dto.billingEnabled !== undefined && nextType !== "stores") {
+      throw new BadRequestException(
+        "Billing is always on for direct-sales and credit organizations",
+      );
     }
 
     const organization = await this.prisma.organization.update({
@@ -262,12 +283,15 @@ export class OrganizationsService {
       data: {
         ...(dto.name !== undefined ? { name: dto.name.trim() } : undefined),
         ...(domain !== undefined ? { domain } : undefined),
-        ...(dto.hasStores !== undefined
-          ? { hasStores: dto.hasStores }
+        ...(nextType !== currentType
+          ? flagsForOrganizationType(nextType)
           : undefined),
-        ...(dto.billingEnabled !== undefined
-          ? { billingEnabled: dto.billingEnabled }
-          : undefined),
+        // Direct and credit organizations always bill; one with stores keeps its setting.
+        ...(nextType !== "stores"
+          ? { billingEnabled: true }
+          : dto.billingEnabled !== undefined
+            ? { billingEnabled: dto.billingEnabled }
+            : undefined),
         ...(dto.isActive !== undefined
           ? { isActive: dto.isActive }
           : undefined),
@@ -276,7 +300,7 @@ export class OrganizationsService {
 
     this.domainPolicy.forget(organization.id);
 
-    if (dto.hasStores === false) {
+    if (nextType !== "stores") {
       await this.storesService.ensureOrgWarehouse(organization.id);
     }
 
@@ -300,6 +324,80 @@ export class OrganizationsService {
     });
 
     return organization;
+  }
+
+  /**
+   * Switching type must not strand anything: stores stock stays in the stores,
+   * and a credit organization's branches must be settled and idle.
+   */
+  private async assertCanChangeType(
+    organizationId: string,
+    from: OrganizationType,
+    to: OrganizationType,
+  ): Promise<void> {
+    if (from === "stores") {
+      await this.assertCanDisableStores(organizationId);
+    }
+    if (to === "stores") {
+      const creditStores = await this.prisma.store.count({
+        where: { organizationId, type: StoreType.credit },
+      });
+      if (creditStores > 0) {
+        throw new BadRequestException(
+          "Cannot switch to an organization with stores while credit branches exist",
+        );
+      }
+    }
+    if (from === "credit") {
+      await this.assertCreditBranchesSettled(organizationId);
+    }
+  }
+
+  /** No credit branch may hold stock, owe money, or wait on the organization. */
+  private async assertCreditBranchesSettled(
+    organizationId: string,
+  ): Promise<void> {
+    const branches = await this.prisma.store.findMany({
+      where: { organizationId, type: StoreType.credit },
+      select: { id: true, name: true },
+    });
+
+    for (const branch of branches) {
+      const [stock, balance, pendingSales, pendingPayments] = await Promise.all(
+        [
+          this.prisma.inventory.aggregate({
+            where: { storeId: branch.id, quantity: { gt: 0 } },
+            _sum: { quantity: true },
+          }),
+          getBranchBalance(this.prisma, branch.id),
+          this.prisma.sale.count({
+            where: { storeId: branch.id, status: "pending" },
+          }),
+          this.prisma.branchPayment.count({
+            where: { storeId: branch.id, status: "pending" },
+          }),
+        ],
+      );
+
+      const problems: string[] = [];
+      if ((stock._sum.quantity ?? 0) > 0) {
+        problems.push(`${stock._sum.quantity} unit(s) still in stock`);
+      }
+      if (balance.balance > 0) {
+        problems.push(`owes ${balance.balance}`);
+      }
+      if (pendingSales > 0) {
+        problems.push(`${pendingSales} sale(s) waiting for approval`);
+      }
+      if (pendingPayments > 0) {
+        problems.push(`${pendingPayments} payment(s) waiting for approval`);
+      }
+      if (problems.length > 0) {
+        throw new BadRequestException(
+          `Cannot stop using credit branches: ${branch.name} has ${problems.join(", ")}. Settle it first.`,
+        );
+      }
+    }
   }
 
   private async assertCanDisableStores(organizationId: string): Promise<void> {
