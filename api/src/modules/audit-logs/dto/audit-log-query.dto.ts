@@ -24,6 +24,11 @@ export class AuditLogQueryDto extends PaginationQueryDto {
   @IsString()
   entityId?: string;
 
+  /** "own" = the organization itself, "all" = every credit branch's people, or one branch's id. */
+  @IsOptional()
+  @IsString()
+  storeId?: string;
+
   @IsOptional()
   @IsString()
   fromDate?: string;
