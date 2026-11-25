@@ -60,7 +60,10 @@ export function GroupedBar({
   const iw = W - pad.l - pad.r;
   const ih = H - pad.t - pad.b;
   const max =
-    Math.max(...data.flatMap((d) => [d.rev, d.cogs, d.exp]), 1) * 1.1;
+    Math.max(
+      ...data.flatMap((d) => SERIES.map((series) => d[series.key] as number)),
+      1,
+    ) * 1.1;
   const groupW = iw / data.length;
   const barW = Math.min(16, groupW / 4);
 
