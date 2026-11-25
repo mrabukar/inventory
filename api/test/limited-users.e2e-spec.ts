@@ -152,7 +152,7 @@ describeDb("Limited users (PostgreSQL)", () => {
       stores,
       users,
     );
-    interceptor = new PageAccessInterceptor(new Reflector(), prisma);
+    interceptor = new PageAccessInterceptor(new Reflector(), prisma, tenant);
     superAdmin = await makeUser(null, UserRole.super_admin);
     expect(resolver).toBeDefined();
   });
