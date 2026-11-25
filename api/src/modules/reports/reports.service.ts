@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma, StoreType, UserRole } from "@prisma/client";
+import { Prisma, StoreType } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
 import { TenantStoreResolver } from "../../common/tenant/tenant-store-resolver.service";
 import { requireOrganizationId } from "../../common/utils/require-organization-id.util";
@@ -151,10 +151,13 @@ export class ReportsService {
         previousRange,
         !creditBranch,
       ),
-      this.fetchMonthlySales(saleWhere, range, organizationId),
+      this.fetchMonthlySales(saleWhere, range, organizationId, !creditBranch),
       this.fetchMonthlyExpenses(expenseWhere, range, organizationId),
       this.fetchExpenseBreakdown(expenseWhere),
-      this.fetchTopProducts(saleWhere),
+      this.fetchTopProducts(
+        saleWhere,
+        creditBranch ? undefined : { range, categoryId },
+      ),
       storeId ? Promise.resolve([]) : this.fetchTopStores(saleWhere),
       this.fetchStockByCategory(storeId, organizationId),
       this.fetchRecentSales(saleWhere),
@@ -261,10 +264,8 @@ export class ReportsService {
 
   async getStockReport(query: ReportQueryDto, user: CurrentUserPayload) {
     const range = resolveReportDateRange(query.fromDate, query.toDate);
-    const { storeId, creditBranch } = await this.resolveReportStore(
-      user,
-      query.storeId,
-    );
+    const { storeId, creditBranch, orgWarehouse, creditOrg } =
+      await this.resolveReportStore(user, query.storeId);
     const categoryId = query.categoryId;
 
     const products = await this.fetchStockReportRows(
@@ -272,6 +273,7 @@ export class ReportsService {
       storeId,
       categoryId,
       creditBranch,
+      { orgWarehouse, creditOrg },
     );
 
     const totals = products.reduce(
@@ -392,8 +394,15 @@ export class ReportsService {
   async resolveReportStore(
     user: CurrentUserPayload,
     queryStoreId?: string,
-  ): Promise<{ storeId: string | undefined; creditBranch: boolean }> {
-    requireOrganizationId(user);
+  ): Promise<{
+    storeId: string | undefined;
+    creditBranch: boolean;
+    /** The hidden store holding an organization without stores' own stock. */
+    orgWarehouse: boolean;
+    /** The organization's own view in a credit organization (it sells by crediting). */
+    creditOrg: boolean;
+  }> {
+    const organizationId = requireOrganizationId(user);
     // The shared lookup lets an admin of an organization without stores pick
     // one of its credit branches, and puts a branch manager on their own store.
     const storeId = await this.tenantStoreResolver.resolveStoreFilter(
@@ -401,13 +410,30 @@ export class ReportsService {
       queryStoreId,
     );
     if (!storeId) {
-      return { storeId, creditBranch: false };
+      return {
+        storeId,
+        creditBranch: false,
+        orgWarehouse: false,
+        creditOrg: false,
+      };
     }
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
-      select: { type: true },
+      select: { type: true, isOrgWarehouse: true },
     });
-    return { storeId, creditBranch: store?.type === StoreType.credit };
+    const orgWarehouse = Boolean(store?.isOrgWarehouse);
+    const org = orgWarehouse
+      ? await this.prisma.organization.findUnique({
+          where: { id: organizationId },
+          select: { usesCreditBranches: true },
+        })
+      : null;
+    return {
+      storeId,
+      creditBranch: store?.type === StoreType.credit,
+      orgWarehouse,
+      creditOrg: Boolean(org?.usesCreditBranches),
+    };
   }
 
   async getFinancialSummary(query: ReportQueryDto, user: CurrentUserPayload) {
@@ -444,7 +470,7 @@ export class ReportsService {
         range,
         creditBranch,
       ),
-      this.fetchMonthlySales(saleWhere, range, organizationId),
+      this.fetchMonthlySales(saleWhere, range, organizationId, !creditBranch),
       this.fetchMonthlyExpenses(expenseWhere, range, organizationId),
       this.fetchExpenseBreakdown(expenseWhere),
       this.fetchStockInvestment(range, storeId, organizationId, creditBranch),
@@ -627,13 +653,14 @@ export class ReportsService {
       }),
       includeBranchCredit
         ? this.sumBranchCreditTotals(organizationId, dateRange)
-        : Promise.resolve({ revenue: 0, profit: 0 }),
+        : Promise.resolve({ revenue: 0, profit: 0, units: 0 }),
     ]);
 
     const totalRevenue = toMoneyNumber(
       toMoneyNumber(salesAgg._sum.lineTotal) + branchCredit.revenue,
     );
-    const totalUnitsSold = salesAgg._sum.quantitySold ?? 0;
+    const totalUnitsSold =
+      (salesAgg._sum.quantitySold ?? 0) + branchCredit.units;
     const totalExpenses = toMoneyNumber(expensesAgg._sum.amount);
     // branchCredit.revenue − branchCredit.profit is the branch credit's own cost.
     const totalCogs = toMoneyNumber(
@@ -711,7 +738,7 @@ export class ReportsService {
   private async sumBranchCreditTotals(
     organizationId: string,
     dateRange?: ReportDateRange,
-  ): Promise<{ revenue: number; profit: number }> {
+  ): Promise<{ revenue: number; profit: number; units: number }> {
     const createdAt = dateRange
       ? { gte: dateRange.fromTimestamp, lte: dateRange.toTimestamp }
       : undefined;
@@ -720,11 +747,11 @@ export class ReportsService {
       await Promise.all([
         this.prisma.branchCreditItem.aggregate({
           where: { organizationId, ...(createdAt ? { createdAt } : undefined) },
-          _sum: { lineTotal: true },
+          _sum: { lineTotal: true, quantity: true },
         }),
         this.prisma.branchReturn.aggregate({
           where: { organizationId, ...(createdAt ? { createdAt } : undefined) },
-          _sum: { amount: true },
+          _sum: { amount: true, quantity: true },
         }),
         this.prisma.$queryRaw<{ cost: unknown }[]>`
           SELECT COALESCE(SUM(i.quantity * i."unitCost"), 0)::numeric AS cost
@@ -758,8 +785,11 @@ export class ReportsService {
         parseRawMoney(costReturnedRows[0]?.cost),
     );
     const profit = toMoneyNumber(revenue - cost);
+    // Units credited to branches, less what they sent back, count as sold.
+    const units =
+      (itemsAgg._sum.quantity ?? 0) - (returnsAgg._sum.quantity ?? 0);
 
-    return { revenue, profit };
+    return { revenue, profit, units };
   }
 
   private async sumCogs(
@@ -814,7 +844,125 @@ export class ReportsService {
     return Prisma.join(parts, " ");
   }
 
+  /** Revenue and cost per month from sales, plus stock credited to branches when asked. */
   private async fetchMonthlySales(
+    where: Prisma.SaleItemWhereInput,
+    range: ReportDateRange,
+    organizationId: string,
+    includeBranchCredit = false,
+  ): Promise<Array<{ month: string; revenue: number; cogs: number }>> {
+    const sales = await this.fetchMonthlySaleRows(where, range, organizationId);
+    if (!includeBranchCredit) {
+      return sales;
+    }
+
+    const merged = new Map(sales.map((row) => [row.month, { ...row }]));
+    for (const row of await this.fetchMonthlyBranchCredit(
+      range,
+      organizationId,
+    )) {
+      const entry = merged.get(row.month) ?? {
+        month: row.month,
+        revenue: 0,
+        cogs: 0,
+      };
+      entry.revenue = toMoneyNumber(entry.revenue + row.revenue);
+      entry.cogs = toMoneyNumber(entry.cogs + row.cogs);
+      merged.set(row.month, entry);
+    }
+    return [...merged.values()].sort((a, b) => a.month.localeCompare(b.month));
+  }
+
+  /** Stock credited to branches per month (what was charged and what it cost), net of returns. */
+  private async fetchMonthlyBranchCredit(
+    range: ReportDateRange,
+    organizationId: string,
+  ): Promise<Array<{ month: string; revenue: number; cogs: number }>> {
+    const timezone = getAppTimezone();
+    const [credited, returned] = await Promise.all([
+      this.prisma.$queryRaw<MonthlyTotalsRow[]>`
+        SELECT
+          to_char(date_trunc('month', (i."createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${timezone}), 'YYYY-MM') AS month,
+          COALESCE(SUM(i."lineTotal"), 0)::numeric AS revenue,
+          COALESCE(SUM(i.quantity * i."unitCost"), 0)::numeric AS cogs
+        FROM "branch_credit_item" i
+        WHERE i."organizationId" = ${organizationId}
+          AND i."createdAt" BETWEEN ${range.fromTimestamp} AND ${range.toTimestamp}
+        GROUP BY 1
+      `,
+      this.prisma.$queryRaw<MonthlyTotalsRow[]>`
+        SELECT
+          to_char(date_trunc('month', (r."createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${timezone}), 'YYYY-MM') AS month,
+          COALESCE(SUM(r.amount), 0)::numeric AS revenue,
+          COALESCE(SUM(r.quantity * i."unitCost"), 0)::numeric AS cogs
+        FROM "branch_return" r
+        INNER JOIN "branch_credit_item" i ON i.id = r."branchCreditItemId"
+        WHERE r."organizationId" = ${organizationId}
+          AND r."createdAt" BETWEEN ${range.fromTimestamp} AND ${range.toTimestamp}
+        GROUP BY 1
+      `,
+    ]);
+
+    const months = new Map<
+      string,
+      { month: string; revenue: number; cogs: number }
+    >();
+    const add = (rows: MonthlyTotalsRow[], sign: 1 | -1) => {
+      for (const row of rows) {
+        const entry = months.get(row.month) ?? {
+          month: row.month,
+          revenue: 0,
+          cogs: 0,
+        };
+        entry.revenue = toMoneyNumber(
+          entry.revenue + sign * parseRawMoney(row.revenue),
+        );
+        entry.cogs = toMoneyNumber(entry.cogs + sign * parseRawMoney(row.cogs));
+        months.set(row.month, entry);
+      }
+    };
+    add(credited, 1);
+    add(returned, -1);
+    return [...months.values()];
+  }
+
+  /** Units credited to branches per product in the period, less returns. */
+  private async fetchBranchCreditedUnits(
+    range: ReportDateRange,
+    categoryId?: string,
+  ): Promise<Map<string, number>> {
+    const createdAt = { gte: range.fromTimestamp, lte: range.toTimestamp };
+    const product = categoryId
+      ? { categoryId, isActive: true as const }
+      : { isActive: true as const };
+
+    const [credited, returned] = await Promise.all([
+      this.prisma.branchCreditItem.groupBy({
+        by: ["productId"],
+        where: { createdAt, product },
+        _sum: { quantity: true },
+      }),
+      this.prisma.branchReturn.findMany({
+        where: { createdAt, branchCreditItem: { product } },
+        select: {
+          quantity: true,
+          branchCreditItem: { select: { productId: true } },
+        },
+      }),
+    ]);
+
+    const net = new Map<string, number>();
+    for (const row of credited) {
+      net.set(row.productId, row._sum?.quantity ?? 0);
+    }
+    for (const row of returned) {
+      const productId = row.branchCreditItem.productId;
+      net.set(productId, (net.get(productId) ?? 0) - row.quantity);
+    }
+    return net;
+  }
+
+  private async fetchMonthlySaleRows(
     where: Prisma.SaleItemWhereInput,
     range: ReportDateRange,
     organizationId: string,
@@ -895,32 +1043,50 @@ export class ReportsService {
 
   private async fetchTopProducts(
     where: Prisma.SaleItemWhereInput,
+    // Stock credited to branches counts as sold (the organization's own view).
+    credited?: { range: ReportDateRange; categoryId?: string },
   ): Promise<TopProductRow[]> {
     const grouped = await this.prisma.saleItem.groupBy({
       by: ["productId"],
       where,
       _sum: { quantitySold: true },
-      orderBy: { _sum: { quantitySold: "desc" } },
-      take: 10,
     });
 
-    if (grouped.length === 0) {
+    const units = new Map<string, number>(
+      grouped.map((row) => [row.productId, row._sum.quantitySold ?? 0]),
+    );
+    if (credited) {
+      const net = await this.fetchBranchCreditedUnits(
+        credited.range,
+        credited.categoryId,
+      );
+      for (const [productId, count] of net) {
+        units.set(productId, (units.get(productId) ?? 0) + count);
+      }
+    }
+
+    const top = [...units.entries()]
+      .filter(([, count]) => count > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10);
+
+    if (top.length === 0) {
       return [];
     }
 
     const products = await this.prisma.product.findMany({
-      where: { id: { in: grouped.map((row) => row.productId) } },
+      where: { id: { in: top.map(([productId]) => productId) } },
       select: { id: true, name: true, model: true },
     });
     const productMap = new Map(products.map((p) => [p.id, p]));
 
-    return grouped.map((row) => {
-      const product = productMap.get(row.productId);
+    return top.map(([productId, unitsSold]) => {
+      const product = productMap.get(productId);
       return {
-        productId: row.productId,
+        productId,
         productName: product?.name ?? "Unknown",
         productModel: product?.model ?? null,
-        unitsSold: row._sum.quantitySold ?? 0,
+        unitsSold,
       };
     });
   }
@@ -1417,6 +1583,10 @@ export class ReportsService {
     storeId?: string,
     categoryId?: string,
     creditBranch = false,
+    org: { orgWarehouse: boolean; creditOrg: boolean } = {
+      orgWarehouse: false,
+      creditOrg: false,
+    },
   ): Promise<
     Array<{
       productId: string;
@@ -1437,23 +1607,25 @@ export class ReportsService {
         ? // A credit branch is not supplied from the warehouse: it buys stock
           // from the organization, and returns some of it back.
           this.fetchBranchStockBought(range, storeId, categoryId)
-        : storeId
-        ? this.prisma.stockSupply.groupBy({
-            by: ["productId"],
-            where: this.buildStockSupplyWhere(range, storeId, categoryId),
-            _sum: { quantity: true },
-          })
-        : this.prisma.purchase.groupBy({
-            by: ["productId"],
-            where: {
-              product: productFilter,
-              purchaseDate: {
-                gte: range.fromDate,
-                lte: range.toDate,
+        : // An organization without stores buys into its own warehouse and
+          // distributes nothing, so what it bought comes from purchases.
+          storeId && !org.orgWarehouse
+          ? this.prisma.stockSupply.groupBy({
+              by: ["productId"],
+              where: this.buildStockSupplyWhere(range, storeId, categoryId),
+              _sum: { quantity: true },
+            })
+          : this.prisma.purchase.groupBy({
+              by: ["productId"],
+              where: {
+                product: productFilter,
+                purchaseDate: {
+                  gte: range.fromDate,
+                  lte: range.toDate,
+                },
               },
-            },
-            _sum: { quantity: true },
-          }),
+              _sum: { quantity: true },
+            }),
       this.prisma.saleItem.groupBy({
         by: ["productId"],
         // Stock report reconciles with shelf counts, so pending sales count.
@@ -1482,6 +1654,18 @@ export class ReportsService {
     const salesByProduct = new Map(
       salesRows.map((row) => [row.productId, row._sum.quantitySold ?? 0]),
     );
+    // A credit organization sells by crediting stock to its branches.
+    if (org.creditOrg && !creditBranch) {
+      for (const [productId, count] of await this.fetchBranchCreditedUnits(
+        range,
+        categoryId,
+      )) {
+        salesByProduct.set(
+          productId,
+          (salesByProduct.get(productId) ?? 0) + count,
+        );
+      }
+    }
     const stockByProduct = new Map(
       inventoryRows.map((row) => [row.productId, row._sum.quantity ?? 0]),
     );
@@ -1531,8 +1715,7 @@ export class ReportsService {
       productId: product.id,
       productName: product.name,
       productModel: product.model,
-      averageCost:
-        branchCosts?.get(product.id) ?? productUnitCost(product),
+      averageCost: branchCosts?.get(product.id) ?? productUnitCost(product),
       purchaseDevices: purchaseByProduct.get(product.id) ?? 0,
       inStock: stockByProduct.get(product.id) ?? 0,
       salesDevices: salesByProduct.get(product.id) ?? 0,
