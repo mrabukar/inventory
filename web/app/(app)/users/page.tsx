@@ -1,10 +1,12 @@
 "use client";
 
+import { useReadOnlyView } from "@/hooks/branch-view/use-branch-view";
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 
 import { TwoFactorDialog } from "./components/two-factor-dialog";
+import { pagesAvailableTo } from "@/lib/limited-pages";
 import { UserModal, type UserFormValues } from "./components/user-modal";
 import { UsersTable } from "./components/users-table";
 import { BranchScopeSelect } from "@/components/filters/branch-scope-select";
@@ -48,6 +50,8 @@ const STATUS_ITEMS = [
 ] as const;
 
 export default function UsersPage() {
+  // Nothing here may change data for a limited user.
+  const readOnly = useReadOnlyView();
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const { user: sessionUser } = useSession();
@@ -80,6 +84,11 @@ export default function UsersPage() {
   );
 
   const hasStores = sessionUser?.hasStores ?? true;
+  // The pages a limited user could be given here (none for an organization with stores).
+  const limitedPages = pagesAvailableTo({
+    hasStores: sessionUser?.hasStores ?? null,
+    usesCreditBranches: sessionUser?.usesCreditBranches ?? null,
+  });
 
   const { data: storesData } = useStores({ limit: 100 });
   const { data, isPending, isFetching, isError, error } = useUsers(listQuery);
@@ -92,8 +101,7 @@ export default function UsersPage() {
 
   const rows = data?.data ?? [];
   const rowCount = data?.meta.total ?? 0;
-  const isLoading =
-    isPending || (isFetching && (data?.data.length ?? 0) === 0);
+  const isLoading = isPending || (isFetching && (data?.data.length ?? 0) === 0);
 
   const storeItems = useMemo(
     () =>
@@ -150,6 +158,9 @@ export default function UsersPage() {
         } else {
           input.storeId = null;
         }
+        if (form.role === "limited_user") {
+          input.allowedPages = form.allowedPages;
+        }
 
         await updateUser.mutateAsync({ id: modal.user.id, input });
         addToast({ title: "User updated" });
@@ -159,8 +170,9 @@ export default function UsersPage() {
           email: form.email,
           password: form.password,
           role: form.role,
-          storeId:
-            form.role === "branch_manager" ? form.storeId : undefined,
+          storeId: form.role === "branch_manager" ? form.storeId : undefined,
+          allowedPages:
+            form.role === "limited_user" ? form.allowedPages : undefined,
           phone: form.phone || undefined,
           twoFactorRequired: form.twoFactorRequired,
         });
@@ -261,10 +273,12 @@ export default function UsersPage() {
         title="Users"
         desc="Admins and branch managers"
         action={
-          <Button onClick={() => setModal({ mode: "add" })}>
-            <Plus className="size-4" />
-            Add User
-          </Button>
+          readOnly ? null : (
+            <Button onClick={() => setModal({ mode: "add" })}>
+              <Plus className="size-4" />
+              Add User
+            </Button>
+          )
         }
       />
 
@@ -321,6 +335,7 @@ export default function UsersPage() {
           user={modal.user}
           storeItems={storeItems}
           showStoreField={hasStores || storeItems.length > 0}
+          pages={limitedPages}
           onClose={() => setModal(null)}
           onSave={(form) => void saveUser(form)}
           isSaving={isSaving}
