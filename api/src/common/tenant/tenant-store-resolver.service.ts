@@ -94,9 +94,15 @@ export class TenantStoreResolver {
     return trimmed || undefined;
   }
 
+  /**
+   * The store a sale belongs to. `submit` is a new sale; `correct` fixes an
+   * existing one. A credit organization makes no sales of its own, so its
+   * admin may correct old sales but not submit new ones.
+   */
   async resolveSaleStoreId(
     user: CurrentUserPayload,
     findStore: ManagerStoreLookup,
+    purpose: "submit" | "correct" = "submit",
   ): Promise<string> {
     if (user.role === UserRole.branch_manager) {
       return requireActiveManagerStore(user, findStore);
@@ -109,7 +115,7 @@ export class TenantStoreResolver {
     const organizationId = requireOrganizationId(user);
     const org = await this.prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { hasStores: true },
+      select: { hasStores: true, usesCreditBranches: true },
     });
 
     if (!org) {
@@ -119,6 +125,12 @@ export class TenantStoreResolver {
     if (org.hasStores) {
       throw new ForbiddenException(
         "Sales must be submitted by a branch manager in multi-store organizations",
+      );
+    }
+
+    if (purpose === "submit" && org.usesCreditBranches) {
+      throw new ForbiddenException(
+        "A credit organization makes no sales of its own; its branches sell",
       );
     }
 
