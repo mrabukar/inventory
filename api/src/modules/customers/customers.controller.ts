@@ -15,6 +15,7 @@ import {
   type CurrentUserPayload,
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { PageRead } from "../../common/decorators/page-access.decorator";
 import { CustomersService } from "./customers.service";
 import { CreateCustomerDto } from "./dto/create-customer.dto";
 import { ReceivablesQueryDto } from "./dto/receivables-query.dto";
@@ -27,7 +28,10 @@ export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
   @Get()
-  @Roles(UserRole.admin, UserRole.branch_manager)
+  @PageRead(
+    ["customers", "payments", "invoices", "receivables"],
+    UserRole.branch_manager,
+  )
   findAll(
     @Query() query: CustomerQueryDto,
     @CurrentUser() user: CurrentUserPayload,
@@ -36,7 +40,7 @@ export class CustomersController {
   }
 
   @Get("receivables")
-  @Roles(UserRole.admin, UserRole.branch_manager)
+  @PageRead(["receivables", "payments", "dashboard"], UserRole.branch_manager)
   receivables(
     @Query() query: ReceivablesQueryDto,
     @CurrentUser() user: CurrentUserPayload,
@@ -45,19 +49,19 @@ export class CustomersController {
   }
 
   @Get(":id/balance")
-  @Roles(UserRole.admin, UserRole.branch_manager)
+  @PageRead(["customers", "payments"], UserRole.branch_manager)
   balance(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.customersService.getBalance(id, user);
   }
 
   @Get(":id/statement")
-  @Roles(UserRole.admin, UserRole.branch_manager)
+  @PageRead(["customers"], UserRole.branch_manager)
   statement(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.customersService.getStatement(id, user);
   }
 
   @Get(":id")
-  @Roles(UserRole.admin, UserRole.branch_manager)
+  @PageRead(["customers", "payments", "invoices"], UserRole.branch_manager)
   findOne(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.customersService.findOneFor(id, user);
   }
