@@ -1,13 +1,14 @@
 import { UserRole } from "@prisma/client";
 import {
   IsEmail,
-  IsEnum,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
   MinLength,
 } from "class-validator";
+import { ASSIGNABLE_USER_ROLES } from "../../auth/auth.constants";
 import { IsStrongPassword } from "../../auth/validators/password-strength.validator";
 
 export class UpdateUserDto {
@@ -29,7 +30,7 @@ export class UpdateUserDto {
   password?: string;
 
   @IsOptional()
-  @IsEnum(UserRole)
+  @IsIn(ASSIGNABLE_USER_ROLES)
   role?: UserRole;
 
   @IsOptional()
