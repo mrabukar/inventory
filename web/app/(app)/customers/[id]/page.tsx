@@ -1,6 +1,6 @@
 "use client";
 
-import { useViewBranchId } from "@/hooks/branch-view/use-branch-view";
+import { useReadOnlyView } from "@/hooks/branch-view/use-branch-view";
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -101,7 +101,7 @@ function DetailRow({ label, value }: { label: string; value: string | null }) {
 
 export default function CustomerDetailPage() {
   // Looking at a credit branch is read-only.
-  const browsingBranch = Boolean(useViewBranchId());
+  const browsingBranch = useReadOnlyView();
   const params = useParams<{ id: string }>();
   const id = params?.id;
   const addToast = useAppStore((s) => s.addToast);
