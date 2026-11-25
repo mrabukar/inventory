@@ -5,7 +5,6 @@ import { useMemo } from "react";
 import { useAdminDashboard } from "@/hooks/reports/admin-dashboard";
 import { useReportFilters } from "@/hooks/filters/use-report-filters";
 import { useViewBranchId } from "@/hooks/branch-view/use-branch-view";
-import { useCreditBranch } from "@/hooks/credit-branches/use-credit-branch";
 import { useCreditBranches } from "@/hooks/credit-branches/use-credit-branches";
 import { useReceivables } from "@/hooks/payments/use-payments";
 import { AdminPerformanceCharts } from "./components/admin/performance-charts";
@@ -14,6 +13,8 @@ import { AdminRevenueCharts } from "./components/admin/revenue-charts";
 import { AdminStatGrid } from "./components/admin/stat-grid";
 import { AdminStockAlertsTable } from "./components/admin/stock-alerts-table";
 import { AdminStockSection } from "./components/admin/stock-section";
+import { BranchesOweChart } from "./components/admin/branches-owe-chart";
+import { DashboardScopeNote } from "./components/admin/scope-note";
 import { DashboardError, DashboardLoading } from "./components/admin/status";
 import { DashboardPageHeader } from "./components/admin/page-header";
 import { ALL_BRANCHES } from "@/lib/branch-scope";
@@ -28,19 +29,23 @@ export function AdminDashboard() {
   // "All branches" is a view of every branch together, not one branch.
   const allBranches = viewBranchId === ALL_BRANCHES;
   const singleBranchId = branchView && !allBranches ? viewBranchId : undefined;
-  const { data: branch } = useCreditBranch(singleBranchId);
-  // What the credit branches owe the organization, on its own dashboard and
-  // (added up) when looking at all of them.
+  // The Branches Owe chart: on the organization's own dashboard and for all branches.
   const hasStores = useAppStore((s) => s.user?.hasStores ?? true);
   const creditOrg = useAppStore((s) => s.user?.usesCreditBranches === true);
-  const { data: branches } = useCreditBranches({
-    enabled: !hasStores && creditOrg,
-  });
-  const totalOwed =
-    !hasStores && creditOrg && branches && branches.length > 0
-      ? branches.reduce((sum, b) => sum + b.balance, 0)
-      : undefined;
-  const branchesOwe = branchView ? undefined : totalOwed;
+  const showBranchesOwe = !hasStores && creditOrg && !singleBranchId;
+  const {
+    data: branches,
+    isLoading: branchesLoading,
+    isError: branchesError,
+  } = useCreditBranches({ enabled: !hasStores && creditOrg });
+  // What the branches still owe; a branch that paid ahead owes nothing.
+  const branchesOwe = (branches ?? []).reduce(
+    (sum, b) => sum + Math.max(b.balance, 0),
+    0,
+  );
+  // A credit organization's own view has no customers of its own to speak of:
+  // what is outstanding to it is mainly what its branches owe.
+  const orgOwedByBranches = !hasStores && creditOrg && !viewBranchId;
   const dashboardQuery = useMemo(
     () => ({
       fromDate: filters.query.fromDate,
@@ -82,20 +87,29 @@ export function AdminDashboard() {
     <>
       {header}
 
+      {!hasStores && creditOrg ? (
+        <DashboardScopeNote
+          scope={singleBranchId ? "branch" : allBranches ? "all" : "organization"}
+          branchName={branches?.find((b) => b.id === singleBranchId)?.name}
+        />
+      ) : null}
       <AdminStatGrid
         summary={summary}
         comparison={comparison}
         billingEnabled={billingEnabled}
-        outstandingBalance={outstandingBalance}
-        branchView={branchView}
-        branchOwes={allBranches ? totalOwed : branch?.balance}
-        branchesOwe={branchesOwe}
-        showCogs={hasStores}
-        hideEmptyOutstanding={creditOrg}
-        branchId={singleBranchId}
-        allBranches={allBranches}
+        outstandingBalance={
+          orgOwedByBranches ? outstandingBalance + branchesOwe : outstandingBalance
+        }
+        outstandingHref={orgOwedByBranches ? "/credit-branches" : undefined}
       />
-      <AdminRevenueCharts charts={charts} branchView={branchView} />
+      {showBranchesOwe ? (
+        <BranchesOweChart
+          branches={branches ?? []}
+          isLoading={branchesLoading}
+          isError={branchesError}
+        />
+      ) : null}
+      <AdminRevenueCharts charts={charts} />
       {/* <AdminProductDistributionChart filters={filters} /> */}
       <AdminPerformanceCharts
         charts={charts}
