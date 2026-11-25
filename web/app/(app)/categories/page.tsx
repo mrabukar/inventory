@@ -1,5 +1,6 @@
 "use client";
 
+import { useReadOnlyView } from "@/hooks/branch-view/use-branch-view";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Pencil, Plus, Trash2 } from "lucide-react";
@@ -149,16 +150,25 @@ export default function CategoriesPage() {
 
   const isSaving = createCategory.isPending || updateCategory.isPending;
 
+  // Nothing here may change data for a limited user (or while browsing branches).
+  const readOnly = useReadOnlyView();
+  const visibleColumns = useMemo(
+    () => (readOnly ? columns.filter((c) => c.id !== "actions") : columns),
+    [columns, readOnly],
+  );
+
   return (
     <>
       <PageHeader
         title="Categories"
         desc="Manage product categories"
         action={
-          <Button onClick={() => setSheet({ mode: "add" })}>
-            <Plus className="size-4" />
-            Add Category
-          </Button>
+          readOnly ? null : (
+            <Button onClick={() => setSheet({ mode: "add" })}>
+              <Plus className="size-4" />
+              Add Category
+            </Button>
+          )
         }
       />
 
@@ -169,7 +179,7 @@ export default function CategoriesPage() {
       )}
 
       <DataTable
-        columns={columns}
+        columns={visibleColumns}
         data={categories}
         rowCount={categories.length}
         pageIndex={0}
