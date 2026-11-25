@@ -8,7 +8,7 @@ import { LogoMark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { useVerifyTotp, useVerifyBackupCode } from "@/hooks/auth/use-two-factor";
 import { fetchCurrentUser, SESSION_QUERY_KEY } from "@/hooks/auth/session";
-import { homePathForRole } from "@/lib/auth/routes";
+import { homePathForUser } from "@/lib/auth/routes";
 import { useAppStore } from "@/store/app";
 import { cn } from "@/lib/utils";
 
@@ -57,7 +57,7 @@ export default function VerifyTwoFactorPage() {
       setUser(user);
       queryClient.setQueryData(SESSION_QUERY_KEY, user);
       router.push(
-        user.twoFactorEnabled ? homePathForRole(user.role) : "/setup-2fa",
+        user.twoFactorEnabled ? homePathForUser(user) : "/setup-2fa",
       );
     } catch (error) {
       setErrorMessage(
