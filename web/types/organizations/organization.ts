@@ -1,9 +1,11 @@
+import type { OrganizationType } from "@/lib/organization-type";
 import type { PaginatedResponse } from "@/types/common/pagination";
 
 export interface Organization {
   id: string;
   name: string;
   hasStores: boolean;
+  usesCreditBranches: boolean;
   billingEnabled: boolean;
   isActive: boolean;
   /** The host this organization signs in on. */
@@ -56,13 +58,15 @@ export interface OrganizationListQuery {
 
 export interface CreateOrganizationInput {
   name: string;
-  hasStores?: boolean;
+  /** Defaults to "stores". */
+  type?: OrganizationType;
   domain?: string;
 }
 
 export interface UpdateOrganizationInput {
   name?: string;
-  hasStores?: boolean;
+  type?: OrganizationType;
+  /** Only for organizations with stores; direct and credit organizations always bill. */
   billingEnabled?: boolean;
   isActive?: boolean;
   /** Empty clears it. */
