@@ -29,6 +29,8 @@ interface Props {
   branchId?: string;
   /** Show the Cost of Goods Sold card (kept for organizations with stores). */
   showCogs?: boolean;
+  /** A credit organization sells nothing itself: show customer debts only while some remain. */
+  hideEmptyOutstanding?: boolean;
 }
 
 export function AdminStatGrid({
@@ -41,6 +43,7 @@ export function AdminStatGrid({
   branchesOwe,
   branchId,
   showCogs = true,
+  hideEmptyOutstanding = false,
 }: Props) {
   return (
     <div
@@ -101,16 +104,18 @@ export function AdminStatGrid({
       ) : null}
       {billingEnabled ? (
         <>
-          <StatCard
-            icon={HandCoins}
-            color="rose"
-            value={fmt(outstandingBalance)}
-            label={branchView ? "Customers Owe" : "Outstanding Balance"}
-            valueColor={
-              outstandingBalance > 0 ? "var(--status-rose)" : undefined
-            }
-            href="/receivables"
-          />
+          {hideEmptyOutstanding && outstandingBalance <= 0 ? null : (
+            <StatCard
+              icon={HandCoins}
+              color="rose"
+              value={fmt(outstandingBalance)}
+              label={branchView ? "Customers Owe" : "Outstanding Balance"}
+              valueColor={
+                outstandingBalance > 0 ? "var(--status-rose)" : undefined
+              }
+              href="/receivables"
+            />
+          )}
 
           <StatCard
             icon={Layers}
