@@ -27,11 +27,12 @@ export function AdminDashboard() {
   const { data: branch } = useCreditBranch(viewBranchId);
   // On the organization's own dashboard: what all its credit branches owe it.
   const hasStores = useAppStore((s) => s.user?.hasStores ?? true);
+  const creditOrg = useAppStore((s) => s.user?.usesCreditBranches === true);
   const { data: branches } = useCreditBranches({
-    enabled: !hasStores && !branchView,
+    enabled: !hasStores && creditOrg && !branchView,
   });
   const branchesOwe =
-    !hasStores && !branchView && branches && branches.length > 0
+    !hasStores && creditOrg && !branchView && branches && branches.length > 0
       ? branches.reduce((sum, b) => sum + b.balance, 0)
       : undefined;
   const dashboardQuery = useMemo(
@@ -84,6 +85,7 @@ export function AdminDashboard() {
         branchOwes={branch?.balance}
         branchesOwe={branchesOwe}
         showCogs={hasStores}
+        hideEmptyOutstanding={creditOrg}
         branchId={viewBranchId}
       />
       <AdminRevenueCharts charts={charts} branchView={branchView} />
