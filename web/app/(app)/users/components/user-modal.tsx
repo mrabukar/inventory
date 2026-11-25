@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { isStrongPassword, STRONG_PASSWORD_MESSAGE } from "@/lib/auth/password";
 import { cn } from "@/lib/utils";
+import type { LimitedPage } from "@/lib/limited-pages";
 import { ROLE_ITEMS, type User, type UserRole } from "@/types/users/user";
 
 export interface UserFormValues {
@@ -18,6 +19,8 @@ export interface UserFormValues {
   storeId: string;
   phone: string;
   twoFactorRequired: boolean;
+  /** For a limited user: the pages they may see. */
+  allowedPages: string[];
 }
 
 interface UserModalProps {
@@ -26,6 +29,8 @@ interface UserModalProps {
   user?: User;
   storeItems: { value: string; label: string }[];
   showStoreField?: boolean;
+  /** The pages a limited user can be given; leave out or empty to offer no limited role. */
+  pages?: LimitedPage[];
   hideRoleField?: boolean;
   withPasswordConfirm?: boolean;
   /** Show the "Require two-factor" switch when adding a user. */
@@ -81,6 +86,7 @@ function initialForm(user?: User): UserFormValues {
     storeId: user?.storeId ?? "",
     phone: user?.phone ?? "",
     twoFactorRequired: true,
+    allowedPages: user?.allowedPages ?? [],
   };
 }
 
@@ -90,6 +96,7 @@ export function UserModal({
   user,
   storeItems,
   showStoreField = true,
+  pages = [],
   hideRoleField = false,
   withPasswordConfirm = false,
   showTwoFactorField = false,
@@ -112,10 +119,12 @@ export function UserModal({
       value: item.value,
       label: item.label,
     }));
-    return showStoreField
-      ? items
-      : items.filter((item) => item.value !== "branch_manager");
-  }, [showStoreField]);
+    return items.filter(
+      (item) =>
+        (item.value !== "branch_manager" || showStoreField) &&
+        (item.value !== "limited_user" || pages.length > 0),
+    );
+  }, [showStoreField, pages.length]);
 
   const set = (key: Exclude<keyof UserFormValues, "twoFactorRequired">, value: string) =>
     setForm((state) => ({ ...state, [key]: value }));
@@ -125,7 +134,7 @@ export function UserModal({
     setForm((state) => ({
       ...state,
       role: nextRole,
-      storeId: nextRole === "admin" ? "" : state.storeId,
+      storeId: nextRole === "branch_manager" ? state.storeId : "",
     }));
   };
 
@@ -149,6 +158,10 @@ export function UserModal({
 
     if (showStoreField && form.role === "branch_manager" && !form.storeId) {
       next.storeId = "Store is required for branch managers";
+    }
+
+    if (form.role === "limited_user" && form.allowedPages.length === 0) {
+      next.allowedPages = "Give them at least one page";
     }
 
     setErr(next);
@@ -187,7 +200,7 @@ export function UserModal({
             <Dialog.Description className="text-sm text-muted-foreground">
               {isEdit
                 ? "Update account details. Leave password blank to keep the current one."
-                : "Create an admin or branch manager account."}
+                : "Create an admin, branch manager or limited user account."}
             </Dialog.Description>
           </div>
 
@@ -321,6 +334,41 @@ export function UserModal({
                   className="w-full"
                   popoverClassName="z-[200]"
                 />
+              </FormField>
+            ) : null}
+
+            {form.role === "limited_user" ? (
+              <FormField
+                label="Pages they can see"
+                required
+                error={err.allowedPages}
+                helper="They can only look. They can't add, edit, delete or approve anything."
+              >
+                <div className="grid gap-1.5 rounded-md border border-border p-3 sm:grid-cols-2">
+                  {pages.map((page) => (
+                    <label
+                      key={page.key}
+                      className="flex cursor-pointer items-center gap-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        className="size-4 accent-[var(--primary)]"
+                        checked={form.allowedPages.includes(page.key)}
+                        onChange={(e) =>
+                          setForm((state) => ({
+                            ...state,
+                            allowedPages: e.target.checked
+                              ? [...state.allowedPages, page.key]
+                              : state.allowedPages.filter(
+                                  (key) => key !== page.key,
+                                ),
+                          }))
+                        }
+                      />
+                      {page.label}
+                    </label>
+                  ))}
+                </div>
               </FormField>
             ) : null}
 
