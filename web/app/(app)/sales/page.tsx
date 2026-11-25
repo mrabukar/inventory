@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 import { SaleDetailSheet } from "./components/sale-detail-sheet";
 import { SalesTable } from "./components/sales-table";
 import { CorrectionSheet } from "@/components/sales/correction-sheet";
+import { BranchScopeSelect } from "@/components/filters/branch-scope-select";
 import { Combobox } from "@/components/ui/combobox";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { PageHeader } from "@/components/ui/page-header";
@@ -171,6 +172,7 @@ export default function SalesPage() {
           resetPage();
         }}
       />
+      <BranchScopeSelect />
       {user?.hasStores === false ? null : (
         <Combobox
           value={storeId}
