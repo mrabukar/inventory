@@ -2,6 +2,7 @@ import { ForbiddenException } from "@nestjs/common";
 import { Prisma, StoreType, UserRole } from "@prisma/client";
 import type { CurrentUserPayload } from "../decorators/current-user.decorator";
 import { CREDIT_BRANCH_BILLING } from "../constants/credit-branch.constants";
+import { readsLikeAdmin } from "./admin-like.util";
 import type { PrismaService } from "../../prisma/prisma.service";
 
 /**
@@ -63,7 +64,7 @@ export async function creditBranchViewIdOf(
   queryStoreId?: string,
 ): Promise<string | null> {
   const wanted = typeof queryStoreId === "string" ? queryStoreId.trim() : "";
-  if (user.role !== UserRole.admin || !user.organizationId || !wanted) {
+  if (!readsLikeAdmin(user.role) || !user.organizationId || !wanted) {
     return null;
   }
   const store = await prisma.store.findFirst({
@@ -102,7 +103,7 @@ export async function branchScopeOf(
   queryStoreId?: string,
 ): Promise<BranchScope> {
   const wanted = typeof queryStoreId === "string" ? queryStoreId.trim() : "";
-  if (user.role !== UserRole.admin || !user.organizationId || !wanted) {
+  if (!readsLikeAdmin(user.role) || !user.organizationId || !wanted) {
     return { kind: "own" };
   }
 
