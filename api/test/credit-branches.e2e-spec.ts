@@ -20,12 +20,15 @@ import { todayCalendarDate } from "../src/common/utils/app-timezone.util";
 import { BranchPaymentsService } from "../src/modules/branch-payments/branch-payments.service";
 import { CreditBranchesService } from "../src/modules/credit-branches/credit-branches.service";
 import { CustomersService } from "../src/modules/customers/customers.service";
+import { InventoryService } from "../src/modules/inventory/inventory.service";
 import { InvoicesService } from "../src/modules/invoices/invoices.service";
 import { PaymentsService } from "../src/modules/payments/payments.service";
 import { ProductsService } from "../src/modules/products/products.service";
 import { ReportsService } from "../src/modules/reports/reports.service";
 import { SalesService } from "../src/modules/sales/sales.service";
+import { AuditLogsService } from "../src/modules/audit-logs/audit-logs.service";
 import { StoresService } from "../src/modules/stores/stores.service";
+import { UsersService } from "../src/modules/users/users.service";
 import { PrismaService } from "../src/prisma/prisma.service";
 
 // UsersService (and therefore PaymentsService's module graph) pulls in
@@ -795,6 +798,350 @@ describeDb("Credit branches (PostgreSQL)", () => {
             customers.update(orgCustomer.id, { phone: "062000" }, admin),
           ),
         ).resolves.toBeDefined();
+      });
+    });
+
+    describe("all branches together", () => {
+      const page = { page: 1, limit: 100 };
+      const range = { fromDate: today, toDate: today };
+
+      /** Two billed branches that each sold something, with a debtor and a part payment. */
+      async function twoBranchesWithSales() {
+        const a = await makeBilledBranch();
+        const b = await makeBilledBranch();
+        const aSale = await sellTo(a.manager, a.customer.id, 3); // $45 owed
+        const bSale = await sellTo(b.manager, b.customer.id, 2); // $30 owed
+        await inOrg(() =>
+          payments.create(
+            { customerId: a.customer.id, amount: 10, paidAt: today },
+            a.manager,
+          ),
+        );
+        return { a, b, aSale, bSale };
+      }
+
+      it("lists every branch's sales, customers, invoices, payments and debts, each with its branch", async () => {
+        const { a, b, aSale, bSale } = await twoBranchesWithSales();
+
+        // Sales
+        const salesAll = await inOrg(() =>
+          sales.findAll({ ...page, storeId: "all" }, admin),
+        );
+        const saleIds = salesAll.data.map((x) => x.id);
+        expect(saleIds).toEqual(expect.arrayContaining([aSale.id, bSale.id]));
+        expect(salesAll.data.every((x) => x.store.type === "credit")).toBe(
+          true,
+        );
+
+        // Customers carry their branch.
+        const customersAll = await inOrg(() =>
+          customers.findAll({ ...page, storeId: "all" }, admin),
+        );
+        const byName = new Map(customersAll.data.map((c) => [c.name, c]));
+        expect(byName.get(a.customer.name)?.store?.id).toBe(a.store.id);
+        expect(byName.get(b.customer.name)?.store?.id).toBe(b.store.id);
+        expect(customersAll.data.every((c) => c.store !== null)).toBe(true);
+
+        // Invoices and payments carry their branch.
+        const invoicesAll = await inOrg(() =>
+          invoices.findAll({ ...page, storeId: "all" }, admin),
+        );
+        const invoiceBranches = new Map(
+          invoicesAll.data.map((i) => [i.id, i.sale.store?.id]),
+        );
+        expect(invoiceBranches.get(aSale.invoice!.id)).toBe(a.store.id);
+        expect(invoiceBranches.get(bSale.invoice!.id)).toBe(b.store.id);
+
+        const paymentsAll = await inOrg(() =>
+          payments.findAll({ ...page, storeId: "all" }, admin),
+        );
+        const aPayment = paymentsAll.data.find(
+          (p) => p.customerId === a.customer.id,
+        );
+        expect(aPayment?.invoice.sale.store.id).toBe(a.store.id);
+
+        // Debts, with each customer's branch.
+        const owing = await inOrg(() =>
+          customers.getReceivables(admin, { storeId: "all" }),
+        );
+        const aRow = owing.find((r) => r.customer?.id === a.customer.id);
+        const bRow = owing.find((r) => r.customer?.id === b.customer.id);
+        expect(aRow?.balance).toBe(35);
+        expect(aRow?.customer?.store?.id).toBe(a.store.id);
+        expect(bRow?.balance).toBe(30);
+
+        // The organization's own view still holds none of it.
+        const own = await inOrg(() => sales.findAll(page, admin));
+        expect(own.data.map((x) => x.id)).not.toContain(aSale.id);
+      });
+
+      it("makes the dashboard and financial summary the sum of the branches", async () => {
+        await twoBranchesWithSales();
+
+        const branches = await inOrg(() => creditBranches.findAll(admin));
+        const parts = await Promise.all(
+          branches.map(async (branch) => ({
+            dash: await inOrg(() =>
+              reports.getAdminDashboard(
+                { ...range, storeId: branch.id },
+                admin,
+              ),
+            ),
+            fin: await inOrg(() =>
+              reports.getFinancialSummary(
+                { ...range, storeId: branch.id },
+                admin,
+              ),
+            ),
+          })),
+        );
+        const sum = (pick: (p: (typeof parts)[number]) => number) =>
+          Math.round(parts.reduce((total, p) => total + pick(p), 0) * 100) /
+          100;
+
+        const dash = await inOrg(() =>
+          reports.getAdminDashboard({ ...range, storeId: "all" }, admin),
+        );
+        expect(dash.summary.totalRevenue).toBe(
+          sum((p) => p.dash.summary.totalRevenue),
+        );
+        expect(dash.summary.cogs).toBe(sum((p) => p.dash.summary.cogs));
+        expect(dash.summary.grossProfit).toBe(
+          sum((p) => p.dash.summary.grossProfit),
+        );
+        expect(dash.summary.currentStockValue).toBe(
+          sum((p) => p.dash.summary.currentStockValue),
+        );
+        expect(dash.summary.inStockBalance).toBe(
+          sum((p) => p.dash.summary.inStockBalance),
+        );
+        expect(dash.summary.totalUnitsSold).toBe(
+          sum((p) => p.dash.summary.totalUnitsSold),
+        );
+        expect(dash.summary.totalExpenses).toBe(0);
+
+        // Branches are ranked by what they sold.
+        const ranked = dash.charts.topStores.map((s) => s.storeId);
+        expect(ranked.length).toBeGreaterThanOrEqual(2);
+        for (const id of ranked) {
+          expect(branches.map((b) => b.id)).toContain(id);
+        }
+
+        const fin = await inOrg(() =>
+          reports.getFinancialSummary({ ...range, storeId: "all" }, admin),
+        );
+        expect(fin.summary.totalRevenue).toBe(
+          sum((p) => p.fin.summary.totalRevenue),
+        );
+        expect(fin.summary.stockInvestment).toBe(
+          sum((p) => p.fin.summary.stockInvestment),
+        );
+        expect(fin.summary.currentStockValue).toBe(
+          sum((p) => p.fin.summary.currentStockValue),
+        );
+        expect(fin.summary.netProfit).toBe(sum((p) => p.fin.summary.netProfit));
+      });
+
+      it("lists inventory for the organization, one branch, or every branch", async () => {
+        const { a, b } = await twoBranchesWithSales();
+        const inventory = new InventoryService(
+          prisma,
+          new StoresService(prisma),
+          new ProductsService(prisma),
+          new TenantStoreResolver(prisma, new StoresService(prisma)),
+        );
+        const stores = (storeId?: string) =>
+          inOrg(() => inventory.findAll({ ...page, storeId }, admin)).then(
+            (r) => new Set(r.data.map((row) => row.storeId)),
+          );
+
+        // The organization's own list holds its warehouse, not the branches' stock.
+        const own = await stores();
+        expect(own.has(a.store.id)).toBe(false);
+        expect(own.has(b.store.id)).toBe(false);
+
+        const forA = await stores(a.store.id);
+        expect([...forA]).toEqual([a.store.id]);
+
+        const all = await stores("all");
+        expect(all.has(a.store.id)).toBe(true);
+        expect(all.has(b.store.id)).toBe(true);
+        expect([...all].every((id) => !own.has(id))).toBe(true);
+
+        // The low-stock and out-of-stock lists follow the same scope.
+        await prisma.inventory.updateMany({
+          where: { storeId: a.store.id, productId },
+          data: { quantity: 0 },
+        });
+        const outOfStock = await inOrg(() =>
+          inventory.findOutOfStock({ ...page, storeId: "all" }, admin),
+        );
+        const outStores = outOfStock.data.map((row) => row.storeId);
+        expect(outStores).toContain(a.store.id);
+        expect(outStores).not.toContain(b.store.id);
+        const outForOwn = await inOrg(() =>
+          inventory.findOutOfStock(page, admin),
+        );
+        expect(outForOwn.data.map((row) => row.storeId)).not.toContain(
+          a.store.id,
+        );
+
+        await prisma.inventory.updateMany({
+          where: { storeId: b.store.id, productId },
+          data: { quantity: 1, lowStockThreshold: 5 },
+        });
+        const low = await inOrg(() =>
+          inventory.findLowStock({ ...page, storeId: "all" }, admin),
+        );
+        expect(low.data.map((row) => row.storeId)).toContain(b.store.id);
+      });
+
+      it("keeps the stock report on one store, ignoring all branches", async () => {
+        const own = await inOrg(() => reports.getStockReport(range, admin));
+        const all = await inOrg(() =>
+          reports.getStockReport({ ...range, storeId: "all" }, admin),
+        );
+        expect(all.filters.storeId).toBe(own.filters.storeId);
+      });
+
+      it("lists the stock credited to one branch or to all of them", async () => {
+        const { a, b } = await twoBranchesWithSales();
+
+        const forA = await inOrg(() =>
+          creditBranches.listCreditedStock(
+            { ...page, storeId: a.store.id },
+            admin,
+          ),
+        );
+        expect(forA.data.length).toBe(1);
+        expect(forA.data[0]).toMatchObject({ quantity: 50 });
+        expect(Number(forA.data[0].unitPrice)).toBe(10);
+        expect(forA.data[0].branch.id).toBe(a.store.id);
+        expect(forA.summary).toEqual({ units: 50, value: 500 });
+
+        const everyone = await inOrg(() =>
+          creditBranches.listCreditedStock(page, admin),
+        );
+        const branchIds = everyone.data.map((row) => row.branch.id);
+        expect(branchIds).toEqual(
+          expect.arrayContaining([a.store.id, b.store.id]),
+        );
+
+        // A branch returns some, and the line shows it.
+        const credits = await inOrg(() =>
+          creditBranches.listCredits(a.store.id, admin),
+        );
+        await inOrg(() =>
+          creditBranches.createReturn(
+            a.store.id,
+            {
+              branchCreditItemId: credits[0].items[0].id,
+              quantity: 4,
+              reason: "Damaged",
+            },
+            admin,
+          ),
+        );
+        const after = await inOrg(() =>
+          creditBranches.listCreditedStock(
+            { ...page, storeId: a.store.id },
+            admin,
+          ),
+        );
+        expect(after.data[0].returnedQuantity).toBe(4);
+      });
+
+      it("filters the audit log and the user list by branch", async () => {
+        const { a, b } = await twoBranchesWithSales();
+        const audit = new AuditLogsService(prisma);
+        const usersService = new UsersService(prisma);
+
+        for (const who of [a, b]) {
+          await prisma.auditLog.create({
+            data: {
+              userId: who.manager.id,
+              organizationId,
+              action: "USER_UPDATED",
+              entityType: "user",
+              entityId: who.manager.id,
+            },
+          });
+        }
+
+        const forA = await inOrg(() =>
+          audit.findAll({ ...page, storeId: a.store.id }),
+        );
+        expect(forA.data.length).toBeGreaterThan(0);
+        expect(forA.data.every((row) => row.userId === a.manager.id)).toBe(
+          true,
+        );
+
+        const allBranches = await inOrg(() =>
+          audit.findAll({ ...page, storeId: "all" }),
+        );
+        const authors = new Set(allBranches.data.map((row) => row.userId));
+        expect(authors.has(a.manager.id)).toBe(true);
+        expect(authors.has(b.manager.id)).toBe(true);
+        expect(authors.has(admin.id)).toBe(false);
+
+        const own = await inOrg(() =>
+          audit.findAll({ ...page, storeId: "own" }),
+        );
+        const ownAuthors = new Set(own.data.map((row) => row.userId));
+        expect(ownAuthors.has(a.manager.id)).toBe(false);
+        expect(ownAuthors.has(admin.id)).toBe(true);
+
+        // Users
+        const usersA = await inOrg(() =>
+          usersService.findAll({ ...page, storeId: a.store.id }),
+        );
+        expect(usersA.data.map((u) => u.id)).toEqual([a.manager.id]);
+        const usersAll = await inOrg(() =>
+          usersService.findAll({ ...page, storeId: "all" }),
+        );
+        expect(usersAll.data.map((u) => u.id)).toEqual(
+          expect.arrayContaining([a.manager.id, b.manager.id]),
+        );
+        expect(usersAll.data.map((u) => u.id)).not.toContain(admin.id);
+        const usersOwn = await inOrg(() =>
+          usersService.findAll({ ...page, storeId: "own", search: "admin" }),
+        );
+        expect(usersOwn.data.map((u) => u.id)).toContain(admin.id);
+        expect(usersOwn.data.map((u) => u.id)).not.toContain(a.manager.id);
+      });
+
+      it("narrows the approval queues to one branch, or all", async () => {
+        const a = await makeBilledBranch();
+        const b = await makeBilledBranch();
+        const pendingA = await submitSale(a.manager, a.customer.id, 1);
+        const pendingB = await submitSale(b.manager, b.customer.id, 1);
+
+        const queue = (storeId?: string) =>
+          inOrg(() =>
+            sales.findAll({ ...page, status: "pending", storeId }, admin),
+          ).then((r) => r.data.map((x) => x.id));
+
+        expect(await queue("all")).toEqual(
+          expect.arrayContaining([pendingA.id, pendingB.id]),
+        );
+        expect(await queue(a.store.id)).toEqual([pendingA.id]);
+
+        // Branch payments, too.
+        await inOrg(() =>
+          branchPayments.submit(
+            { amount: 10, method: "cash", paidAt: today },
+            a.manager,
+          ),
+        );
+        const paymentsFor = (storeId?: string) =>
+          inOrg(() =>
+            branchPayments.findAll(
+              { ...page, sortBy: "createdAt", order: "desc", storeId },
+              admin,
+            ),
+          ).then((r) => r.data.map((p) => p.store.id));
+        expect(await paymentsFor("all")).toContain(a.store.id);
+        expect(await paymentsFor(b.store.id)).not.toContain(a.store.id);
       });
     });
 
