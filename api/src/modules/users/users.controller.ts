@@ -14,6 +14,7 @@ import {
   type CurrentUserPayload,
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { PageRead } from "../../common/decorators/page-access.decorator";
 import { TwoFactorActionDto } from "./dto/two-factor-action.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UserQueryDto } from "./dto/user-query.dto";
@@ -25,11 +26,13 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
+  @PageRead(["users", "audit"])
   findAll(@Query() query: UserQueryDto) {
     return this.usersService.findAll(query);
   }
 
   @Get(":id")
+  @PageRead(["users"])
   findOne(@Param("id") id: string) {
     return this.usersService.findOne(id);
   }
