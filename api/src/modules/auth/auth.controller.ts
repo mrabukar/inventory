@@ -8,6 +8,7 @@ import {
   Post,
   Req,
 } from "@nestjs/common";
+import { LimitedSelf } from "../../common/decorators/page-access.decorator";
 import { UserRole } from "@prisma/client";
 import { Session } from "@thallesp/nestjs-better-auth";
 import { fromNodeHeaders } from "better-auth/node";
@@ -22,11 +23,13 @@ export class MeController {
   constructor(private readonly meService: MeService) {}
 
   @Get("me")
+  @LimitedSelf()
   me(@Session() session: { user: Record<string, unknown> }) {
     return this.meService.getProfile(session.user);
   }
 
   @Patch("me")
+  @LimitedSelf()
   updateMe(
     @Session() session: { user: Record<string, unknown> },
     @Body() dto: UpdateMeDto,
