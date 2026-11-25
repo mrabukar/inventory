@@ -1,3 +1,7 @@
+import {
+  ALL_BRANCHES,
+  branchScopeOf,
+} from "../../common/utils/credit-branch.util";
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { AuditAction, Prisma, UserRole } from "@prisma/client";
 import { CurrentUserPayload } from "../../common/decorators/current-user.decorator";
@@ -39,14 +43,21 @@ export class InventoryService {
     query: InventoryQueryDto,
     user: CurrentUserPayload,
   ): Promise<PaginatedResult<InventoryWithDetails>> {
-    const queryStoreId =
+    const rawStoreId =
       typeof query.storeId === "string" ? query.storeId.trim() : undefined;
+    // Every credit branch together (a credit organization's admin only).
+    const scope = await branchScopeOf(this.prisma, user, rawStoreId);
+    if (scope.kind === "all") {
+      return this.listInventory(undefined, query, user, scope.storeIds);
+    }
+
+    const queryStoreId = rawStoreId === ALL_BRANCHES ? undefined : rawStoreId;
     if (queryStoreId) {
       assertStoreAccess(queryStoreId, user);
     }
     const storeId = await this.tenantStoreResolver.resolveStoreFilter(
       user,
-      query.storeId,
+      queryStoreId,
     );
     if (storeId) {
       await this.storesService.findOne(storeId);
@@ -81,6 +92,8 @@ export class InventoryService {
     storeId: string | undefined,
     query: InventoryQueryDto,
     user: CurrentUserPayload,
+    // Several stores at once (every credit branch), instead of one.
+    storeIds?: string[],
   ): Promise<PaginatedResult<InventoryWithDetails>> {
     const { page, limit, search, categoryId, lowStockOnly, productId } = query;
     const skip = (page - 1) * limit;
@@ -89,6 +102,7 @@ export class InventoryService {
       storeId,
       lowStockOnly,
       requireOrganizationId(user),
+      storeIds,
     );
 
     const where = this.buildInventoryWhere(
@@ -96,6 +110,7 @@ export class InventoryService {
       user,
       { search, categoryId, productId },
       lowStockFilter,
+      storeIds,
     );
 
     const [data, total] = await Promise.all([
@@ -309,15 +324,22 @@ export class InventoryService {
     user: CurrentUserPayload,
     filters: { search?: string; categoryId?: string; productId?: string },
     lowStockFilter: Prisma.InventoryWhereInput,
+    storeIds?: string[],
   ): Prisma.InventoryWhereInput {
     const productSearch = this.buildProductSearchFilter(
       filters.search,
       filters.categoryId,
     );
     const base: Prisma.InventoryWhereInput = {
-      ...(storeId ? { storeId } : undefined),
+      ...(storeIds
+        ? { storeId: { in: storeIds } }
+        : storeId
+          ? { storeId }
+          : undefined),
       ...(filters.productId ? { productId: filters.productId } : undefined),
-      store: this.buildStoreRelationFilter(storeId),
+      store: storeIds
+        ? { isActive: true }
+        : this.buildStoreRelationFilter(storeId),
       ...lowStockFilter,
     };
 
@@ -372,6 +394,7 @@ export class InventoryService {
     storeId: string | undefined,
     lowStockOnly?: boolean,
     organizationId?: string,
+    storeIds?: string[],
   ): Promise<Prisma.InventoryWhereInput> {
     if (!lowStockOnly || !organizationId) {
       return {};
@@ -382,7 +405,15 @@ export class InventoryService {
       WHERE quantity > 0
       AND quantity <= "lowStockThreshold"
       AND "organizationId" = ${organizationId}
-      ${storeId ? Prisma.sql`AND "storeId" = ${storeId}` : Prisma.empty}
+      ${
+        storeIds
+          ? storeIds.length > 0
+            ? Prisma.sql`AND "storeId" IN (${Prisma.join(storeIds)})`
+            : Prisma.sql`AND FALSE`
+          : storeId
+            ? Prisma.sql`AND "storeId" = ${storeId}`
+            : Prisma.empty
+      }
     `;
 
     if (lowStockRows.length === 0) {
@@ -409,14 +440,26 @@ export class InventoryService {
     query: InventoryAlertQueryDto,
     user: CurrentUserPayload,
   ): Promise<PaginatedResult<InventoryWithDetails>> {
-    const storeId = await this.resolveAlertStoreId(user, query.storeId);
+    // Every credit branch together (a credit organization's admin only).
+    const scope = await branchScopeOf(this.prisma, user, query.storeId);
+    const storeIds = scope.kind === "all" ? scope.storeIds : undefined;
+    const storeId = storeIds
+      ? undefined
+      : await this.resolveAlertStoreId(
+          user,
+          query.storeId?.trim() === ALL_BRANCHES ? undefined : query.storeId,
+        );
     const search =
       typeof query.search === "string" ? query.search.trim() : undefined;
     const { page, limit, categoryId } = query;
     const skip = (page - 1) * limit;
 
     if (kind === "out") {
-      const where = this.buildOutOfStockWhere(storeId, { search, categoryId });
+      const where = this.buildOutOfStockWhere(
+        storeId,
+        { search, categoryId },
+        storeIds,
+      );
       const [rows, total] = await Promise.all([
         this.prisma.inventory.findMany({
           where,
@@ -441,6 +484,13 @@ export class InventoryService {
 
     const organizationId = requireOrganizationId(user);
     const searchPattern = search ? `%${search}%` : null;
+    const storeScopeSql = storeIds
+      ? storeIds.length > 0
+        ? Prisma.sql`AND i."storeId" IN (${Prisma.join(storeIds)})`
+        : Prisma.sql`AND FALSE`
+      : storeId
+        ? Prisma.sql`AND i."storeId" = ${storeId}`
+        : Prisma.sql`AND st."isOrgWarehouse" = false`;
     const [countRows, idRows] = await Promise.all([
       this.prisma.$queryRaw<{ count: bigint }[]>`
         SELECT COUNT(*)::bigint AS count
@@ -452,7 +502,7 @@ export class InventoryService {
           AND i."organizationId" = ${organizationId}
           AND i.quantity > 0
           AND i.quantity <= i."lowStockThreshold"
-          ${storeId ? Prisma.sql`AND i."storeId" = ${storeId}` : Prisma.sql`AND st."isOrgWarehouse" = false`}
+          ${storeScopeSql}
           ${categoryId ? Prisma.sql`AND p."categoryId" = ${categoryId}` : Prisma.empty}
           ${searchPattern ? Prisma.sql`AND p.name ILIKE ${searchPattern}` : Prisma.empty}
       `,
@@ -466,7 +516,7 @@ export class InventoryService {
           AND i."organizationId" = ${organizationId}
           AND i.quantity > 0
           AND i.quantity <= i."lowStockThreshold"
-          ${storeId ? Prisma.sql`AND i."storeId" = ${storeId}` : Prisma.sql`AND st."isOrgWarehouse" = false`}
+          ${storeScopeSql}
           ${categoryId ? Prisma.sql`AND p."categoryId" = ${categoryId}` : Prisma.empty}
           ${searchPattern ? Prisma.sql`AND p.name ILIKE ${searchPattern}` : Prisma.empty}
         ORDER BY i."updatedAt" DESC
@@ -506,6 +556,7 @@ export class InventoryService {
   private buildOutOfStockWhere(
     storeId: string | undefined,
     filters: { search?: string; categoryId?: string },
+    storeIds?: string[],
   ): Prisma.InventoryWhereInput {
     const productSearch = this.buildProductSearchFilter(
       filters.search,
@@ -513,10 +564,16 @@ export class InventoryService {
     );
 
     return {
-      ...(storeId ? { storeId } : undefined),
+      ...(storeIds
+        ? { storeId: { in: storeIds } }
+        : storeId
+          ? { storeId }
+          : undefined),
       quantity: 0,
       product: { isActive: true, ...productSearch },
-      store: this.buildStoreRelationFilter(storeId),
+      store: storeIds
+        ? { isActive: true }
+        : this.buildStoreRelationFilter(storeId),
     };
   }
 }
