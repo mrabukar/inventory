@@ -29,6 +29,8 @@ export interface AppUser {
   organizationId: string | null;
   organizationName: string | null;
   hasStores: boolean | null;
+  /** Without stores: true = credit organization, false = direct sales. */
+  usesCreditBranches: boolean | null;
   billingEnabled: boolean | null;
   organizationLogoKey: string | null;
   organizationLogoUpdatedAt: string | null;
