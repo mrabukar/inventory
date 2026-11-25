@@ -15,6 +15,7 @@ import {
   type CurrentUserPayload,
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { PageMarks } from "../../common/decorators/page-access.decorator";
 import { CategoriesService } from "./categories.service";
 import { CreateCategoryDto } from "./dto/create-category.dto";
 import { UpdateCategoryDto } from "./dto/update-category.dto";
@@ -24,6 +25,8 @@ export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @Get()
+  // The categories page itself, and a lookup for every other page.
+  @PageMarks(["categories", "*"])
   findAll() {
     return this.categoriesService.findAll();
   }
