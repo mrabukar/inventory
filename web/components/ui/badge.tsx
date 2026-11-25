@@ -77,6 +77,9 @@ export function SupplyTypeBadge({
 }
 
 export function RoleBadge({ role }: { role: string }) {
+  if (role === "limited_user") {
+    return <Badge color="amber">Limited user</Badge>;
+  }
   const isAdmin = role === "admin";
   return (
     <Badge color={isAdmin ? "indigo" : "teal"}>
