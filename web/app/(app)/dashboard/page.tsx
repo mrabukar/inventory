@@ -6,5 +6,9 @@ import { ManagerDashboard } from "./manager-dashboard";
 export default function DashboardPage() {
   const user = useAppStore((s) => s.user);
   if (!user) return null;
-  return user.role === "admin" ? <AdminDashboard /> : <ManagerDashboard user={user} />;
+  return user.role === "admin" || user.role === "limited" ? (
+    <AdminDashboard />
+  ) : (
+    <ManagerDashboard user={user} />
+  );
 }
