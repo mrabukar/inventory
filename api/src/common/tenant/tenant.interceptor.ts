@@ -35,7 +35,11 @@ function resolveOrganizationId(
     return organizationId.trim();
   }
 
-  if (role === UserRole.admin || role === UserRole.branch_manager) {
+  if (
+    role === UserRole.admin ||
+    role === UserRole.branch_manager ||
+    role === UserRole.limited_user
+  ) {
     throw new ForbiddenException("Organization context is required");
   }
 
