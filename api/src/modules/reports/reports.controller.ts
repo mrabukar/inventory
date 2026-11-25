@@ -6,6 +6,7 @@ import {
   type CurrentUserPayload,
 } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { PageRead } from "../../common/decorators/page-access.decorator";
 import { ReportExportQueryDto } from "./dto/report-export-query.dto";
 import { ReportQueryDto } from "./dto/report-query.dto";
 import { ProductDistributionQueryDto } from "./dto/product-distribution-query.dto";
@@ -20,7 +21,7 @@ export class ReportsController {
   ) {}
 
   @Get("admin-dashboard")
-  @Roles(UserRole.admin)
+  @PageRead(["dashboard"])
   getAdminDashboard(
     @Query() query: ReportQueryDto,
     @CurrentUser() user: CurrentUserPayload,
@@ -35,7 +36,7 @@ export class ReportsController {
   }
 
   @Get("financial-summary")
-  @Roles(UserRole.admin, UserRole.branch_manager)
+  @PageRead(["financial"], UserRole.branch_manager)
   getFinancialSummary(
     @Query() query: ReportQueryDto,
     @CurrentUser() user: CurrentUserPayload,
@@ -44,13 +45,13 @@ export class ReportsController {
   }
 
   @Get("company-net-profit")
-  @Roles(UserRole.admin)
+  @PageRead(["financial", "dashboard"])
   getAllTimeCompanyNetProfit(@CurrentUser() user: CurrentUserPayload) {
     return this.reportsService.getAllTimeCompanyNetProfit(user);
   }
 
   @Get("financial-summary/export")
-  @Roles(UserRole.admin, UserRole.branch_manager)
+  @PageRead(["financial"], UserRole.branch_manager)
   async exportFinancialSummary(
     @Query() query: ReportExportQueryDto,
     @CurrentUser() user: CurrentUserPayload,
@@ -69,7 +70,7 @@ export class ReportsController {
   }
 
   @Get("product-distribution")
-  @Roles(UserRole.admin)
+  @PageRead(["dashboard"])
   getProductDistribution(
     @Query() query: ProductDistributionQueryDto,
     @CurrentUser() user: CurrentUserPayload,
@@ -78,7 +79,7 @@ export class ReportsController {
   }
 
   @Get("stock-report")
-  @Roles(UserRole.admin, UserRole.branch_manager)
+  @PageRead(["stock-report"], UserRole.branch_manager)
   getStockReport(
     @Query() query: ReportQueryDto,
     @CurrentUser() user: CurrentUserPayload,
@@ -87,7 +88,7 @@ export class ReportsController {
   }
 
   @Get("stock-report/export")
-  @Roles(UserRole.admin, UserRole.branch_manager)
+  @PageRead(["stock-report"], UserRole.branch_manager)
   async exportStockReport(
     @Query() query: ReportExportQueryDto,
     @CurrentUser() user: CurrentUserPayload,
