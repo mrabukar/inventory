@@ -1,6 +1,6 @@
 "use client";
 
-import { useViewBranchId } from "@/hooks/branch-view/use-branch-view";
+import { useReadOnlyView } from "@/hooks/branch-view/use-branch-view";
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 
@@ -23,7 +23,7 @@ import type {
 
 export default function CustomersPage() {
   // Looking at a credit branch is read-only.
-  const browsingBranch = Boolean(useViewBranchId());
+  const browsingBranch = useReadOnlyView();
   // A credit organization sells to nobody itself; its branches add customers.
   const creditOrg = useAppStore((s) => s.user?.usesCreditBranches === true);
   const addToast = useAppStore((s) => s.addToast);
