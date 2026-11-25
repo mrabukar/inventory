@@ -6,12 +6,13 @@ import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 
+import { OrganizationTypePicker } from "@/components/organization/organization-type-picker";
+import type { OrganizationType } from "@/lib/organization-type";
 import { OrganizationDomainSelect } from "@/components/organization/organization-domain-select";
 import { OrganizationLogoPicker } from "@/components/organization/organization-logo-picker";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { createOrganization } from "@/service/organizations/organizations";
 import { uploadOrganizationLogo } from "@/service/organizations/logo";
 import { useAppStore } from "@/store/app";
@@ -24,7 +25,7 @@ export default function NewOrganizationPage() {
   const addToast = useAppStore((s) => s.addToast);
   const addErrorToast = useAppStore((s) => s.addErrorToast);
   const [name, setName] = useState("");
-  const [hasStores, setHasStores] = useState(true);
+  const [type, setType] = useState<OrganizationType>("stores");
   const [domain, setDomain] = useState("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
 
@@ -32,7 +33,7 @@ export default function NewOrganizationPage() {
     mutationFn: async () => {
       const org = await createOrganization({
         name: name.trim(),
-        hasStores,
+        type,
         ...(domain.trim() ? { domain: domain.trim() } : undefined),
       });
       if (logoFile) {
@@ -108,21 +109,11 @@ export default function NewOrganizationPage() {
               </p>
             </div>
 
-            <label className="flex items-start gap-3 text-sm">
-              <Checkbox
-                className="mt-0.5"
-                checked={hasStores}
-                disabled={mutation.isPending}
-                onCheckedChange={(value) => setHasStores(value === true)}
-              />
-              <span>
-                <span className="font-medium">Uses stores and branch managers</span>
-                <span className="mt-1 block text-muted-foreground">
-                  Turn off for direct-sales organizations without store locations or
-                  branch managers.
-                </span>
-              </span>
-            </label>
+            <OrganizationTypePicker
+              value={type}
+              onChange={setType}
+              disabled={mutation.isPending}
+            />
           </div>
         </Card>
 
