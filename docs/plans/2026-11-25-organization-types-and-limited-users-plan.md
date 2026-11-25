@@ -1,6 +1,14 @@
 # Plan: organization types, branch selection on pages, limited users
 
-Date: 2026-11-25. Status: decisions agreed with the owner, nothing built.
+Date: 2026-11-25. Status: part 0 (security fixes) and part 1 (organization types)
+are built; parts 2 and 3 are not.
+
+Part 1 as built: `Organization.usesCreditBranches` (migration
+`20261125120000_organization_type`, which also turns billing on for organizations
+that already have credit branches). The API takes a single `type` on create and
+update. The admin of a credit organization can still correct old sales and collect
+old debts. Credited stock counts as sold in units sold, the monthly charts, top
+products and the stock report, for both the dashboard and the financial summary.
 
 Replaces the top bar switcher from `2026-11-24-credit-branch-browsing-plan.md`.
 The API work from that plan (branch scoping, read-only rules) stays.
