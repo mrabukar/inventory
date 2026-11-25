@@ -102,12 +102,12 @@ export class AuthSignUpHook {
     }
 
     if (role === UserRole.limited_user) {
-      // Only an admin creates one, and they start with no pages: an admin
-      // gives them pages next, through PATCH /users/:id.
+      // Only a signed-in admin creates one, and they start with no pages: an
+      // admin gives them pages next, through PATCH /users/:id. Bootstrap
+      // sign-up is for the first admin; it never opens this (a non-bootstrap
+      // request has already passed this check above).
       if (isBootstrap) {
-        throw new APIError("FORBIDDEN", {
-          message: "Limited users are created by an admin",
-        });
+        await this.requirePrivilegedSession(ctx);
       }
       if (storeId) {
         throw new APIError("BAD_REQUEST", {
@@ -163,7 +163,7 @@ export class AuthSignUpHook {
       );
     }
 
-    if (!isBootstrap && organizationId) {
+    if ((!isBootstrap || role === UserRole.limited_user) && organizationId) {
       await this.assertAdminMayAssignOrganization(ctx, organizationId);
     }
   }
