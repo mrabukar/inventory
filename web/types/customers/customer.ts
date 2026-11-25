@@ -11,6 +11,8 @@ export interface Customer {
   createdById: string;
   createdAt: string;
   updatedAt: string;
+  /** The credit branch this customer belongs to, if any. */
+  store?: { id: string; name: string } | null;
 }
 
 export interface CustomerListQuery {
