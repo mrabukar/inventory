@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { readsLikeAdmin } from "../../common/utils/admin-like.util";
 import {
   AuditAction,
   Customer,
@@ -162,7 +163,7 @@ export class CustomersService {
     customer: Customer,
     user: CurrentUserPayload,
   ): Promise<void> {
-    if (user.role === UserRole.admin || user.role === UserRole.super_admin) {
+    if (readsLikeAdmin(user.role) || user.role === UserRole.super_admin) {
       return;
     }
     const storeId = await this.creditBranchStoreIdFor(user);
